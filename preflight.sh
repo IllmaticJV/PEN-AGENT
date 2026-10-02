@@ -201,10 +201,10 @@ check_network_scanning() {
     else fail "netexec (nxc)" "pipx install netexec"; fi
 
     if p=$(find_pipx enum4linux-ng); then pass "enum4linux-ng" "$p"
-    else warn "enum4linux-ng" "pipx install enum4linux-ng"; fi
+    else warn "enum4linux-ng" "pipx install git+https://github.com/cddmp/enum4linux-ng (not on PyPI)"; fi
 
     if p=$(find_pipx manspider); then pass "manspider" "$p"
-    else warn "manspider" "pipx install manspider"; fi
+    else warn "manspider" "pipx install git+https://github.com/blacklanternsecurity/MANSPIDER"; fi
 
     if p=$(find_cmd snmpwalk); then pass "snmpwalk" "$p"
     else warn "snmpwalk" "sudo apt install snmp"; fi
@@ -242,7 +242,7 @@ check_web_testing() {
     else warn "XSStrike" "install and add xsstrike to PATH"; fi
 
     if p=$(find_pipx sstimap); then pass "sstimap" "$p"
-    else warn "sstimap" "pipx install sstimap"; fi
+    else warn "sstimap" "no PyPI package — clone vladko312/SSTImap and run sstimap.py"; fi
 
     if p=$(find_cmd tplmap || find_cmd tplmap.py); then pass "tplmap" "$p"
     else warn "tplmap" "install and add tplmap to PATH"; fi
@@ -270,10 +270,10 @@ check_web_testing() {
 
     if p=$(find_pipx jwt_tool jwt_tool); then pass "jwt-tool" "$p"
     elif p=$(find_cmd jwt_tool); then pass "jwt-tool" "$p"
-    else warn "jwt-tool" "pipx install jwt-tool"; fi
+    else warn "jwt-tool" "no PyPI package — clone ticarpi/jwt_tool and run jwt_tool.py"; fi
 
     if p=$(find_cmd domdig); then pass "domdig" "$p"
-    else warn "domdig" "npm install -g domdig"; fi
+    else warn "domdig" "not on npm — clone fcavallarin/domdig and npm install"; fi
 
     if p=$(find_cmd php_filter_chain_generator.py); then pass "php_filter_chain_gen" "$p"
     else warn "php_filter_chain_gen" "install and add php_filter_chain_generator.py to PATH"; fi
@@ -357,7 +357,7 @@ check_sccm_gpo() {
 
     local p
     if p=$(find_pipx sccmhunter); then pass "sccmhunter" "$p"
-    else warn "sccmhunter" "pipx install sccmhunter"; fi
+    else warn "sccmhunter" "no console script upstream — clone garrettfoster13/sccmhunter and run sccmhunter.py"; fi
 
     if p=$(find_cmd pxethiefy.py || find_cmd pxethiefy); then pass "pxethiefy" "$p"
     else warn "pxethiefy" "install and add pxethiefy to PATH"; fi
@@ -366,7 +366,7 @@ check_sccm_gpo() {
     else warn "pyGPOAbuse" "install and add pyGPOAbuse.py to PATH"; fi
 
     if p=$(find_pipx gpohound || find_cmd gpohound); then pass "GPOHound" "$p"
-    else warn "GPOHound" "pipx install gpohound"; fi
+    else warn "GPOHound" "pipx install git+https://github.com/cogiceo/GPOHound (not on PyPI)"; fi
 }
 
 check_pivoting() {
@@ -579,41 +579,56 @@ go_tool()   { as_owner env "GOBIN=$TOOLS_BIN" go install "$1"; }
 gem_tool()  { as_owner env "GEM_HOME=$TOOLS_GEMS" gem install --no-document --bindir "$TOOLS_BIN" "$1"; }
 npm_tool()  { as_owner npm install -g --prefix "$TOOLS_NPM" "$1"; }
 
-git_wrap() {  # repo dir entrypoint... : clone to $TOOLS_REPOS/<dir>, wrap python entrypoints into bin
+git_wrap() {  # repo dir entrypoint[:cmdname]... : clone to $TOOLS_REPOS/<dir>, wrap entrypoints into bin
     local repo="$1" name="$2"; shift 2
     [[ -n "$DRYRUN" ]] && { echo "[dry] git clone https://github.com/$repo + wrap: $*" >>"$ILOG"; return 0; }
     local dir="$TOOLS_REPOS/$name"
     if [[ -d "$dir/.git" ]]; then (cd "$dir" && as_owner git pull -q) || true
     else as_owner git clone --depth 1 -q "https://github.com/$repo" "$dir"; fi
     # install requirements if present (into a venv-free user install is messy; rely on system libs)
+    [[ -f "$dir/package.json" ]] && as_owner npm --prefix "$dir" install --no-audit --no-fund -q
     local ep
     for ep in "$@"; do
-        local base; base="$(basename "$ep")"
-        local runner="python3"; [[ "$ep" == *.rb ]] && runner="ruby"; [[ "$ep" == *.jar ]] && runner="java -jar"
-        { echo '#!/usr/bin/env bash'; echo "exec $runner \"$dir/$ep\" \"\$@\""; } > "$TOOLS_BIN/$base"
-        chmod +x "$TOOLS_BIN/$base"
+        local src="${ep%%:*}" cmd
+        [[ "$ep" == *:* ]] && cmd="${ep##*:}" || cmd="$(basename "$src")"
+        local runner="python3"
+        case "$src" in
+            *.rb)  runner="ruby" ;;
+            *.jar) runner="java -jar" ;;
+            *.js)  runner="node" ;;
+        esac
+        { echo '#!/usr/bin/env bash'; echo "exec $runner \"$dir/$src\" \"\$@\""; } > "$TOOLS_BIN/$cmd"
+        chmod +x "$TOOLS_BIN/$cmd"
     done
 }
 
-gh_release_bin() {  # repo asset-grep dest-name : download matching latest-release asset to bin
-    local repo="$1" pat="$2" dest="$3" url
-    [[ -n "$DRYRUN" ]] && { echo "[dry] gh release $repo [$pat] -> $TOOLS_BIN/$dest" >>"$ILOG"; return 0; }
+gh_release_bin() {  # repo asset-grep dest-name [destdir] : download matching latest-release asset
+    local repo="$1" pat="$2" dest="$3" destdir="${4:-$TOOLS_BIN}" url
+    [[ -n "$DRYRUN" ]] && { echo "[dry] gh release $repo [$pat] -> $destdir/$dest" >>"$ILOG"; return 0; }
+    _sudo mkdir -p "$destdir"
     url="$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" \
         | grep -oE '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]+"' \
         | cut -d'"' -f4 | grep -iE "$pat" | head -1)"
     [[ -n "$url" ]] || return 1
     if [[ "$url" == *.gz && "$url" != *.tar.gz ]]; then
-        curl -fsSL "$url" | gunzip -c > "$TOOLS_BIN/$dest"
+        curl -fsSL "$url" | gunzip -c > "$destdir/$dest"
     elif [[ "$url" == *.tar.gz || "$url" == *.tgz ]]; then
         local tmp; tmp="$(mktemp -d)"; curl -fsSL "$url" | tar -xz -C "$tmp"
         local found; found="$(find "$tmp" -type f -name "$dest" | head -1)"
         [[ -z "$found" ]] && found="$(find "$tmp" -maxdepth 2 -type f -perm -u+x ! -name '*.txt' ! -name '*.md' | head -1)"
-        [[ -n "$found" ]] && cp "$found" "$TOOLS_BIN/$dest"; rm -rf "$tmp"
+        [[ -n "$found" ]] && cp "$found" "$destdir/$dest"; rm -rf "$tmp"
+    elif [[ "$url" == *.zip ]]; then
+        local tmp; tmp="$(mktemp -d)"
+        curl -fsSL "$url" -o "$tmp/a.zip" && unzip -qo "$tmp/a.zip" -d "$tmp"
+        # prefer an x64 build when the archive ships both architectures
+        local found; found="$(find "$tmp" -type f -iname "$dest" | sort | grep -iE '(^|/)(x64|64)(/|$|[^0-9])' | head -1)"
+        [[ -z "$found" ]] && found="$(find "$tmp" -type f -iname "$dest" | head -1)"
+        [[ -n "$found" ]] && cp "$found" "$destdir/$dest"; rm -rf "$tmp"
     else
-        curl -fsSL "$url" -o "$TOOLS_BIN/$dest"
+        curl -fsSL "$url" -o "$destdir/$dest"
     fi
-    chmod +x "$TOOLS_BIN/$dest" 2>/dev/null || true
-    [[ -s "$TOOLS_BIN/$dest" ]]
+    chmod +x "$destdir/$dest" 2>/dev/null || true
+    [[ -s "$destdir/$dest" ]]
 }
 gh_raw() {
     [[ -n "$DRYRUN" ]] && { echo "[dry] raw $1 -> $TOOLS_BIN/$2" >>"$ILOG"; return 0; }
@@ -646,6 +661,7 @@ ensure_base() {  # toolchains many installs need
     _try "has_cmd git"   "git"   apt_pkg git
     _try "has_cmd pipx"  "pipx"  apt_pkg pipx
     _try "has_cmd go"    "go (golang)" apt_pkg golang-go
+    _try "has_cmd unzip" "unzip" apt_pkg unzip
 }
 
 install_uv()     { as_owner env "UV_INSTALL_DIR=$TOOLS_BIN" sh -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'; }
@@ -712,24 +728,23 @@ install_optional() {
               "npm:npm" "exiftool:libimage-exiftool-perl" "x86_64-w64-mingw32-gcc:mingw-w64"; do
         _try "has_cmd ${pb%%:*}" "${pb##*:}" apt_pkg "${pb##*:}"
     done
-    # pipx
-    for pp in "enum4linux-ng:enum4linux-ng:x" "manspider:manspider:manspider" \
-              "git-dumper:git-dumper:git-dumper" "arjun:arjun:arjun" "sstimap:sstimap:sstimap" \
+    # pipx — PyPI packages (plain name) or unpublished tools installed straight from their repo (git+URL)
+    for pp in "enum4linux-ng:enum4linux-ng:git+https://github.com/cddmp/enum4linux-ng" \
+              "manspider:manspider:git+https://github.com/blacklanternsecurity/MANSPIDER" \
+              "git-dumper:git-dumper:git-dumper" "arjun:arjun:arjun" \
               "fenjing:fenjing:fenjing" "badsecrets:badsecrets:badsecrets" "pywhisker:pywhisker:pywhisker" \
-              "sccmhunter:sccmhunter:sccmhunter" "gpohound:gpohound:gpohound" "wesng:wesng:wes" \
-              "jwt-tool:jwt-tool:jwt_tool"; do
-        IFS=: read -r bin pkg _ <<<"$pp"
-        _try "has_cmd $bin" "$pkg" pipx_tool "$pkg"
+              "gpohound:gpohound:git+https://github.com/cogiceo/GPOHound" "wesng:wesng:wesng"; do
+        IFS=: read -r bin label spec <<<"$pp"
+        _try "has_cmd $bin" "$label" pipx_tool "$spec"
     done
     # go
     _try "has_cmd dalfox"            "dalfox"            go_tool github.com/hahwul/dalfox/v2@latest
     _try "has_cmd TInjA"             "TInjA"             go_tool github.com/Hackmanit/TInjA@latest
     _try "has_cmd interactsh-client" "interactsh-client" go_tool github.com/projectdiscovery/interactsh/cmd/interactsh-client@latest
     _try "has_cmd xxeserv"           "xxeserv"           go_tool github.com/staaldraad/xxeserv@latest
-    # gem / npm
+    # gem
     _try "has_cmd wpscan"  "wpscan" gem_tool wpscan
-    _try "has_cmd domdig"  "domdig" npm_tool domdig
-    # git-clone python/ruby/php toolkits
+    # git-clone python/ruby/php/node toolkits — no PyPI/npm package exists upstream, so clone + wrap instead of pipx/npm
     _try "has_cmd xsstrike.py"       "XSStrike"       git_wrap s0md3v/XSStrike XSStrike xsstrike.py
     _try "has_cmd tplmap.py"         "tplmap"         git_wrap epinna/tplmap tplmap tplmap.py
     _try "has_cmd ssrfmap.py"        "SSRFmap"        git_wrap swisskyrepo/SSRFmap SSRFmap ssrfmap.py
@@ -742,6 +757,14 @@ install_optional() {
     _try "has_cmd dfscoerce.py"      "DFSCoerce"      git_wrap Wh04m1001/DFSCoerce DFSCoerce dfscoerce.py
     _try "has_cmd gMSADumper.py"     "gMSADumper"     git_wrap micahvandeusen/gMSADumper gMSADumper gMSADumper.py
     _try "has_cmd pygpoabuse.py"     "pyGPOAbuse"     git_wrap Hackndo/pyGPOAbuse pyGPOAbuse pygpoabuse.py
+    # sstimap/sccmhunter/jwt_tool ship no setup.py/pyproject.toml (sccmhunter's has none of the
+    # [project.scripts] pipx needs either) — they're only ever run as "python3 <script>.py" from a
+    # clone, so wrap them like the AD scripts above instead of pipx.
+    _try "has_cmd sstimap"           "sstimap"        git_wrap vladko312/SSTImap sstimap sstimap.py:sstimap
+    _try "has_cmd sccmhunter"        "sccmhunter"     git_wrap garrettfoster13/sccmhunter sccmhunter sccmhunter.py:sccmhunter
+    _try "has_cmd jwt_tool"          "jwt-tool"       git_wrap ticarpi/jwt_tool jwt_tool jwt_tool.py:jwt_tool
+    # domdig (Node) isn't published to npm either — clone + npm install + wrap
+    _try "has_cmd domdig"            "domdig"         git_wrap fcavallarin/domdig domdig domdig.js:domdig
     # release binaries
     _try "has_cmd chisel"            "chisel"         gh_release_bin jpillora/chisel "linux_${RELARCH}.gz\$" chisel
     _try "has_cmd ligolo-agent"      "ligolo-ng (agent+proxy)" gh_release_bin nicocha30/ligolo-ng "linux_${RELARCH}.tar.gz\$" ligolo-agent
@@ -751,11 +774,21 @@ install_optional() {
     _try "[[ -x $TOOLS_BIN/lse.sh ]]"  "lse.sh"  gh_raw diego-treitos/linux-smart-enumeration/master/lse.sh lse.sh
     _try "[[ -x $TOOLS_BIN/deepce.sh ]]" "deepce.sh" gh_raw stealthcopter/deepce/main/deepce.sh deepce.sh
     _try "[[ -x $TOOLS_BIN/linux-exploit-suggester.sh ]]" "linux-exploit-suggester" gh_raw The-Z-Labs/linux-exploit-suggester/master/linux-exploit-suggester.sh linux-exploit-suggester.sh
-    # Known-good but binary/AV-sensitive or build-required → flag as manual
-    for m in "ysoserial.jar (Java gadget chains)" "marshalsec (build from source)" \
-             "winPEAS.exe / mimikatz.exe / Rubeus.exe (Windows, AV-sensitive)" \
-             "Potato privesc binaries (GodPotato/PrintSpoofer/JuicyPotatoNG/SigmaPotato)" \
-             "RunasCs.exe"; do
+    # Windows/Java target-side binaries — official upstream repos that publish ready-made releases
+    _try "[[ -x $TOOLS_BIN/ysoserial.jar ]]"   "ysoserial.jar"   gh_release_bin frohoff/ysoserial "ysoserial-all\.jar\$" ysoserial.jar
+    _try "has_cmd winpeas.exe"                 "winPEAS.exe"     gh_release_bin carlospolop/PEASS-ng "winPEASx64\.exe\$" winpeas.exe
+    _try "has_cmd mimikatz.exe"                "mimikatz.exe"    gh_release_bin gentilkiwi/mimikatz "mimikatz_trunk\.zip\$" mimikatz.exe
+    _try "has_cmd RunasCs.exe"                 "RunasCs.exe"     gh_release_bin antonioCoco/RunasCs "RunasCs\.zip\$" RunasCs.exe
+    local potato_dir="/usr/share/windows-binaries/potatoes"
+    _sudo mkdir -p "$potato_dir"
+    _try "[[ -f $potato_dir/GodPotato-NET4.exe ]]"  "GodPotato-NET4.exe"  gh_release_bin BeichenDream/GodPotato "GodPotato-NET4\.exe\$" GodPotato-NET4.exe "$potato_dir"
+    _try "[[ -f $potato_dir/PrintSpoofer64.exe ]]"  "PrintSpoofer64.exe"  gh_release_bin itm4n/PrintSpoofer "PrintSpoofer64\.exe\$" PrintSpoofer64.exe "$potato_dir"
+    _try "[[ -f $potato_dir/JuicyPotatoNG.exe ]]"   "JuicyPotatoNG.exe"   gh_release_bin antonioCoco/JuicyPotatoNG "JuicyPotatoNG\.zip\$" JuicyPotatoNG.exe "$potato_dir"
+    _try "[[ -f $potato_dir/SigmaPotato.exe ]]"     "SigmaPotato.exe"     gh_release_bin tylerdotrar/SigmaPotato "SigmaPotato\.exe\$" SigmaPotato.exe "$potato_dir"
+    _sudo chown -R "$TOOLS_OWNER":"$(id -gn "$TOOLS_OWNER" 2>/dev/null || echo "$TOOLS_OWNER")" "$potato_dir" 2>/dev/null || true
+    # No official pre-built binary exists upstream (build-from-source / AV-sensitive by design) → manual
+    for m in "Rubeus.exe (GhostPack ships no binary releases; build with msbuild, or pull from a trusted AV-sensitive mirror)" \
+             "marshalsec (build from source — no releases published)"; do
         _manual "$m"
     done
 }
