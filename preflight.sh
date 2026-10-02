@@ -38,16 +38,20 @@ INSTALL_MODE=false
 INSTALL_OPTIONAL=false
 
 # ── Tool directory ────────────────────────────────────────────────────────────
-# Downloaded / non-apt tools (go, pipx, git-clone, release binaries) live under a
-# single hardcoded directory so the attackbox stays clean. apt/system packages
-# install normally into /usr/bin and are found via PATH. This directory's bin is
-# prepended to PATH so checks find tools installed here first.
+# Downloaded / non-apt tools (go, pipx, gem, npm, git-clone, release binaries,
+# uv) live under a single hardcoded directory so the attackbox stays clean.
+# apt/system packages install normally into /usr/bin and are found via PATH —
+# that's intentional and left alone. This directory's bins are prepended to
+# PATH so checks find tools installed here first.
 TOOLS_DIR="${PEN_AGENT_TOOLS_DIR:-/opt/PEN-AGENT/tools}"
 TOOLS_BIN="${TOOLS_DIR}/bin"
 TOOLS_REPOS="${TOOLS_DIR}/repos"
 TOOLS_PIPX="${TOOLS_DIR}/pipx"
+TOOLS_GEMS="${TOOLS_DIR}/gems"
+TOOLS_NPM="${TOOLS_DIR}/npm"
+TOOLS_NPM_BIN="${TOOLS_NPM}/bin"
 PROFILE_D="/etc/profile.d/pen-agent-tools.sh"
-export PATH="${TOOLS_BIN}:${PATH}"
+export PATH="${TOOLS_BIN}:${TOOLS_NPM_BIN}:${PATH}"
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -572,8 +576,8 @@ apt_pkg() {  # apt install (idempotent-ish); $1 = package
 }
 pipx_tool() { as_owner env "PIPX_HOME=$TOOLS_PIPX" "PIPX_BIN_DIR=$TOOLS_BIN" pipx install --force "$1"; }
 go_tool()   { as_owner env "GOBIN=$TOOLS_BIN" go install "$1"; }
-gem_tool()  { _sudo gem install --no-document "$1"; }
-npm_tool()  { _sudo npm install -g "$1"; }
+gem_tool()  { as_owner env "GEM_HOME=$TOOLS_GEMS" gem install --no-document --bindir "$TOOLS_BIN" "$1"; }
+npm_tool()  { as_owner npm install -g --prefix "$TOOLS_NPM" "$1"; }
 
 git_wrap() {  # repo dir entrypoint... : clone to $TOOLS_REPOS/<dir>, wrap python entrypoints into bin
     local repo="$1" name="$2"; shift 2
@@ -625,12 +629,15 @@ _try() {  # present-test label method arg...  — skip if present, else install
 _manual() { istep manual "$1"; IMANUAL+=("$1"); }
 
 ensure_tooldir() {
-    _sudo mkdir -p "$TOOLS_BIN" "$TOOLS_REPOS" "$TOOLS_PIPX"
+    _sudo mkdir -p "$TOOLS_BIN" "$TOOLS_REPOS" "$TOOLS_PIPX" "$TOOLS_GEMS" "$TOOLS_NPM"
     _sudo chown -R "$TOOLS_OWNER":"$(id -gn "$TOOLS_OWNER" 2>/dev/null || echo "$TOOLS_OWNER")" "$TOOLS_DIR"
-    # Persist PATH for future shells
+    # Persist PATH/env for future shells
     if [[ ! -f "$PROFILE_D" ]]; then
-        echo "export PATH=\"$TOOLS_BIN:\$PATH\"" | _sudo tee "$PROFILE_D" >/dev/null
-        iecho "  ${DIM}PATH entry written to $PROFILE_D (new shells pick it up)${RESET}"
+        {
+            echo "export PATH=\"$TOOLS_BIN:$TOOLS_NPM_BIN:\$PATH\""
+            echo "export GEM_HOME=\"$TOOLS_GEMS\""
+        } | _sudo tee "$PROFILE_D" >/dev/null
+        iecho "  ${DIM}PATH/env entries written to $PROFILE_D (new shells pick it up)${RESET}"
     fi
 }
 
@@ -641,7 +648,7 @@ ensure_base() {  # toolchains many installs need
     _try "has_cmd go"    "go (golang)" apt_pkg golang-go
 }
 
-install_uv()     { as_owner sh -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'; }
+install_uv()     { as_owner env "UV_INSTALL_DIR=$TOOLS_BIN" sh -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'; }
 install_docker() {
     apt_pkg docker.io || return 1
     _sudo systemctl enable --now docker 2>/dev/null || true
