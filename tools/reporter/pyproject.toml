@@ -1,0 +1,16 @@
+[project]
+name = "pen-agent-reporter"
+version = "0.1.0"
+description = "OffSec-style finding schema + report exporter for PEN-AGENT engagements"
+requires-python = ">=3.10"
+dependencies = [
+    "jsonschema>=4.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

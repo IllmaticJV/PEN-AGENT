@@ -1,0 +1,35 @@
+# Engagement runtime state & secrets (per-engagement, never commit)
+engagement/
+*.ccache
+*.pfx
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtualenvs / tool caches
+.venv/
+venv/
+**/.venv/
+.chromadb/
+**/.chromadb/
+
+# Node
+node_modules/
+
+# Local Claude Code overrides (machine-specific)
+.claude/settings.local.json
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Scratch
+/tmp/
+*.log

@@ -1,0 +1,17 @@
+[project]
+name = "pen-agent-metasploit-server"
+version = "0.1.0"
+description = "MCP server wrapping the Metasploit Framework RPC API for PEN-AGENT"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.4.1",
+    "pymetasploit3>=1.0.6",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://PEN-AGENT/finding.schema.json",
+  "title": "PEN-AGENT OffSec-style finding report",
+  "description": "Importable finding format for PEN-AGENT / OSAI engagements. Every finding MUST carry a complete, ordered, command-by-command reproduction path and a verification oracle so a human can independently reproduce and confirm it.",
+  "type": "object",
+  "required": ["report", "findings"],
+  "additionalProperties": false,
+  "properties": {
+    "report": {
+      "type": "object",
+      "required": ["engagement", "generated_at", "tool", "schema_version"],
+      "additionalProperties": true,
+      "properties": {
+        "engagement": { "type": "string", "description": "Engagement name." },
+        "generated_at": { "type": "string", "description": "ISO-8601 UTC timestamp." },
+        "tool": { "type": "string", "description": "Producing tool, e.g. PEN-AGENT." },
+        "schema_version": { "type": "string" },
+        "scope": {
+          "type": "array",
+          "description": "In-scope targets (mirrors engagement/scope.allow).",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "counts_by_severity": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    }
+  },
+  "$defs": {
+    "severity": {
+      "type": "string",
+      "enum": ["info", "low", "medium", "high", "critical"]
+    },
+    "confidence": {
+      "type": "string",
+      "description": "How sure we are the issue is real. 'confirmed' requires an objective oracle.",
+      "enum": ["confirmed", "high", "medium", "low", "speculative"]
+    },
+    "verification": {
+      "type": "object",
+      "description": "How success was PROVEN, independent of the model's narration. Required so a reviewer can trust the verdict.",
+      "required": ["status", "oracle_type", "oracle"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["confirmed", "plausible", "refuted"],
+          "description": "confirmed = objective oracle fired; plausible = judgement only; refuted = did not work."
+        },
+        "oracle_type": {
+          "type": "string",
+          "enum": [
+            "out-of-band-callback",
+            "output-match",
+            "side-effect",
+            "exfiltrated-secret",
+            "code-execution",
+            "state-change",
+            "manual-review",
+            "model-judgement"
+          ],
+          "description": "The KIND of proof. 'model-judgement' alone must not be used with status 'confirmed'."
+        },
+        "oracle": {
+          "type": "string",
+          "description": "Concrete description of the proof, e.g. 'HTTP callback to http://ATTACKBOX/cb?d=... received at 12:04:11Z (see evidence oob-hit.log)'."
+        },
+        "verified_by": {
+          "type": "string",
+          "description": "Agent/skill/human that performed verification."
+        },
+        "false_positive_checks": {
+          "type": "array",
+          "description": "What was ruled out (e.g. 'confirmed the string is not in the system prompt by default', 'negative control query returned nothing').",
+          "items": { "type": "string" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "confirmed" } } },
+          "then": {
+            "properties": {
+              "oracle_type": { "not": { "const": "model-judgement" } }
+            }
+          }
+        }
+      ]
+    },
+    "classification": {
+      "type": "object",
+      "description": "Vulnerability taxonomy mappings.",
+      "additionalProperties": false,
+      "properties": {
+        "category": { "type": "string", "description": "Short class, e.g. 'prompt-injection', 'rce', 'ssrf'." },
+        "cwe": { "type": "array", "items": { "type": "string" }, "description": "e.g. ['CWE-77']." },
+        "owasp_llm": { "type": "array", "items": { "type": "string" }, "description": "e.g. ['LLM01:2025 Prompt Injection']." },
+        "mitre_atlas": { "type": "array", "items": { "type": "string" }, "description": "e.g. ['AML.T0051 LLM Prompt Injection']." },
+        "ai300_module": { "type": "integer", "minimum": 1, "maximum": 11, "description": "OffSec AI-300 syllabus module this maps to." }
+      }
+    },
+    "affected": {
+      "type": "object",
+      "required": ["targets"],
+      "additionalProperties": false,
+      "properties": {
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "host": { "type": "string" },
+              "port": { "type": "integer" },
+              "url": { "type": "string" },
+              "component": { "type": "string", "description": "e.g. 'support chatbot', 'RAG ingestion', 'mcp:filesystem tool', 'Ray dashboard'." }
+            }
+          }
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "description": "One reproduction step. MUST be runnable by a human as-is. Prefer an exact command; for UI/chat actions give the literal action and payload.",
+      "required": ["step", "instruction", "expected_result"],
+      "additionalProperties": false,
+      "properties": {
+        "step": { "type": "integer", "minimum": 1, "description": "1-based order." },
+        "instruction": { "type": "string", "description": "What to do, in plain language." },
+        "command": { "type": "string", "description": "The EXACT command the agent ran (copy-pasteable). Use placeholders like ATTACKBOX only for operator-specific values and define them in the finding." },
+        "tool": {
+          "type": "string",
+          "description": "Execution context.",
+          "enum": ["bash", "curl", "browser", "mcp:nmap-server", "mcp:shell-server", "mcp:metasploit-server", "mcp:browser-server", "mcp:rdp-server", "http", "ui", "other"]
+        },
+        "payload": { "type": "string", "description": "Literal payload/prompt sent, when the 'command' is a request carrying attacker input (e.g. the injection string)." },
+        "target": { "type": "string", "description": "Host/URL the step acts on." },
+        "expected_result": { "type": "string", "description": "What a reviewer should observe if the step works." },
+        "actual_result": { "type": "string", "description": "What the agent actually observed (verbatim excerpt where possible)." },
+        "evidence_ref": { "type": "string", "description": "Path under engagement/evidence/ holding this step's raw output/transcript/screenshot." }
+      }
+    },
+    "evidence_item": {
+      "type": "object",
+      "required": ["type", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["output", "transcript", "request-response", "screenshot", "file", "pcap", "log"] },
+        "path": { "type": "string", "description": "Path under engagement/evidence/." },
+        "description": { "type": "string" },
+        "sha256": { "type": "string" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": [
+        "id", "title", "severity", "confidence", "verification",
+        "affected", "summary", "impact", "steps_to_reproduce", "remediation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "Stable finding id, e.g. 'RR-2026-001'." },
+        "title": { "type": "string" },
+        "state_vuln_id": { "type": "integer", "description": "Link to state.db vulns.id, when applicable." },
+        "severity": { "$ref": "#/$defs/severity" },
+        "cvss": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "version": { "type": "string", "description": "e.g. '3.1'." },
+            "vector": { "type": "string", "description": "e.g. 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N'." },
+            "score": { "type": "number", "minimum": 0, "maximum": 10 }
+          }
+        },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "verification": { "$ref": "#/$defs/verification" },
+        "classification": { "$ref": "#/$defs/classification" },
+        "affected": { "$ref": "#/$defs/affected" },
+        "summary": { "type": "string", "description": "What the vulnerability is." },
+        "impact": { "type": "string", "description": "What an attacker gains / business impact." },
+        "prerequisites": { "type": "string", "description": "Access/position/conditions needed to reproduce." },
+        "steps_to_reproduce": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Ordered, complete exploit path. Every command the agent ran to reach the objective, in order, copy-pasteable.",
+          "items": { "$ref": "#/$defs/step" }
+        },
+        "payloads": {
+          "type": "array",
+          "description": "Literal payloads/prompts used (collected for quick reference).",
+          "items": { "type": "string" }
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence_item" }
+        },
+        "remediation": { "type": "string" },
+        "references": { "type": "array", "items": { "type": "string" } },
+        "timeline": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "discovered_at": { "type": "string" },
+            "reproduced_at": { "type": "string" }
+          }
+        },
+        "discovered_by": { "type": "string", "description": "Agent/skill that found it." },
+        "placeholders": {
+          "type": "object",
+          "description": "Operator-specific values used in commands (e.g. ATTACKBOX -> 10.10.14.5), so steps are fully reproducible.",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    }
+  }
+}
