@@ -78,7 +78,60 @@ The installer runs these steps:
 
 **6. Browser setup** — Installs Chromium via Playwright (~150MB) for headless browser automation.
 
-**7. Config verification** — Checks that `.mcp.json` and `.claude/settings.json` are properly configured.
+**7. Config verification** — Checks that `.mcp.json` and `.claude/settings.json` are properly configured. `.mcp.json` ships in the repo; `.claude/settings.json` does not — Claude Code won't let a session write its own permission file (for good reason), so you create it once yourself. See [Permissions](#permissions).
+
+### Permissions
+
+Create `.claude/settings.json` at the repo root (it's not committed, and never
+will be — see above):
+
+```json
+{
+  "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" },
+  "enableAllProjectMcpServers": true,
+  "permissions": {
+    "allow": [
+      "mcp__skill-router__*", "mcp__nmap-server__*", "mcp__shell-server__*",
+      "mcp__browser-server__*", "mcp__rdp-server__*", "mcp__state__*",
+      "mcp__metasploit-server__*"
+    ],
+    "deny": ["Bash(sudo *)", "Bash(rm -rf *)"]
+  }
+}
+```
+
+This does two things: enables the agent-teams experimental flag the
+orchestrator requires (see [Agent Teams](#agent-teams) below), and
+pre-approves every MCP tool PEN-AGENT uses so **standard permission mode is
+usable without `--yolo`**. Extend `allow` with specific tool invocations you
+approve often — see `/fewer-permission-prompts` — to cut prompt friction
+further without resorting to `--dangerously-skip-permissions`.
+
+**Prefer standard mode over `--yolo` for real engagements.** `--yolo` removes
+Claude Code's own permission prompts — and with them, the human approval step
+that would otherwise interrupt a run before it compounds. What's left
+evaluating offensive-tool chains is Claude Code's own safety classifiers
+(separate from PEN-AGENT; this project doesn't configure them), which get
+noticeably stricter the more a session's actions pattern-match sustained
+multi-host compromise. If a session breaks down partway through a multi-host
+engagement, try dropping `--yolo` first. PEN-AGENT already gates every task
+assignment on `AskUserQuestion` operator approval, so standard mode mostly
+adds a few Bash prompts per task, not a second approval for the same
+decision.
+
+### Agent Teams
+
+PEN-AGENT's orchestrator (`/pen-agent-ctf`) uses [Claude Code agent
+teams](https://code.claude.com/docs/en/agent-teams) — `TeamCreate`,
+`Agent(team_name=...)`, persistent peer `SendMessage`. This is an experimental
+CLI feature, enabled by the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var
+above, and it is **not available in every Claude Code surface** — hosted/cloud
+sessions in particular may not expose `TeamCreate` or the `team_name`
+parameter on `Agent` at all, regardless of settings. Run PEN-AGENT from a
+local Claude Code CLI session (an isolated VM or dedicated pentesting
+machine — see [Prerequisites](#prerequisites)). For split-pane teammate
+visibility, start Claude Code inside a `tmux` session; without tmux, teammates
+run in in-process mode instead (cycle through them with Shift+Down).
 
 ### Attackbox dependencies
 
