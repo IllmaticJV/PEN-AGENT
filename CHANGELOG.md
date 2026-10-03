@@ -5,6 +5,17 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-03
 
+### Changed
+
+- **Refactored README.md** — getting-started commands and interaction first,
+  explanatory content ("what this is", architecture tables, disclaimer) moved
+  below a divider at the bottom and condensed.
+- **Merged the two operator-tool READMEs into the root README.md.**
+  `operator/state-viewer/README.md` and `operator/msf-console/README.md` are
+  deleted — a single README only, no fractured per-tool docs for these two.
+  `tools/*/README.md` (the MCP servers) are unaffected; that rule still
+  applies.
+
 ### Fixed
 
 - **`.mcp.json` now ships in the repo.** It was referenced throughout
