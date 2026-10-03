@@ -232,6 +232,14 @@ When tools fail on hostname resolution, the orchestrator follows the same hostna
 bash operator/state-viewer/start.sh
 ```
 
+**Metasploit operator console** — if the engagement is using Metasploit C2,
+start the live session/job viewer + interactive msfconsole (same shared
+`msfrpcd` the `metasploit-server` MCP drives):
+
+```bash
+bash operator/msf-console/start.sh
+```
+
 Teammates communicate findings directly via peer-to-peer messaging and write to state.db for durability. No event watcher needed — teammate messages are the notification channel.
 
 See [Dashboard and Monitoring](dashboard-and-monitoring.md) for full details.

@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-03
+
+### Added
+
+- **Metasploit operator console** (`operator/msf-console/`) — web dashboard
+  giving the human operator a live session/job list plus a real, interactive
+  msfconsole on the same shared `msfrpcd` instance the `metasploit-server`
+  MCP drives. Same shape as `operator/state-viewer` (stdlib HTTP server,
+  inline HTML/JS, SSE live updates) and shares its auth token. Start with
+  `bash operator/msf-console/start.sh` → `http://127.0.0.1:8100`.
+
 ## 2026-10-02 — Initial release
 
 Autonomous offensive-security assessment toolkit for Claude Code, for CTF/lab

@@ -594,6 +594,16 @@ Then open http://127.0.0.1:8099 to see the access chain graph, targets,
 credentials, and assessment progress update live as teammates work.
 ```
 
+If the shell backend is Metasploit (PEN_AGENT_MSF_AVAILABLE=1), also mention
+the operator console:
+```
+Tip: Metasploit is the C2 backend this run. For a live view of sessions/jobs
+and a real msfconsole on the same shared instance (interact with any session
+the agent opens), start:
+  bash operator/msf-console/start.sh
+Then open http://127.0.0.1:8100.
+```
+
 ## Step 2: Reconnaissance
 
 ### Network Recon

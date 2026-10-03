@@ -81,6 +81,16 @@ If `engagement/msfrpc.yaml` is absent or msfrpcd is unreachable, all tools
 return a clear error directing the operator to start it. The server still binds
 its SSE port — it just can't reach Metasploit without a running daemon.
 
+## Operator Visibility
+
+`operator/msf-console/` connects to the same `msfrpcd` daemon (same
+`engagement/msfrpc.yaml`) and gives the human operator a live session/job
+list plus a real, interactive msfconsole on that shared Framework instance —
+`sessions -i <id>` there reaches whatever the agent opened here, live, and
+anything run from it is visible to this server's next `list_sessions()`/
+`list_jobs()` call. `bash operator/msf-console/start.sh` →
+`http://127.0.0.1:8100`.
+
 ## HTTP Endpoints
 
 | Endpoint | Description |
