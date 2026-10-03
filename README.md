@@ -117,16 +117,61 @@ for the full tool list.
 
 ### Agent teams
 
-PEN-AGENT uses [Claude Code agent teams](https://code.claude.com/docs/en/agent-teams).
-The repo's `.claude/settings.json` already enables the experimental flag — no
-manual setup. For split-pane teammate visibility, start Claude Code inside a
-`tmux` session.
+PEN-AGENT uses [Claude Code agent teams](https://code.claude.com/docs/en/agent-teams),
+an experimental CLI feature — not available in every Claude Code surface (e.g.
+hosted/cloud sessions don't expose `TeamCreate` or `Agent(team_name=...)`).
+Run PEN-AGENT from a local Claude Code CLI session (VM or dedicated pentesting
+machine), with `.claude/settings.json` at the repo root enabling the flag — see
+[Permissions](#permissions) below, which `.mcp.json` ships with but
+`.claude/settings.json` does not (Claude Code won't let a session write its own
+permission file, for good reason — you create it once). For split-pane
+teammate visibility, start Claude Code inside a `tmux` session.
+
+## Permissions
+
+`.mcp.json` ships in the repo. `.claude/settings.json` does not (and can't be
+auto-generated for the reason above) — create it once at the repo root:
+
+```json
+{
+  "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" },
+  "enableAllProjectMcpServers": true,
+  "permissions": {
+    "allow": [
+      "mcp__skill-router__*", "mcp__nmap-server__*", "mcp__shell-server__*",
+      "mcp__browser-server__*", "mcp__rdp-server__*", "mcp__state__*",
+      "mcp__metasploit-server__*"
+    ],
+    "deny": ["Bash(sudo *)", "Bash(rm -rf *)"]
+  }
+}
+```
+
+This enables agent teams and pre-approves every MCP tool PEN-AGENT uses, so
+**standard permission mode works without `--yolo`** — each teammate's Bash
+calls (nmap, hydra, impacket, etc.) still get a normal approval prompt, but
+you're not reflexively reaching for `--dangerously-skip-permissions` just to
+stop MCP tools from prompting every call.
+
+**Prefer standard mode over `--yolo` for real engagements.** `--yolo` disables
+Claude Code's own permission prompts entirely, which also removes the human
+approval step that would otherwise interrupt a run before it compounds —
+without it, Claude Code's own safety classifiers (separate from PEN-AGENT, not
+something this project configures) are the only thing left evaluating
+offensive-tool chains, and they get noticeably stricter the more a session's
+actions pattern-match sustained multi-host compromise. If you're seeing
+sessions break partway through a multi-host engagement, try dropping `--yolo`
+first — the "OPERATOR APPROVAL REQUIRED" gate before every task assignment
+means you're already approving each step anyway, so the friction is mostly
+a few extra Bash prompts, not re-answering the routing question. Extend the
+`allow` list above with the specific tool invocations you approve often (see
+`/fewer-permission-prompts`) to cut that friction further.
 
 ## Running
 
 ```bash
 ./run.sh              # starts shell-server (+ Metasploit if installed) + Claude Code
-./run.sh --yolo       # skip permission prompts
+./run.sh --yolo       # skip permission prompts — avoid for live engagements, see above
 ```
 
 Send a target (e.g. an IP or a chatbot URL) to activate the orchestrator. It

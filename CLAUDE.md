@@ -310,9 +310,16 @@ PEN-AGENT/
 
 ## Permission Mode
 
-Agent teams works in standard permission mode. MCP server tools are
-pre-allowed in `.claude/settings.json`. The orchestrator's approval gates
-provide human-in-the-loop control.
+Agent teams works in standard permission mode — **not** `--yolo`
+(`--dangerously-skip-permissions`). MCP server tools are pre-allowed in
+`.claude/settings.json` (operator-created; see docs/installation.md#permissions
+— Claude Code won't let a session write its own permission file). The
+orchestrator's approval gates provide human-in-the-loop control; `--yolo`
+removes that step along with the permission prompts, leaving only Claude
+Code's own safety classifiers between a teammate and the next tool call,
+which get stricter the more a session's actions pattern-match sustained
+multi-host compromise. Don't reach for `--yolo` to silence MCP permission
+prompts — extend the `.claude/settings.json` allowlist instead.
 
 ## Installation
 

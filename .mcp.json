@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "skill-router": {
+      "command": "uv",
+      "args": ["run", "--directory", "tools/skill-router", "python", "server.py"],
+      "env": { "HF_HUB_OFFLINE": "1" }
+    },
+    "nmap-server": {
+      "command": "uv",
+      "args": ["run", "--directory", "tools/nmap-server", "python", "server.py"]
+    },
+    "shell-server": {
+      "type": "sse",
+      "url": "http://127.0.0.1:8022/sse"
+    },
+    "browser-server": {
+      "command": "uv",
+      "args": ["run", "--directory", "tools/browser-server", "python", "server.py"]
+    },
+    "rdp-server": {
+      "command": "uv",
+      "args": ["run", "--directory", "tools/rdp-server", "python", "server.py"]
+    },
+    "state": {
+      "command": "uv",
+      "args": ["run", "--directory", "tools/state-server", "python", "server.py"]
+    },
+    "metasploit-server": {
+      "type": "sse",
+      "url": "http://127.0.0.1:8024/sse"
+    }
+  }
+}

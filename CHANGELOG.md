@@ -5,6 +5,20 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-03
 
+### Fixed
+
+- **`.mcp.json` now ships in the repo.** It was referenced throughout
+  (`install.sh`'s config-verification step, `config.sh`'s patch logic,
+  `docs/mcp-servers.md`'s own documented example, and README's "no manual
+  setup" claim) but was never actually committed — every fresh clone was
+  silently missing all 7 MCP server registrations (skill-router,
+  nmap-server, shell-server, browser-server, rdp-server, state,
+  metasploit-server) until an operator built one by hand. `.claude/settings.json`
+  has the same gap but can't be shipped the same way — Claude Code won't let
+  a session write its own permission file — so docs now give the exact
+  content to create it with (agent-teams flag + MCP tool allowlist); see
+  README's Permissions section / docs/installation.md#permissions.
+
 ### Added
 
 - **Metasploit operator console** (`operator/msf-console/`) — web dashboard
