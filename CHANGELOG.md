@@ -14,6 +14,19 @@ follows [Keep a Changelog](https://keepachangelog.com/).
   inline HTML/JS, SSE live updates) and shares its auth token. Start with
   `bash operator/msf-console/start.sh` → `http://127.0.0.1:8100`.
 
+### Changed
+
+- **Metasploit is now the default shell/C2 backend**, not an opt-in: when
+  `metasploit-framework` is installed (`msfrpcd`/`msfconsole` on PATH),
+  `config.yaml`'s `shell.backend` defaults to `metasploit` instead of
+  `shell-server` — covering session interaction, file transfer, *and*
+  pivoting (autoroute + SOCKS, promoted to the top of the
+  `pivoting-tunneling` skill's decision tree, ahead of Chisel/Ligolo/
+  sshuttle). Falls back to `shell-server` automatically whenever Metasploit
+  isn't installed or the upgrade/pivot fails — never a hard requirement.
+  `config.sh`'s Q5 wizard now defaults to Metasploit (auto-starting
+  `msfrpcd` on Enter) whenever it's detected.
+
 ## 2026-10-02 — Initial release
 
 Autonomous offensive-security assessment toolkit for Claude Code, for CTF/lab

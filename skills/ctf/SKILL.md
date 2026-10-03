@@ -521,6 +521,11 @@ then write `engagement/config.yaml` from their answers. Omit keys where operator
 chose "Ask each time/when needed". If web proxy enabled, generate persistence
 files immediately.
 
+**Before Q5**, check Metasploit availability:
+```bash
+command -v msfrpcd &>/dev/null && command -v msfconsole &>/dev/null && echo AVAILABLE || echo UNAVAILABLE
+```
+
 Config questions (only when config.yaml does not exist):
 
 ```
@@ -528,7 +533,12 @@ Q1 — Scan type: Quick (recommended) | Full | Ask each time
 Q2 — Web proxy: Burp 127.0.0.1:8080 (recommended) | Custom IP:PORT | No proxy | Ask when needed
 Q3 — Spray intensity: Light ~30 (recommended) | Medium ~10k | Heavy ~100k | Skip | Ask each time
 Q4 — Recovery method: Local (recommended) | Export | Skip | Ask each time
-Q5 — Shell backend: shell-server (recommended) | Metasploit (if PEN_AGENT_MSF_AVAILABLE=1) | Custom
+Q5 — Shell backend:
+  if AVAILABLE: Metasploit (recommended — covers sessions, file transfer, and
+    pivoting via autoroute+SOCKS; falls back to shell-server automatically if
+    anything fails) | shell-server | Custom
+  if UNAVAILABLE: shell-server (recommended — metasploit-framework not found) |
+    Metasploit | Custom
 ```
 
 `callback_ip`/`callback_interface` in config.yaml are manual overrides — if set,
@@ -629,7 +639,8 @@ in the background. The domain teammate (usually net-enum running nmap) takes
 minutes — shell-mgr will be ready well before anyone needs a shell.
 
 ```
-1. Read config.yaml → shell.backend (default: "shell-server" if absent)
+1. Read config.yaml → shell.backend. If absent: default to "metasploit" when
+   `command -v msfrpcd && command -v msfconsole` succeeds, else "shell-server".
 2. Read teammates/shell-mgr.md (base) + teammates/shell-mgr-<backend>.md (appendix)
 3. Agent(prompt=<base + appendix>, description="Shell lifecycle management",
          name="shell-mgr", model="sonnet", team_name=<TEAM_NAME>,
