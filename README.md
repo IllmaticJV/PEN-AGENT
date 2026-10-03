@@ -82,13 +82,24 @@ flag. For split-pane teammate visibility, start Claude Code inside `tmux`.
 
 ## Dashboards
 
-- **State** (`operator/state-viewer/`) — access-chain graph, targets, creds,
-  vulns, pivots, live. Generate a remote-access token with
-  `operator/state-viewer/generate-token.sh` (also gates msf-console).
-- **msf-console** (`operator/msf-console/`) — live session/job list plus a
-  real msfconsole on the same `msfrpcd` the agent drives. `sessions -i <id>`
-  reaches whatever the agent opened; anything you run there is visible to the
-  agent too.
+Both are single-file Python stdlib HTTP servers (SSE live updates, no
+frontend build). They bind `127.0.0.1` only by default; running
+`bash operator/state-viewer/generate-token.sh` writes a shared token to
+`~/.config/pen-agent/viewer-token` that makes **both** bind `0.0.0.0` and
+require login (`/login` cookie, or `Authorization: Bearer <token>`).
+
+- **State** (`operator/state-viewer/`, port `8099`) — access-chain graph,
+  targets, creds, access, vulns, pivots, tunnels, event timeline, all live.
+  `--port`/`--db` flags if you need a different port or database path.
+- **msf-console** (`operator/msf-console/`, port `8100`) — live session/job
+  list plus a real msfconsole on the same `msfrpcd` the `metasploit-server`
+  MCP drives (same `engagement/msfrpc.yaml`, same Framework instance — not a
+  copy). `sessions -i <id>` reaches whatever the agent opened, live, in
+  either direction. One shared console per server process — every tab writes
+  to the same terminal, by design. "Reset console" in the UI recreates it
+  without touching sessions/jobs. Needs `engagement/msfrpc.yaml` to exist
+  (written automatically by `run.sh`); shows a clear banner if Metasploit
+  isn't reachable rather than erroring.
 
 ## C2 backend
 

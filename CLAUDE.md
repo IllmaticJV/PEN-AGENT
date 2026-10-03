@@ -279,7 +279,7 @@ opsec: low|medium|high
 | Skills | `skills/*/SKILL.md` | Self-contained |
 | Teammates | `teammates/*.md` | Self-contained (shared behavior in this file § Teammate Protocol) |
 | Hooks | `tools/hooks/README.md` | Update when hook scripts change |
-| Operator tools | `operator/*/README.md` | Update when behavior changes |
+| Operator tools | Root `README.md` (Dashboards section) | No per-tool README — one README only. Update when behavior changes |
 
 **Changelog is mandatory.** Every branch merged to main must update
 `CHANGELOG.md` under a date heading (`## YYYY-MM-DD`).
