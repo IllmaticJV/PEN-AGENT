@@ -51,6 +51,7 @@ skill-router. Teammate spawn templates live in `teammates/`.
 | rdp-server | `tools/rdp-server/` | Headless RDP automation via aardwolf |
 | metasploit-server | `tools/metasploit-server/` | Metasploit RPC wrapper — C2 backend (sessions, modules, pivoting) |
 | state-viewer | `operator/state-viewer/` | Read-only web dashboard for state.db (not MCP) |
+| msf-console | `operator/msf-console/` | Live session/job list + interactive msfconsole on the shared msfrpcd (not MCP) |
 
 In agent teams mode, **state-mgr** is the sole writer to state.db (LLM-level
 dedup + graph coherence). **shell-mgr** owns shell lifecycle (listeners,
@@ -303,6 +304,7 @@ PEN-AGENT/
     browser-server/ rdp-server/ state-server/ hooks/
   operator/
     state-viewer/        # Web dashboard
+    msf-console/         # Live msfconsole + session/job viewer
     templates/           # File templates (config, scripts)
 ```
 

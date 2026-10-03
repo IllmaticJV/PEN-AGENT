@@ -46,6 +46,9 @@ Two target domains, one framework:
   better across runs.
 - **Live state dashboard.** A browser view of the access-chain graph, targets,
   credentials, vulns, and pivots, updating in real time.
+- **Metasploit operator console.** A browser view of live sessions/jobs plus
+  a real msfconsole on the same shared msfrpcd the agent drives — watch, and
+  optionally type into, exactly what it has access to.
 
 ## How it works
 
@@ -177,6 +180,19 @@ A read-only view of the access-chain graph, targets, credentials, access, vulns,
 pivots, tunnels, and an event timeline — updating live as teammates work. For
 host access when PEN-AGENT runs in a VM, generate a token with
 `operator/state-viewer/generate-token.sh`.
+
+## Metasploit operator console
+
+```bash
+bash operator/msf-console/start.sh      # http://127.0.0.1:8100
+```
+
+Connects to the same `msfrpcd` daemon the `metasploit-server` MCP uses, so the
+session/job list here is exactly what the agent sees — live. The embedded
+console is a real msfconsole on that shared instance: `sessions -i <id>` drops
+you into whatever the agent opened, and anything you run is visible to the
+agent's next session/job lookup too. Shares the state dashboard's auth token
+(`operator/state-viewer/generate-token.sh`). See `operator/msf-console/README.md`.
 
 ## Documentation
 

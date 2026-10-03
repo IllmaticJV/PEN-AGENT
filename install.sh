@@ -72,6 +72,7 @@ MCP_BROWSER_SERVER="${REPO_DIR}/tools/browser-server"
 MCP_RDP_SERVER="${REPO_DIR}/tools/rdp-server"
 MCP_METASPLOIT_SERVER="${REPO_DIR}/tools/metasploit-server"
 REPORTER_DIR="${REPO_DIR}/tools/reporter"
+MSF_CONSOLE_DIR="${REPO_DIR}/operator/msf-console"
 
 # Only the orchestrator is installed as a native Claude Code skill.
 # Everything else is served on-demand via the MCP skill-router.
@@ -227,6 +228,13 @@ if run_uv_sync "reporter" "${REPORTER_DIR}" 2>/dev/null; then
     echo "  reporter dependencies installed (jsonschema)"
 else
     echo "  reporter dependency install failed (check uv/network)"
+fi
+
+# msf-console (operator web console for the shared msfrpcd — not an MCP server)
+if run_uv_sync "msf-console" "${MSF_CONSOLE_DIR}" 2>/dev/null; then
+    echo "  msf-console operator dependencies installed"
+else
+    echo "  msf-console operator dependency install failed (check uv/network)"
 fi
 
 # --- Step 5: Verify project config ---

@@ -26,6 +26,7 @@ MCP_BROWSER_SERVER="${REPO_DIR}/tools/browser-server"
 MCP_RDP_SERVER="${REPO_DIR}/tools/rdp-server"
 MCP_METASPLOIT_SERVER="${REPO_DIR}/tools/metasploit-server"
 REPORTER_DIR="${REPO_DIR}/tools/reporter"
+MSF_CONSOLE_DIR="${REPO_DIR}/operator/msf-console"
 
 # --- Step 1: Remove native skills ---
 echo "Removing native skills..."
@@ -125,6 +126,14 @@ fi
 if [[ -d "${REPORTER_DIR}/.venv" ]]; then
     rm -rf "${REPORTER_DIR}/.venv"
     echo "  Removed reporter venv"
+    mcp_cleaned=$((mcp_cleaned + 1))
+fi
+
+# msf-console (operator web console)
+pkill -f "operator/msf-console/.*server.py" 2>/dev/null && echo "  Stopped msf-console" || true
+if [[ -d "${MSF_CONSOLE_DIR}/.venv" ]]; then
+    rm -rf "${MSF_CONSOLE_DIR}/.venv"
+    echo "  Removed msf-console venv"
     mcp_cleaned=$((mcp_cleaned + 1))
 fi
 
