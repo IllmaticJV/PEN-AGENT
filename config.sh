@@ -75,25 +75,30 @@ esac
 # --- Q5: Shell backend ---
 echo ""
 echo "Q5 — Shell backend"
-echo "  1) shell-server  (raw TCP/PTY, always available)"
 if command -v msfrpcd &>/dev/null; then
+    default_q5=2
     if pgrep -f "msfrpcd" &>/dev/null; then
-        echo "  2) metasploit    (Metasploit C2 — msfrpcd running)"
+        echo "  1) shell-server  (raw TCP/PTY, always available — fallback)"
+        echo "  2) metasploit    (Metasploit C2 — msfrpcd running) [default]"
     else
-        echo "  2) metasploit    (Metasploit C2 — installed, daemon not running)"
+        echo "  1) shell-server  (raw TCP/PTY, always available — fallback)"
+        echo "  2) metasploit    (Metasploit C2 — will auto-start msfrpcd) [default]"
     fi
 else
+    default_q5=1
+    echo "  1) shell-server  (raw TCP/PTY, always available) [default]"
     echo "  2) metasploit    (metasploit-framework not found)"
 fi
 echo "  3) custom        (your own C2 + MCP server)"
-read -rp "  Choice [1]: " q5
+read -rp "  Choice [${default_q5}]: " q5
+q5="${q5:-$default_q5}"
 
 shell_backend="shell-server"
 msf_config=""
 custom_mcp=""
 custom_ref=""
 
-case "${q5:-1}" in
+case "$q5" in
     2)
         default_cfg="engagement/msfrpc.yaml"
         if ! command -v msfrpcd &>/dev/null; then
@@ -104,41 +109,27 @@ case "${q5:-1}" in
             echo "  Found Metasploit RPC config: $default_cfg"
             shell_backend="metasploit"
             msf_config="$default_cfg"
+        elif pgrep -f "msfrpcd" &>/dev/null; then
+            echo "  msfrpcd already running, but no config at $default_cfg."
+            echo "  Stop it (pkill -f msfrpcd) and retry, or point to an"
+            echo "  existing config. Falling back to shell-server."
         else
-            echo ""
-            echo "  No RPC config found at $default_cfg."
-            echo ""
-            echo "  1) Start msfrpcd now and generate config (local daemon)"
-            echo "  2) Cancel — fall back to shell-server"
-            read -rp "  Choice [2]: " msf_setup
-            case "${msf_setup:-2}" in
-                1)
-                    msf_port="${MSF_RPC_PORT:-55553}"
-                    if pgrep -f "msfrpcd" &>/dev/null; then
-                        echo "  msfrpcd already running, but no config at $default_cfg."
-                        echo "  Stop it (pkill -f msfrpcd) and retry, or point to an"
-                        echo "  existing config. Falling back to shell-server."
-                    else
-                        msf_pass="$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 24)"
-                        echo "  Starting msfrpcd on 127.0.0.1:${msf_port}..."
-                        msfrpcd -P "$msf_pass" -U msf -a 127.0.0.1 -p "$msf_port" &>/dev/null &
-                        cat > "$default_cfg" <<YAML
+            # Metasploit is the default backend — auto-start msfrpcd, same as run.sh.
+            msf_port="${MSF_RPC_PORT:-55553}"
+            msf_pass="$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 24)"
+            echo "  Starting msfrpcd on 127.0.0.1:${msf_port}..."
+            msfrpcd -P "$msf_pass" -U msf -a 127.0.0.1 -p "$msf_port" &>/dev/null &
+            cat > "$default_cfg" <<YAML
 host: 127.0.0.1
 port: ${msf_port}
 user: msf
 password: ${msf_pass}
 ssl: true
 YAML
-                        chmod 600 "$default_cfg"
-                        echo "  Config saved to $default_cfg"
-                        shell_backend="metasploit"
-                        msf_config="$default_cfg"
-                    fi
-                    ;;
-                *)
-                    echo "  Falling back to shell-server."
-                    ;;
-            esac
+            chmod 600 "$default_cfg"
+            echo "  Config saved to $default_cfg"
+            shell_backend="metasploit"
+            msf_config="$default_cfg"
         fi
         ;;
     3)

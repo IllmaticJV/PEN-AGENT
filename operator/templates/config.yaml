@@ -24,14 +24,19 @@ spray:
 cracking:
   default_method: local
 
-# Shell backend: shell-server | metasploit | custom
-# shell-server: raw TCP listeners + PTY processes (default, always available)
-# metasploit: Metasploit C2 sessions via metasploit-server MCP (requires
-#             metasploit-framework installed; run.sh auto-starts msfrpcd)
+# Shell backend: metasploit | shell-server | custom
+# metasploit: Metasploit C2 sessions via metasploit-server MCP — the DEFAULT
+#             whenever metasploit-framework is installed (run.sh auto-starts
+#             msfrpcd). Covers everything: session interaction, file
+#             transfer, and pivoting (autoroute + SOCKS). Falls back to
+#             shell-server automatically if Metasploit isn't installed or
+#             msfrpcd is unreachable.
+# shell-server: raw TCP listeners + PTY processes (always available — the
+#               automatic fallback, or pin it explicitly to skip Metasploit)
 # custom: operator-provided C2 MCP + reference doc
-# Omit to default to shell-server.
+# Omit to default to metasploit when available, else shell-server.
 shell:
-  backend: shell-server
+  backend: metasploit
   # msf_config: "engagement/msfrpc.yaml"     # path to Metasploit RPC config (metasploit only)
   # custom_mcp: "my-c2-server"               # MCP server name (custom only)
   # custom_ref: "path/to/reference.md"        # reference doc path (custom only)

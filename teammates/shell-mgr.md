@@ -132,7 +132,7 @@ When you receive `[shell-established]`:
    a. Use the existing shell (send_command) to download + execute C2 implant
    b. If C2 session connects → [session-ready] with C2 backend
    c. If C2 upgrade fails → fall back to shell-server, stabilize instead
-3. If shell-server backend (default):
+3. If shell-server backend (no C2 configured, or Metasploit upgrade failed):
    a. Call stabilize_shell(session_id) for Linux
    b. [session-ready] with shell-server backend
 4. **Close the listener** that caught this shell (close_session on the

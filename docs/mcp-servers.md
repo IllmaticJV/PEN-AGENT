@@ -159,12 +159,16 @@ Every send/recv is logged in real-time to `engagement/evidence/shell-{id}-{label
 
 ## metasploit-server
 
-**Location:** `tools/metasploit-server/` · C2 backend (optional)
+**Location:** `tools/metasploit-server/` · default C2 backend (auto-detected)
 
 Wraps the Metasploit Framework RPC API (`msfrpcd`) via pymetasploit3. Runs as a
 persistent SSE service on `127.0.0.1:8024` (configurable via `MSF_SSE_PORT`).
 When `metasploit-framework` is installed, `run.sh` starts `msfrpcd`, writes
-`engagement/msfrpc.yaml`, and launches this server automatically.
+`engagement/msfrpc.yaml`, and launches this server automatically —
+`config.yaml`'s `shell.backend` defaults to `metasploit` whenever it's
+available, covering session interaction, file transfer, and pivoting
+(autoroute + SOCKS). Falls back to shell-server automatically if Metasploit
+isn't installed or `msfrpcd` is unreachable.
 
 Teammates catch initial shells via shell-server, then upgrade to Meterpreter
 here for stable transport, file transfer, post-exploitation, and pivoting.
