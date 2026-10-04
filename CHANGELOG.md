@@ -21,6 +21,14 @@ follows [Keep a Changelog](https://keepachangelog.com/).
   `engagement/operator-sessions.json`; the operator console badges reserved
   sessions. (From a Meterpreter-first foothold there's no shell to re-stage, so
   spawn returns `needs_manual` — reserve a manually-caught session instead.)
+- **One session per interacting agent.** Same single-stream problem applies
+  between teammates, so shell-mgr now hands each agent that needs to interact
+  with a host its own session instead of sharing one. New
+  `spawn_session(session_id, lhost, lport)` tool (the non-reserving sibling of
+  `spawn_operator_session`, sharing one `_spawn_sibling` primitive) spawns a
+  fresh session from a shell foothold; both shell-mgr teammate templates
+  (Metasploit and shell-server) now allocate one session per `owner_teammate`
+  and only let genuinely one-off read-only checks reuse another's.
 
 ### Changed
 

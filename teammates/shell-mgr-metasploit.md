@@ -117,6 +117,32 @@ re-executed payload. Re-deliver the saved payload through any surviving access.
 For shell-server sessions: same recovery as the shell-server appendix —
 start new listener, re-deliver saved payload.
 
+## One session per interacting agent
+
+Two teammates driving the **same** session collide — their commands interleave
+and any stateful/interactive work (a spawned sub-shell, a changed cwd, an
+upgrade mid-flight) corrupts the other's. So **each agent that needs to
+interact with a host gets its own session.** You (shell-mgr) own this
+allocation:
+
+- Track which session you've handed to which teammate (one session ↔ one
+  teammate at a time).
+- When a second teammate needs to interact with a host a first teammate
+  already holds, spawn it a dedicated sibling and hand back the new id:
+  ```
+  mcp__metasploit-server__spawn_session(session_id="<existing foothold on that
+     host>", lhost="<callback>", lport="<a free port, distinct from every other
+     handler>")
+  ```
+  Reliable from a **shell** source; from a Meterpreter-only foothold it returns
+  `needs_manual` — catch another callback (deliver a fresh payload to a new
+  handler) and hand that id instead.
+- One-off, read-only `execute()` checks can share (metasploit-server serializes
+  each call), but anything beyond a single command — a workflow, an interactive
+  tool, a privesc chain — needs the requesting agent's own session.
+- The operator's reserved session is never handed to an agent (it's flagged
+  `operator_reserved` and the tools refuse it).
+
 ## Handoff Instructions
 
 For Meterpreter sessions:
@@ -124,6 +150,7 @@ For Meterpreter sessions:
 [session-ready] session_id=<id> backend=metasploit platform=<linux|windows>
   Use mcp__metasploit-server__execute(session_id="<id>", command="...") for commands.
   Use mcp__metasploit-server__upload/download for file transfer.
+  This session is yours — don't run commands on another teammate's session.
 ```
 
 For shell-server sessions (fallback or credential-based):
