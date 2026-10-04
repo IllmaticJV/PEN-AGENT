@@ -73,7 +73,7 @@ allowed:
   mkdir -p engagement/evidence/logs
   Write/Edit to: engagement/scope.md, engagement/config.yaml,
                  engagement/web-proxy.json, engagement/web-proxy.sh
-  TaskCreate, TaskUpdate, TaskList, TaskGet (task coordination)
+  TaskCreate, TaskUpdate, TaskList, TaskGet (task coordination, if available — see Task List Availability)
   SendMessage (teammate communication)
   state MCP read tools (init_engagement, close_engagement, get_state_summary,
                        get_vulns, get_credentials, get_access, get_targets,
@@ -128,6 +128,31 @@ pre-resume teammate by name.
 On engagement close: gracefully shut down all teammates via
 `SendMessage(message={type: "shutdown_request"})`. No further cleanup call is
 needed — team state is removed automatically when the lead's session ends.
+
+### Task List Availability
+
+`TaskCreate`/`TaskGet`/`TaskList`/`TaskUpdate` are **model-gated**, not
+guaranteed by agent teams being enabled — Claude Code provides them by
+default only on a specific set of model families (see `tools-reference` in
+the Claude Code docs; it does not currently include every Sonnet/Opus
+release). Check once, right after activation, with
+`ToolSearch("select:TaskCreate,TaskUpdate,TaskList,TaskGet")`.
+
+**If they resolve:** use them as written throughout this skill —
+`TaskCreate` for every spawn/assignment, `TaskUpdate` to track
+owner/status, `TaskList` to check progress.
+
+**If they don't resolve (empty result, not an error):** this is expected on
+some models, not a malfunction — do not retry or treat it as a blocker.
+Every `TaskCreate(...) → taskId` step in this skill becomes: assign the next
+sequential integer yourself, starting from 1, and keep it in the
+`active_teammates` dict you already maintain (see Orchestrator Loop). Every
+`TaskUpdate(...)` step becomes a no-op — just update your own
+`active_teammates` entry. `SendMessage` with the `[TASK] #<N> — ...` prefix
+is what actually assigns work either way; the Task tools (when present) are
+bookkeeping on top of that, not the delivery mechanism. Tell the operator
+once, briefly, that task tools aren't available on this model and you're
+coordinating via messages only — then proceed normally.
 
 ### Teammate Map
 
@@ -188,16 +213,24 @@ teams enabled, naming the call is what makes it a persistent teammate instead
 of an ephemeral subagent that runs to completion and exits. Teammates inherit
 all MCP servers from the lead session.
 
+**Name format is strict:** `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$` — letters,
+digits, underscores, hyphens only, max 64 chars, must start with a letter or
+digit. **IPs and hostnames contain dots, which this rejects.** Sanitize
+before building a name: replace every `.` with `-` (and strip anything else
+outside the allowed set). `net-enum-192.168.121.10` → `net-enum-192-168-121-10`.
+Apply this everywhere a target/host is embedded in a name, including every
+example in Teammate Map and Naming below.
+
 ```
 1. Read teammates/<domain>.md via Read tool
-2. TaskCreate(subject="<skill> — <target>") → taskId
+2. TaskCreate(subject="<skill> — <target>") → taskId (if Task tools available)
 3. Agent(prompt=<template content ONLY — NO task>,
         description="<3-5 word summary>",
-        name="<name>", model="<model>")
+        name="<sanitized-name>", model="<model>")
    Do NOT include the task in the prompt. The template tells the teammate
    to load schemas, read state, and go idle.
-4. TaskUpdate(taskId=<N>, owner="<name>")
-5. SendMessage(to="<name>", message="[TASK] #<N> — <skill> on <target>\n<context>")
+4. TaskUpdate(taskId=<N>, owner="<name>") (if available)
+5. SendMessage(to="<sanitized-name>", message="[TASK] #<N> — <skill> on <target>\n<context>")
    The [TASK] prefix is the signal to start working. Without it, the
    teammate stays idle.
 ```
@@ -231,16 +264,21 @@ elif no teammate for this domain:
 ```
 
 **Naming: `{role}-{target}`** — use descriptive names tied to what the
-teammate is working on:
+teammate is working on. **Sanitize the target first** (see Spawning a
+Teammate — no dots): a bare IP like `192.168.121.10` becomes
+`192-168-121-10` in the name.
 - `web-enum-portal`, `web-enum-api`, `web-enum-8443` (per vhost/port)
-- `lin-enum-dc01`, `lin-enum-web01` (per host)
+- `lin-enum-dc01`, `lin-enum-web01` (per host — short hostname, no domain)
 - `win-enum-dc01`, `win-ops-dc01` (per host)
 - `web-ops-sqli-portal`, `web-ops-lfi-api` (per exploit path)
+- `net-enum-192-168-121-10` (per bare-IP target — sanitized, not `net-enum-192.168.121.10`)
 
 Teammates from the same template can message each other when they find
 cross-relevant information (shared auth, same backend, reused creds).
 
-**Task list coordination:**
+**Task list coordination** (if Task tools are available — see Task List
+Availability; otherwise this is internal bookkeeping in `active_teammates`,
+not real tool calls):
 - Lead creates tasks via `TaskCreate` — teammates never self-claim
 - Assign tasks to teammates via `TaskUpdate(id=<N>, owner="<teammate-name>")`
 - Tasks have dependencies: "scan subnet X" blocks on "establish tunnel to X"

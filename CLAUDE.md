@@ -206,6 +206,10 @@ Return: what was attempted, what failed, assessment (blocked/retry-later).
 
 On activation (this runs once, before any task):
 1. `ToolSearch("select:TaskUpdate,TaskList,TaskGet")` — preload task schemas
+   if available. These tools are model-gated and may not resolve on this
+   model — an empty result is expected, not an error. If they're absent,
+   coordinate with the lead and peers through `SendMessage` only; don't
+   retry the search or treat it as a blocker.
 2. `get_state_summary()` — load engagement state
 3. Go idle. Your first task arrives as a `SendMessage` starting with `[TASK]`.
 

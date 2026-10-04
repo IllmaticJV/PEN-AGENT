@@ -7,6 +7,26 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **Teammate names built from a bare IP (e.g. `net-enum-192.168.121.10`)
+  were rejected by the real `Agent` tool** — its `name` parameter requires
+  `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`, which has no dot. Confirmed live:
+  `InputValidationError` on spawn. `skills/ctf/SKILL.md` and
+  `teammates/README.md` now call out the constraint explicitly and require
+  sanitizing (`.` → `-`) before building any name from a target/host.
+- **The orchestrator assumed `TaskCreate`/`TaskGet`/`TaskList`/`TaskUpdate`
+  are always available whenever agent teams is enabled.** They're actually
+  gated per-model (not every current Sonnet/Opus release provides them by
+  default) and the orchestrator hit this live, correctly falling back to
+  spawn+`SendMessage`-only coordination on its own. Made that fallback
+  explicit and first-class instead of relying on improvisation: a new
+  "Task List Availability" section in `skills/ctf/SKILL.md` has the lead
+  check once via `ToolSearch` and, if absent, track task IDs/ownership in
+  its own `active_teammates` bookkeeping instead of making the calls;
+  `CLAUDE.md`'s teammate Activation Protocol updated to match (an empty
+  `ToolSearch` result is expected, not an error).
+
+### Fixed
+
 - **The orchestrator's agent-teams integration called tools that don't
   exist.** `TeamCreate`, `TeamDelete`, and the `Agent` tool's `team_name`
   parameter — used throughout `skills/ctf/SKILL.md`, `CLAUDE.md`, and
