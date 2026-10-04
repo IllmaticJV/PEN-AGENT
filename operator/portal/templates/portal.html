@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PEN-AGENT &middot; operator portal</title>
+<style>
+:root{--bg:#0b0d10;--panel:#14181d;--border:#2a2f37;--fg:#c9d1d9;--dim:#6e7681;--accent:#8ab4f8}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--fg);font-family:ui-monospace,Menlo,Consolas,monospace;
+     display:flex;flex-direction:column;height:100vh}
+header{display:flex;align-items:center;gap:4px;padding:0 14px;height:46px;flex-shrink:0;
+       border-bottom:1px solid var(--border);background:var(--panel)}
+header .brand{font-size:14px;font-weight:600;color:var(--accent);margin-right:16px;white-space:nowrap}
+.tab{appearance:none;background:transparent;border:none;border-bottom:2px solid transparent;
+     color:var(--dim);font:inherit;font-size:13px;padding:12px 14px;cursor:pointer}
+.tab:hover{color:var(--fg)}
+.tab.active{color:var(--fg);border-bottom-color:var(--accent)}
+#frame{flex:1;border:none;width:100%;background:var(--bg)}
+</style></head>
+<body>
+<header>
+  <span class="brand">PEN-AGENT</span>
+  <button class="tab" data-tab="scope"  data-src="/scope">Objective &amp; Scope</button>
+  <button class="tab" data-tab="status" data-src="/status">Status</button>
+  <button class="tab" data-tab="msf"    data-src="/msf">MSF Logs</button>
+</header>
+<iframe id="frame" title="portal content"></iframe>
+<script>
+const frame = document.getElementById('frame');
+const tabs = [...document.querySelectorAll('.tab')];
+function show(name) {
+  const tab = tabs.find(t => t.dataset.tab === name) || tabs[0];
+  tabs.forEach(t => t.classList.toggle('active', t === tab));
+  // Only reload the iframe if the tab actually changed, so a visible tab keeps its live SSE.
+  const src = tab.dataset.src;
+  if (frame.getAttribute('src') !== src) frame.setAttribute('src', src);
+  try { localStorage.setItem('portal-tab', tab.dataset.tab); } catch (e) {}
+}
+tabs.forEach(t => t.addEventListener('click', () => show(t.dataset.tab)));
+let initial = 'status';
+try { initial = localStorage.getItem('portal-tab') || 'status'; } catch (e) {}
+show(initial);
+</script>
+</body></html>

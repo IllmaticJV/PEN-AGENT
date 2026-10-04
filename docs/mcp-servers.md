@@ -191,11 +191,11 @@ Tools: `start_handler`, `generate_payload`, `list_sessions`, `execute`,
 refuse out-of-scope hosts. The nmap-server enforces the same allowlist on scan
 targets. See `scope.py`.
 
-**Operator visibility:** `operator/msf-console/` connects to the same
-`msfrpcd` daemon (same `engagement/msfrpc.yaml`) and gives the human operator
-a live session/job list plus a real, interactive msfconsole on that shared
-instance — not an MCP server itself, but the human-facing counterpart to this
-one. `bash operator/msf-console/start.sh` → `http://127.0.0.1:8100`.
+**Operator visibility:** the `operator/portal/` **MSF Logs** tab reads this
+same instance (`engagement/msfrpc.yaml`) — a live session/listener list plus
+per-session command logs — read-only. For interaction the C2 runs as a real
+`msfconsole` in tmux (`tmux attach -t pen-msf`). `bash operator/portal/start.sh`
+→ `http://127.0.0.1:8099`.
 
 ---
 

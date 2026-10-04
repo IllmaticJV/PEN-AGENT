@@ -226,18 +226,22 @@ When tools fail on hostname resolution, the orchestrator follows the same hostna
 
 **Agent teams** — each teammate runs in its own tmux pane. Watch all teammates working in parallel, press Escape to interrupt any teammate, type directly to redirect. Start Claude Code inside a tmux session for split-pane mode.
 
-**State dashboard** — real-time web dashboard showing the access chain graph, targets, credentials, and assessment progress. Start in a separate terminal:
+**Operator portal** — one read-only web view with three tabs (Objective &
+Scope, Status, MSF Logs) on `http://127.0.0.1:8099`. The Status tab is the live
+access-chain graph / targets / creds / progress; the MSF Logs tab shows
+sessions, listeners, and per-session command logs. Start in a separate
+terminal:
 
 ```bash
-bash operator/state-viewer/start.sh
+bash operator/portal/start.sh
 ```
 
-**Metasploit operator console** — if the engagement is using Metasploit C2,
-start the live session/job viewer + interactive msfconsole (same shared
-`msfrpcd` the `metasploit-server` MCP drives):
+**Metasploit interactive console** — if the engagement is using Metasploit C2,
+the C2 itself runs as an `msfconsole` in tmux. Attach it for a full console
+(`sessions -i`, meterpreter, modules) sharing the agents' Framework:
 
 ```bash
-bash operator/msf-console/start.sh
+tmux attach -t pen-msf        # detach: Ctrl-b then d
 ```
 
 Teammates communicate findings directly via peer-to-peer messaging and write to state.db for durability. No event watcher needed — teammate messages are the notification channel.

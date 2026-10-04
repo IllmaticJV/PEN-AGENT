@@ -110,10 +110,10 @@ the RPC stream and drops the connection). Every RPC-touching tool is
 therefore wrapped with `@_serialized`, a single reentrant lock, so msf calls
 run one at a time. `generate_payload` is intentionally excluded — it's a pure
 `msfvenom` subprocess with no shared client, so a long build never blocks
-live RPC. This is per-process: the operator `msf-console` is a separate
-process with its own client, and `msfrpcd` handles multiple distinct RPC
-clients fine, so the operator console and the agents can both drive the same
-Framework instance concurrently.
+live RPC. This is per-process: the operator portal and the tmux `msfconsole`
+are separate processes with their own clients, and the RPC service handles
+multiple distinct clients fine, so the operator and the agents can both drive
+the same Framework instance concurrently.
 
 ## RPC error handling
 
@@ -136,12 +136,11 @@ Two complementary surfaces, both on the same Framework this server drives:
   as an `msfconsole`+`msgrpc` in tmux; `tmux attach -t pen-msf` is a real
   console (`sessions -i`, meterpreter interactive, all of it). Operator and
   agents share it live.
-- **`operator/msf-console/` read-only viewer** (`bash
-  operator/msf-console/start.sh` → `http://127.0.0.1:8100`) — the live
-  session/listener list plus a **per-session command log**: every `execute()`
-  this server runs is appended to `engagement/evidence/msf-sessions/<id>.jsonl`
-  so the operator can watch what agents did on a session without attaching to
-  (and stealing) its stream.
+- **`operator/portal/` MSF Logs tab** (`bash operator/portal/start.sh` →
+  `http://127.0.0.1:8099`) — read-only: the live session/listener list plus a
+  **per-session command log**: every `execute()` this server runs is appended
+  to `engagement/evidence/msf-sessions/<id>.jsonl` so the operator can watch
+  what agents did on a session without attaching to (and stealing) its stream.
 
 ## HTTP Endpoints
 
