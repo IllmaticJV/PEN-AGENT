@@ -200,7 +200,7 @@ cd PEN-AGENT
 ./run.sh
 ```
 
-`run.sh` starts shell-server, launches Claude Code, and auto-triggers `/pen-agent-ctf`. The orchestrator asks config questions (scan type, proxy, etc.) on first run. Give it a target IP to begin.
+`run.sh` starts shell-server + skill-router, launches Claude Code, and auto-triggers `/pen-agent-ctf`. The orchestrator asks config questions (scan type, proxy, etc.) on first run. Give it a target IP to begin.
 
 ### With C2 (Metasploit or custom)
 
@@ -211,7 +211,7 @@ custom C2:
 ```bash
 cd PEN-AGENT
 bash config.sh             # config wizard — picks C2 backend, patches .mcp.json
-./run.sh                   # starts shell-server + Metasploit RPC + MCP, launches Claude Code
+./run.sh                   # starts shell-server + skill-router + Metasploit RPC + MCP, launches Claude Code
 ```
 
 `config.sh` is optional. Use it to pin `metasploit`, wire a `custom` C2 MCP, or
@@ -268,7 +268,7 @@ See [uv install docs](https://docs.astral.sh/uv/getting-started/installation/).
 
 ### Embedding model download fails
 
-The skill-router downloads `all-MiniLM-L6-v2` on first run. If your VM lacks internet access, download the model elsewhere and set `HF_HUB_OFFLINE=1` (already set in `.mcp.json` for runtime). For initial indexing, internet access is required.
+The skill-router downloads `all-MiniLM-L6-v2` on first run. If your VM lacks internet access, download the model elsewhere so it's in the local HF cache; skill-router's `start.sh` launches with `HF_HUB_OFFLINE=1` at runtime, so it uses the cached model and won't phone home. For initial indexing, internet access is required.
 
 ### Chromium install fails
 
@@ -276,8 +276,11 @@ If `playwright install chromium` fails behind a proxy, download Chromium manuall
 
 ### MCP servers not starting
 
-Verify `.mcp.json` exists in the repo root and `.claude/settings.json` has `enableAllProjectMcpServers: true`. Check server logs with:
+Verify `.mcp.json` exists in the repo root and `.claude/settings.json` has `enableAllProjectMcpServers: true`.
+
+skill-router, shell-server, and metasploit-server are **SSE daemons** that `run.sh` starts before Claude Code — if their tools don't resolve, confirm the daemon is listening (`ss -tln | grep -E ':(8022|8023|8024) '`) and (re)start it with its `start.sh`. For skill-router specifically, run it in the foreground to see the real error (most often a missing index — run `indexer.py` first):
 
 ```bash
-uv run --directory tools/skill-router python server.py  # Should start without errors
+bash tools/skill-router/start.sh                         # (re)start the SSE daemon
+uv run --directory tools/skill-router python server.py   # foreground, to see errors
 ```

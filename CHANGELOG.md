@@ -5,6 +5,151 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Changed
+
+- **skill-router converted from a per-session stdio server to a shared SSE
+  daemon** (like shell-server and metasploit-server). Root cause of spawned
+  agent-team teammates being unable to resolve `mcp__skill-router__*` tools:
+  stdio MCP servers start one subprocess per session, so every teammate
+  stood up its own skill-router and re-paid the sentence-transformer +
+  ChromaDB load (tens of seconds) — often never resolving its tools within
+  the teammate's lifetime, while instant-start stdio servers (`state`) and
+  already-shared SSE servers (`metasploit`, `shell`) resolved fine. Now
+  `run.sh`/`install.sh` start one skill-router daemon (`start.sh`, SSE on
+  `127.0.0.1:8023`, `SKILL_ROUTER_SSE_PORT`); the model loads once and the
+  lead plus every teammate connect to the same warm instance. `.mcp.json`
+  switched from a `command` entry to a `url` entry; `HF_HUB_OFFLINE=1`
+  (previously set in `.mcp.json`) is now applied in `start.sh`;
+  `uninstall.sh` stops the daemon. This fixes the teammate skill-loading
+  gap at the source (the earlier wait/retry guidance remains as a safety
+  net) and speeds up teammate spawns (no per-teammate model reload). Docs
+  (mcp-servers, installation, skill-router README, README command table)
+  updated. Not live-booted in this sandbox — the embedding-model download
+  is proxy-blocked here — so verify the daemon comes up on first real
+  `install.sh`/`run.sh`.
+
+### Fixed
+
+- **Concurrent teammate access to metasploit-server crashed the shared RPC
+  connection.** All teammates connect to the one metasploit-server SSE
+  instance and share a single pymetasploit3 `MsfRpcClient`. FastMCP runs the
+  sync tool handlers in a threadpool, so two teammates calling msf tools at
+  the same time drove that client — and its single `requests.Session` and
+  console objects — from two threads at once, which pymetasploit3 /
+  `requests.Session` are not thread-safe for (interleaved request/response
+  framing, shared auth token, shared console IDs → corrupted stream, dropped
+  connection). Every RPC-touching tool is now wrapped with `@_serialized`, a
+  single reentrant lock, so msf calls run one at a time; `generate_payload`
+  (pure msfvenom subprocess, no shared client) is excluded so a long build
+  doesn't block live RPC. Verified the decorator preserves the FastMCP tool
+  schema (all parameters still exposed) and actually serializes. This is
+  per-process — the operator `msf-console` has its own client and `msfrpcd`
+  handles multiple distinct clients, so operator + agents can still drive the
+  same instance concurrently.
+
+### Fixed
+
+- **Teammates declared themselves blocked on a skill-router race instead of
+  waiting.** skill-router loads an embedding model + ChromaDB at startup, so
+  it connects far slower than `state` (which just opens a SQLite file). A
+  teammate that spawned and immediately tried `get_skill` could find
+  skill-router still connecting, and — correctly refusing to run a technique
+  without the skill loaded — reported blocked on the *first* miss rather
+  than waiting the few extra seconds. Hardened the protocol: the teammate
+  Activation Protocol now warms up the skill-router connection at spawn
+  (before any task arrives), the Task Workflow waits-and-retries (≈60s) on a
+  still-connecting skill-router before escalating, and the orchestrator's
+  "If Skill Router Is Unavailable" handling now distinguishes a per-teammate
+  race (re-send / respawn that teammate) from the server genuinely being
+  down (its own `search_skills` also failing) before alarming the operator.
+  Guidance only — no mechanics changed.
+
+### Fixed
+
+- **metasploit-server silently reported handlers as "listening" when
+  msfrpcd never bound them.** `module.execute()` over RPC doesn't raise on a
+  server-side failure — it returns `{"error": true, ...}` or a null
+  `job_id` — and the wrapper read `job_id`/`uuid` straight off that and
+  reported success. Root cause of the failure surfaced live: the Meterpreter
+  payload option `AutoLoadExtensions`'s RPC-exposed default comes back
+  non-scalar, so msfrpcd rejected it ("must be a scalar") and no listener was
+  ever created, while `start_handler` still returned `status: "listening"`.
+  `start_handler` and `run_module` now set `AutoLoadExtensions` explicitly
+  (guarded to payloads that expose it), and all job-starting tools
+  (`start_handler`, `upgrade_to_meterpreter`, `start_socks_proxy`,
+  `run_module`) route their RPC result through a new `_execute_error()` that
+  surfaces error dicts and — for always-background jobs — a null `job_id`,
+  returning `ERROR:` instead of a false success. Added unit tests
+  (`tests/test_execute_error.py`, 6 cases) covering the exact regression.
+
+### Changed
+
+- **Made Metasploit's default-for-everything role explicit in the shell-mgr
+  templates.** The mechanics were already in place (Meterpreter upgrade,
+  autoroute+SOCKS pivoting, Meterpreter file transfer), but the wording was
+  soft and scattered ("attempt C2 upgrade *if configured*", "*preferred*
+  backend"). `teammates/shell-mgr-metasploit.md` now opens with an explicit
+  coverage list — Meterpreter is the default for interactive shells, file
+  transfer, pivoting/tunneling/proxying, and post-ex, with shell-server
+  scoped to initial raw-shell catch and automatic fallback only.
+  `teammates/shell-mgr.md` tightened to match (upgrade is the standard path
+  for every shell under the default backend, not optional; autoroute+SOCKS
+  is the default pivot method). No mechanics changed — clarity only.
+
+### Fixed
+
+- **Falling back from Metasploit to shell-server happened silently.**
+  `shell-mgr` already sent `[backend-down]` to the lead when its activation
+  health check found the configured backend unreachable, and
+  `skills/ctf/SKILL.md`'s prose already said this should "notify the
+  operator and block shell-dependent tasks until resolved" — but the
+  Orchestrator Loop's message-handling pseudocode had no `from shell-mgr:`
+  branch at all, so nothing ever acted on it. Confirmed live: a
+  `msfrpc.yaml`-less run used shell-server for the whole engagement without
+  ever asking. Added a new **C2 Backend Unavailable** hard stop (asks the
+  operator: continue on shell-server, or pause to fix it first) wired into
+  the loop, the mandatory hard-stop pre-check, and the Shell Backend Health
+  section. Deliberately scoped to the backend being down, not a single
+  shell's C2 upgrade failing (that stays silent/automatic, per
+  `teammates/shell-mgr-metasploit.md` — one blocked target isn't a reason
+  to interrupt the operator).
+
+### Fixed
+
+- **`run.sh` left the msf-console/metasploit-server pair unable to connect
+  after a `msfrpcd` daemon outlived its run.** `msfrpcd` is a detached
+  background process (`&`), so it survives the Claude Code session that
+  started it; a later run finding it already listening would just log
+  "msfrpcd already running" and skip writing `engagement/msfrpc.yaml`
+  entirely — leaving a daemon nobody has credentials for. Confirmed live:
+  `pgrep -af msfrpcd` showed a running daemon while
+  `engagement/msfrpc.yaml` didn't exist. `run.sh` (and the equivalent
+  branch in `config.sh`, which detected this same case but only offered to
+  fall back to shell-server) now kill and restart `msfrpcd` with fresh
+  credentials whenever it's found running without a matching config,
+  rather than leaving it stranded. Verified with a stubbed `msfrpcd`: old
+  PID dies, new PID comes up with a fresh password, config gets written.
+
+### Fixed
+
+- **Teammate names built from a bare IP (e.g. `net-enum-192.168.121.10`)
+  were rejected by the real `Agent` tool** — its `name` parameter requires
+  `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`, which has no dot. Confirmed live:
+  `InputValidationError` on spawn. `skills/ctf/SKILL.md` and
+  `teammates/README.md` now call out the constraint explicitly and require
+  sanitizing (`.` → `-`) before building any name from a target/host.
+- **The orchestrator assumed `TaskCreate`/`TaskGet`/`TaskList`/`TaskUpdate`
+  are always available whenever agent teams is enabled.** They're actually
+  gated per-model (not every current Sonnet/Opus release provides them by
+  default) and the orchestrator hit this live, correctly falling back to
+  spawn+`SendMessage`-only coordination on its own. Made that fallback
+  explicit and first-class instead of relying on improvisation: a new
+  "Task List Availability" section in `skills/ctf/SKILL.md` has the lead
+  check once via `ToolSearch` and, if absent, track task IDs/ownership in
+  its own `active_teammates` bookkeeping instead of making the calls;
+  `CLAUDE.md`'s teammate Activation Protocol updated to match (an empty
+  `ToolSearch` result is expected, not an error).
+
 ### Fixed
 
 - **The orchestrator's agent-teams integration called tools that don't

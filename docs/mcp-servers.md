@@ -2,19 +2,20 @@
 
 PEN-AGENT uses several MCP (Model Context Protocol) servers to give agents access to capabilities that Claude Code's built-in tools can't provide: network scanning, persistent shell sessions, Metasploit C2, browser automation, semantic skill search, and engagement state management.
 
-Most MCP servers run as local stdio processes, started automatically by Claude Code. The exception is **shell-server**, which runs as a persistent SSE service on `127.0.0.1:8022` so all teammates share the same sessions. `run.sh` starts shell-server before launching Claude Code.
+MCP servers run one of two ways. **stdio** servers (nmap, browser, rdp, state) are started automatically by Claude Code — one subprocess per session, so each spawned teammate gets its own. **SSE** servers (shell-server, skill-router, metasploit-server) are persistent shared daemons that `run.sh` starts once before launching Claude Code; the lead and every teammate connect to the same instance by URL.
+
+skill-router is SSE **because it must be shared**: it loads a sentence-transformer embedding model + ChromaDB (tens of seconds). As a per-session stdio server, every teammate re-paid that startup cost and often couldn't resolve its tools in time — so it runs once as a daemon, like shell-server.
 
 ## Configuration
 
-Servers are configured in `.mcp.json` at the repo root. Most use stdio transport (command-based), shell-server uses SSE (URL-based):
+Servers are configured in `.mcp.json` at the repo root. stdio servers are command-based; SSE servers are URL-based:
 
 ```json
 {
   "mcpServers": {
     "skill-router": {
-      "command": "uv",
-      "args": ["run", "--directory", "tools/skill-router", "python", "server.py"],
-      "env": { "HF_HUB_OFFLINE": "1" }
+      "type": "sse",
+      "url": "http://127.0.0.1:8023/sse"
     },
     "nmap-server": {
       "command": "uv",
@@ -28,9 +29,17 @@ Servers are configured in `.mcp.json` at the repo root. Most use stdio transport
       "command": "uv",
       "args": ["run", "--directory", "tools/browser-server", "python", "server.py"]
     },
+    "rdp-server": {
+      "command": "uv",
+      "args": ["run", "--directory", "tools/rdp-server", "python", "server.py"]
+    },
     "state": {
       "command": "uv",
       "args": ["run", "--directory", "tools/state-server", "python", "server.py"]
+    },
+    "metasploit-server": {
+      "type": "sse",
+      "url": "http://127.0.0.1:8024/sse"
     }
   }
 }
@@ -42,9 +51,9 @@ All MCP server tools are pre-allowed in `.claude/settings.json` to reduce permis
 
 ## skill-router
 
-**Location:** `tools/skill-router/` · **3 tools**
+**Location:** `tools/skill-router/` · **3 tools** · **SSE transport (shared daemon)**
 
-Semantic skill discovery and retrieval. Skills are indexed from YAML frontmatter into ChromaDB with `all-MiniLM-L6-v2` sentence-transformer embeddings. The lead calls `search_skills()` to find the right skill for a situation, then tells the teammate which skill to load. Teammates call `get_skill()` to load the full methodology — they never call `search_skills()` themselves.
+Semantic skill discovery and retrieval. Skills are indexed from YAML frontmatter into ChromaDB with `all-MiniLM-L6-v2` sentence-transformer embeddings. Runs as a persistent SSE service on `127.0.0.1:8023` (configurable via `SKILL_ROUTER_SSE_PORT`), started by `run.sh` before Claude Code launches — the model loads once and every teammate connects to the same warm instance. The lead calls `search_skills()` to find the right skill for a situation, then tells the teammate which skill to load. Teammates call `get_skill()` to load the full methodology — they never call `search_skills()` themselves.
 
 | Tool | Description |
 |------|-------------|

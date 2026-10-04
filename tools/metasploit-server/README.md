@@ -81,6 +81,35 @@ If `engagement/msfrpc.yaml` is absent or msfrpcd is unreachable, all tools
 return a clear error directing the operator to start it. The server still binds
 its SSE port — it just can't reach Metasploit without a running daemon.
 
+## Concurrency
+
+All teammates connect to this one SSE service and share a single
+`MsfRpcClient`. FastMCP runs the sync tool handlers in a threadpool, so
+without protection two teammates calling msf tools at once would use that
+client — and its single `requests.Session` and console objects — from two
+threads simultaneously, which pymetasploit3 is not built for (it corrupts
+the RPC stream and drops the connection). Every RPC-touching tool is
+therefore wrapped with `@_serialized`, a single reentrant lock, so msf calls
+run one at a time. `generate_payload` is intentionally excluded — it's a pure
+`msfvenom` subprocess with no shared client, so a long build never blocks
+live RPC. This is per-process: the operator `msf-console` is a separate
+process with its own client, and `msfrpcd` handles multiple distinct RPC
+clients fine, so the operator console and the agents can both drive the same
+Framework instance concurrently.
+
+## RPC error handling
+
+`msfrpcd`'s `module.execute()` does not raise on a server-side failure (e.g.
+bad option validation) — it returns an `{"error": true, "error_message":
+...}` dict, or a result with a null `job_id`. The job-starting tools
+(`start_handler`, `upgrade_to_meterpreter`, `start_socks_proxy`, and
+`run_module`) check for both via `_execute_error()` and return an `ERROR:`
+string instead of reporting success, so a handler/proxy that never actually
+bound is never reported as "listening"/"started". `start_handler` and
+`run_module` also set the Meterpreter payload option `AutoLoadExtensions`
+explicitly, working around an msfrpcd bug where its RPC-exposed default comes
+back non-scalar and fails option validation.
+
 ## Operator Visibility
 
 `operator/msf-console/` connects to the same `msfrpcd` daemon (same

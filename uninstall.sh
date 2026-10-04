@@ -63,6 +63,8 @@ if [[ -d "${MCP_SKILL_ROUTER}/.chromadb" ]]; then
     echo "  Removed ChromaDB index"
     mcp_cleaned=$((mcp_cleaned + 1))
 fi
+# skill-router runs as a shared SSE daemon — stop it before removing its venv.
+pkill -f "tools/skill-router/.*server.py" 2>/dev/null && echo "  Stopped skill-router MCP" || true
 if [[ -d "${MCP_SKILL_ROUTER}/.venv" ]]; then
     rm -rf "${MCP_SKILL_ROUTER}/.venv"
     echo "  Removed skill-router venv"

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Launch PEN-AGENT: starts shell-server, then Claude Code.
+# Launch PEN-AGENT: starts shell-server + skill-router (+ Metasploit if
+# installed), then Claude Code.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -60,12 +61,34 @@ else
     bash tools/shell-server/start.sh
 fi
 
+# Start skill-router as a shared SSE daemon (loads the embedding model once,
+# so every agent-team teammate connects to one warm instance instead of
+# standing up its own slow copy). Backgrounded so its model load doesn't
+# delay launch — the readiness wait lives in start.sh.
+echo "[skill-router] starting (loads embedding model, may take ~30s)…"
+if bash tools/skill-router/start.sh; then
+    echo "[skill-router] ready (SSE on 127.0.0.1:${SKILL_ROUTER_SSE_PORT:-8023})"
+else
+    echo "[skill-router] WARNING: failed to start — teammates won't be able to load skills." >&2
+    echo "               Check the index: uv run --directory tools/skill-router python indexer.py" >&2
+fi
+
 # Detect and start Metasploit RPC (C2 backend)
 if command -v msfrpcd &>/dev/null && command -v msfconsole &>/dev/null; then
     export PEN_AGENT_MSF_AVAILABLE=1
     echo "[c2] Metasploit detected"
     MSF_CFG="engagement/msfrpc.yaml"
     MSF_PORT="${MSF_RPC_PORT:-55553}"
+    if pgrep -f "msfrpcd" &>/dev/null && [[ ! -f "$MSF_CFG" ]]; then
+        # msfrpcd is running but nothing records its credentials — almost
+        # always an orphaned daemon from a previous run/engagement (it's a
+        # detached background process, so it outlives the session that
+        # started it). Restart it clean rather than leaving metasploit-server
+        # and msf-console unable to connect to a daemon nobody can log into.
+        echo "[c2] msfrpcd is running but engagement/msfrpc.yaml is missing — stale daemon from a previous run, restarting with fresh credentials"
+        pkill -f "msfrpcd" 2>/dev/null || true
+        sleep 1
+    fi
     if ! pgrep -f "msfrpcd" &>/dev/null; then
         mkdir -p engagement
         MSF_PASS="${MSF_RPC_PASSWORD:-$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 24)}"

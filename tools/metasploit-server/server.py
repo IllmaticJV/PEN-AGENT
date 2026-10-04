@@ -19,10 +19,12 @@ access and are not target-gated.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -68,6 +70,36 @@ def _parse_config(path: Path) -> dict:
     return cfg
 
 
+def _execute_error(result, expect_job: bool = False) -> str | None:
+    """Return an error string if a module.execute() RPC result signals
+    failure, else None.
+
+    pymetasploit3's module.execute() returns a dict. On a server-side failure
+    (e.g. option validation) msfrpcd does NOT raise — it returns
+    {"error": True, "error_message": "..."} instead, which the old code
+    ignored while reading a null job_id off it and still reporting success.
+    Always surface an explicit error flag. When `expect_job` is set (the
+    caller is starting something that always runs as a background job, like a
+    handler or the SOCKS proxy), also treat a null `job_id` as failure, since
+    that means msfrpcd never actually started the job. `run_module` with
+    as_job=False legitimately has no job_id, so it leaves expect_job False.
+    """
+    if not isinstance(result, dict):
+        return f"unexpected RPC result: {result!r}"
+    if result.get("error"):
+        return str(
+            result.get("error_message")
+            or result.get("error_string")
+            or result
+        )
+    if expect_job and result.get("job_id") is None:
+        return (
+            "msfrpcd returned no job_id — the module did not start "
+            f"(raw result: {result!r})"
+        )
+    return None
+
+
 def create_server() -> FastMCP:
     mcp = FastMCP(
         "pen-agent-metasploit-server",
@@ -84,6 +116,32 @@ def create_server() -> FastMCP:
     )
 
     _state: dict = {"client": None}
+
+    # One shared MsfRpcClient (and the consoles it creates) is reused across
+    # every tool call. FastMCP runs these sync tool handlers in a threadpool,
+    # so two teammates calling msf tools at once would otherwise hit the same
+    # client — and its single underlying requests.Session and console
+    # objects — concurrently. pymetasploit3's client / requests.Session are
+    # NOT thread-safe (interleaved request/response framing, a shared auth
+    # token, shared console IDs), which corrupts the RPC stream and crashes
+    # the connection. Serialize every RPC-touching tool behind one reentrant
+    # lock: msf operations are effectively serial at msfrpcd anyway, so this
+    # trades a little parallelism for not crashing. The lock is NOT held
+    # during generate_payload (pure msfvenom subprocess, no shared client) so
+    # a long payload build never blocks live RPC.
+    _rpc_lock = threading.RLock()
+
+    def _serialized(fn):
+        """Serialize a tool handler's shared-client access behind _rpc_lock.
+        functools.wraps preserves the signature/annotations FastMCP
+        introspects to build the tool schema (inspect.signature follows
+        __wrapped__), so the exposed tool is unchanged apart from locking.
+        """
+        @functools.wraps(fn)
+        def _wrapper(*args, **kwargs):
+            with _rpc_lock:
+                return fn(*args, **kwargs)
+        return _wrapper
 
     def _get_client():
         """Return a connected MsfRpcClient, or None if unavailable."""
@@ -133,6 +191,7 @@ def create_server() -> FastMCP:
     # ── Handler / listener management ───────────────────────────────
 
     @mcp.tool()
+    @_serialized
     def start_handler(
         payload: str = "",
         lhost: str = "",
@@ -164,8 +223,21 @@ def create_server() -> FastMCP:
             pay = client.modules.use("payload", payload)
             pay["LHOST"] = lhost
             pay["LPORT"] = int(lport)
+            # Work around an observed msfrpcd bug: this payload option's
+            # RPC-exposed default comes back non-scalar, so module.execute()
+            # fails server-side option validation ("Invalid module option
+            # value for AutoLoadExtensions: must be a scalar") WITHOUT
+            # raising — it returns an error dict instead. The old code read
+            # job_id off that dict (null) and still reported "listening", so
+            # no handler ever bound. Set it explicitly to avoid the bad
+            # default, and surface the error dict below instead of swallowing
+            # it.
+            pay["AutoLoadExtensions"] = True
             handler["ExitOnSession"] = bool(exit_on_session)
             result = handler.execute(payload=pay)
+            err_msg = _execute_error(result, expect_job=True)
+            if err_msg:
+                return f"ERROR: Failed to start handler: {err_msg}"
             return json.dumps(
                 {
                     "status": "listening",
@@ -180,6 +252,7 @@ def create_server() -> FastMCP:
             return f"ERROR: Failed to start handler: {e}"
 
     @mcp.tool()
+    @_serialized
     def list_jobs() -> str:
         """List active Metasploit jobs (handlers, servers, aux modules)."""
         client, err = _require_client()
@@ -193,6 +266,7 @@ def create_server() -> FastMCP:
             return f"ERROR: {e}"
 
     @mcp.tool()
+    @_serialized
     def kill_job(job_id: str = "") -> str:
         """Stop a Metasploit job.
 
@@ -290,6 +364,7 @@ def create_server() -> FastMCP:
     # ── Session management ──────────────────────────────────────────
 
     @mcp.tool()
+    @_serialized
     def list_sessions() -> str:
         """List all active Metasploit sessions with metadata."""
         client, err = _require_client()
@@ -317,6 +392,7 @@ def create_server() -> FastMCP:
             return f"ERROR: {e}"
 
     @mcp.tool()
+    @_serialized
     def execute(session_id: str = "", command: str = "", timeout: int = 30) -> str:
         """Run a command on an existing session (shell or Meterpreter).
 
@@ -357,6 +433,7 @@ def create_server() -> FastMCP:
             return f"ERROR: Command execution failed: {e}"
 
     @mcp.tool()
+    @_serialized
     def upgrade_to_meterpreter(session_id: str = "", lhost: str = "", lport: int = 4433) -> str:
         """Upgrade a raw shell session to Meterpreter.
 
@@ -382,6 +459,11 @@ def create_server() -> FastMCP:
             mod["LHOST"] = lhost
             mod["LPORT"] = int(lport)
             result = mod.execute()
+            # shell_to_meterpreter spins up its own handler job — a null
+            # job_id / error dict means the upgrade never actually launched.
+            err_msg = _execute_error(result, expect_job=True)
+            if err_msg:
+                return f"ERROR: Upgrade failed: {err_msg}"
             return json.dumps(
                 {
                     "status": "upgrade_started",
@@ -394,6 +476,7 @@ def create_server() -> FastMCP:
             return f"ERROR: Upgrade failed: {e}"
 
     @mcp.tool()
+    @_serialized
     def upload(session_id: str = "", local_path: str = "", remote_path: str = "") -> str:
         """Upload a file to a Meterpreter session target.
 
@@ -421,6 +504,7 @@ def create_server() -> FastMCP:
             return f"ERROR: Upload failed: {e}"
 
     @mcp.tool()
+    @_serialized
     def download(session_id: str = "", remote_path: str = "", local_path: str = "") -> str:
         """Download a file from a Meterpreter session target.
 
@@ -453,6 +537,7 @@ def create_server() -> FastMCP:
             return f"ERROR: Download failed: {e}"
 
     @mcp.tool()
+    @_serialized
     def ifconfig(session_id: str = "") -> str:
         """List network interfaces on a Meterpreter session target (pivot detection).
 
@@ -476,6 +561,7 @@ def create_server() -> FastMCP:
             return f"ERROR: {e}"
 
     @mcp.tool()
+    @_serialized
     def kill_session(session_id: str = "") -> str:
         """Terminate a Metasploit session.
 
@@ -499,6 +585,7 @@ def create_server() -> FastMCP:
     # ── Generic module execution (scope-gated on RHOSTS) ────────────
 
     @mcp.tool()
+    @_serialized
     def run_module(
         module_type: str = "",
         module_name: str = "",
@@ -551,9 +638,26 @@ def create_server() -> FastMCP:
                 mod[k] = v
             if payload:
                 validate_module_name(payload)
-                result = mod.execute(payload=payload)
+                pay = client.modules.use("payload", payload)
+                # Same msfrpcd AutoLoadExtensions bug worked around in
+                # start_handler — set it explicitly, but only when the payload
+                # actually exposes the option (non-Meterpreter payloads don't,
+                # and setting an unknown option would itself error).
+                try:
+                    if "AutoLoadExtensions" in getattr(pay, "options", []):
+                        pay["AutoLoadExtensions"] = True
+                except Exception:
+                    pass
+                result = mod.execute(payload=pay)
             else:
                 result = mod.execute()
+            # expect_job stays False: auxiliary/post modules legitimately
+            # return no job_id, so only an explicit error dict is a failure
+            # here. (The null-job_id check is for always-background jobs like
+            # handlers and the SOCKS proxy.)
+            err_msg = _execute_error(result)
+            if err_msg:
+                return f"ERROR: Module execution failed: {err_msg}"
             return json.dumps({"status": "executed", "module": module_name, "result": result})
         except ValidationError as e:
             return f"ERROR: {e}"
@@ -563,6 +667,7 @@ def create_server() -> FastMCP:
     # ── Raw console (scope-gated on `set RHOSTS`) ───────────────────
 
     @mcp.tool()
+    @_serialized
     def console_exec(command: str = "", read_timeout: int = 30) -> str:
         """Run raw msfconsole command(s) and return the output.
 
@@ -615,6 +720,7 @@ def create_server() -> FastMCP:
     # ── Pivoting: autoroute + SOCKS ─────────────────────────────────
 
     @mcp.tool()
+    @_serialized
     def start_socks_proxy(session_id: str = "", srvport: int = 1080) -> str:
         """Pivot into a session's internal network via autoroute + SOCKS5.
 
@@ -635,13 +741,22 @@ def create_server() -> FastMCP:
             auto = client.modules.use("post", "multi/manage/autoroute")
             auto["SESSION"] = int(session_id)
             auto["CMD"] = "autoadd"
-            auto.execute()
+            auto_result = auto.execute()
+            auto_err = _execute_error(auto_result)
+            if auto_err:
+                return f"ERROR: autoroute failed, no routes added: {auto_err}"
 
             socks = client.modules.use("auxiliary", "server/socks_proxy")
             socks["SRVHOST"] = "127.0.0.1"
             socks["SRVPORT"] = int(srvport)
             socks["VERSION"] = "5"
             result = socks.execute()
+            # The SOCKS proxy always runs as a background job — a null job_id /
+            # error dict means it never bound, so don't report a usable
+            # endpoint the caller would then try (and fail) to proxy through.
+            err_msg = _execute_error(result, expect_job=True)
+            if err_msg:
+                return f"ERROR: Failed to start SOCKS proxy: {err_msg}"
             return json.dumps(
                 {
                     "status": "started",

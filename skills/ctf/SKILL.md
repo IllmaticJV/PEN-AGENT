@@ -62,9 +62,22 @@ Validate relevance before assigning — embedding similarity ≠ guaranteed matc
 
 ### If Skill Router Is Unavailable
 
-STOP. Do not fall back to inline execution. Tell operator:
-> MCP skill-router not connected. Check `.mcp.json` and server status.
-> Rebuild index: `uv run --directory tools/skill-router python indexer.py`
+skill-router is the slowest server to come up (embedding model + ChromaDB),
+so a teammate reporting it unavailable **right after spawn is usually a
+race, not a dead server** — the teammate was told to wait and retry (see
+CLAUDE.md § Teammate Protocol), so by the time it escalates to you it has
+already waited. Before telling the operator anything:
+
+1. Check it yourself — you use skill-router every routing decision
+   (`search_skills`). If your own `search_skills`/`get_skill` calls work,
+   the server is up; the teammate likely just needs to retry. Re-send the
+   task; if it still fails, the teammate's own connection is wedged — spawn
+   a fresh teammate for the same target surface (per "Assigning Tasks") and
+   reassign.
+2. If your own skill-router calls ALSO fail, the server is genuinely down.
+   STOP — do not fall back to inline execution. Tell the operator:
+   > MCP skill-router not connected. Check `.mcp.json` and server status.
+   > Rebuild index: `uv run --directory tools/skill-router python indexer.py`
 
 ## Commands the Lead May Execute
 
@@ -73,7 +86,7 @@ allowed:
   mkdir -p engagement/evidence/logs
   Write/Edit to: engagement/scope.md, engagement/config.yaml,
                  engagement/web-proxy.json, engagement/web-proxy.sh
-  TaskCreate, TaskUpdate, TaskList, TaskGet (task coordination)
+  TaskCreate, TaskUpdate, TaskList, TaskGet (task coordination, if available — see Task List Availability)
   SendMessage (teammate communication)
   state MCP read tools (init_engagement, close_engagement, get_state_summary,
                        get_vulns, get_credentials, get_access, get_targets,
@@ -128,6 +141,31 @@ pre-resume teammate by name.
 On engagement close: gracefully shut down all teammates via
 `SendMessage(message={type: "shutdown_request"})`. No further cleanup call is
 needed — team state is removed automatically when the lead's session ends.
+
+### Task List Availability
+
+`TaskCreate`/`TaskGet`/`TaskList`/`TaskUpdate` are **model-gated**, not
+guaranteed by agent teams being enabled — Claude Code provides them by
+default only on a specific set of model families (see `tools-reference` in
+the Claude Code docs; it does not currently include every Sonnet/Opus
+release). Check once, right after activation, with
+`ToolSearch("select:TaskCreate,TaskUpdate,TaskList,TaskGet")`.
+
+**If they resolve:** use them as written throughout this skill —
+`TaskCreate` for every spawn/assignment, `TaskUpdate` to track
+owner/status, `TaskList` to check progress.
+
+**If they don't resolve (empty result, not an error):** this is expected on
+some models, not a malfunction — do not retry or treat it as a blocker.
+Every `TaskCreate(...) → taskId` step in this skill becomes: assign the next
+sequential integer yourself, starting from 1, and keep it in the
+`active_teammates` dict you already maintain (see Orchestrator Loop). Every
+`TaskUpdate(...)` step becomes a no-op — just update your own
+`active_teammates` entry. `SendMessage` with the `[TASK] #<N> — ...` prefix
+is what actually assigns work either way; the Task tools (when present) are
+bookkeeping on top of that, not the delivery mechanism. Tell the operator
+once, briefly, that task tools aren't available on this model and you're
+coordinating via messages only — then proceed normally.
 
 ### Teammate Map
 
@@ -188,16 +226,24 @@ teams enabled, naming the call is what makes it a persistent teammate instead
 of an ephemeral subagent that runs to completion and exits. Teammates inherit
 all MCP servers from the lead session.
 
+**Name format is strict:** `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$` — letters,
+digits, underscores, hyphens only, max 64 chars, must start with a letter or
+digit. **IPs and hostnames contain dots, which this rejects.** Sanitize
+before building a name: replace every `.` with `-` (and strip anything else
+outside the allowed set). `net-enum-192.168.121.10` → `net-enum-192-168-121-10`.
+Apply this everywhere a target/host is embedded in a name, including every
+example in Teammate Map and Naming below.
+
 ```
 1. Read teammates/<domain>.md via Read tool
-2. TaskCreate(subject="<skill> — <target>") → taskId
+2. TaskCreate(subject="<skill> — <target>") → taskId (if Task tools available)
 3. Agent(prompt=<template content ONLY — NO task>,
         description="<3-5 word summary>",
-        name="<name>", model="<model>")
+        name="<sanitized-name>", model="<model>")
    Do NOT include the task in the prompt. The template tells the teammate
    to load schemas, read state, and go idle.
-4. TaskUpdate(taskId=<N>, owner="<name>")
-5. SendMessage(to="<name>", message="[TASK] #<N> — <skill> on <target>\n<context>")
+4. TaskUpdate(taskId=<N>, owner="<name>") (if available)
+5. SendMessage(to="<sanitized-name>", message="[TASK] #<N> — <skill> on <target>\n<context>")
    The [TASK] prefix is the signal to start working. Without it, the
    teammate stays idle.
 ```
@@ -231,16 +277,21 @@ elif no teammate for this domain:
 ```
 
 **Naming: `{role}-{target}`** — use descriptive names tied to what the
-teammate is working on:
+teammate is working on. **Sanitize the target first** (see Spawning a
+Teammate — no dots): a bare IP like `192.168.121.10` becomes
+`192-168-121-10` in the name.
 - `web-enum-portal`, `web-enum-api`, `web-enum-8443` (per vhost/port)
-- `lin-enum-dc01`, `lin-enum-web01` (per host)
+- `lin-enum-dc01`, `lin-enum-web01` (per host — short hostname, no domain)
 - `win-enum-dc01`, `win-ops-dc01` (per host)
 - `web-ops-sqli-portal`, `web-ops-lfi-api` (per exploit path)
+- `net-enum-192-168-121-10` (per bare-IP target — sanitized, not `net-enum-192.168.121.10`)
 
 Teammates from the same template can message each other when they find
 cross-relevant information (shared auth, same backend, reused creds).
 
-**Task list coordination:**
+**Task list coordination** (if Task tools are available — see Task List
+Availability; otherwise this is internal bookkeeping in `active_teammates`,
+not real tool calls):
 - Lead creates tasks via `TaskCreate` — teammates never self-claim
 - Assign tasks to teammates via `TaskUpdate(id=<N>, owner="<teammate-name>")`
 - Tasks have dependencies: "scan subnet X" blocks on "establish tunnel to X"
@@ -349,6 +400,12 @@ while objectives_not_met:
             if source_code_found → trigger Source Code Discovered hard stop
             if blocked → message state-mgr: [add-blocked], find alternative
             if flag → prominent callout to operator
+        if from shell-mgr:
+            if [backend-down] → trigger C2 Backend Unavailable hard stop IMMEDIATELY
+              (do NOT let this pass silently — see Hard Stops below)
+            if [session-ready] / [session-restored] / [session-dead] →
+              update context for the teammate waiting on it, continue routing
+            if [pivot-ready] / [pivot-failed] → see Pivot identified + access exists
 ```
 
 **Teammate messages are the notification channel.** When a teammate messages
@@ -486,9 +543,10 @@ If Cancel → stop immediately.
 ### Shell Backend Health
 
 shell-mgr owns backend health checks — it verifies shell-server (and Metasploit
-if configured) on activation and reports issues to the lead. The orchestrator
-does NOT check shell-server directly. If shell-mgr reports a backend problem,
-notify the operator and block shell-dependent tasks until resolved.
+if configured) on activation and reports issues to the lead via
+`[backend-down]`. The orchestrator does NOT check shell-server directly.
+`[backend-down]` always triggers the **C2 Backend Unavailable** hard stop
+(see Hard Stops) — never let a fallback to shell-server happen silently.
 
 ### Engagement Configuration
 
@@ -768,6 +826,8 @@ whoami /priv, net user). Assign to the appropriate teammate.
   → trigger Execution Achieved hard stop
 □ Versioned software identified? (specific version, not just product name)
   → spawn research for PoC lookup alongside ops
+□ [backend-down] from shell-mgr?
+  → trigger C2 Backend Unavailable hard stop immediately — never silent
 ```
 This is a mandatory pre-check. Do NOT skip to routing until all boxes are clear.
 
@@ -838,6 +898,36 @@ Then walk ALL items, collect every actionable finding, present to operator:
 ```
 
 ### Hard Stops
+
+**C2 Backend Unavailable** (fires as early as shell-mgr's activation health
+check — before any shell is even needed):
+```
+Trigger: [backend-down] from shell-mgr, for the backend named in
+config.yaml's shell.backend (metasploit by default — see run.sh/config.sh).
+This must reach the operator — never let the engagement silently proceed
+on a fallback backend the operator didn't agree to.
+
+1. STOP routing new shell-dependent tasks.
+2. AskUserQuestion: "shell-mgr reports <backend> is unreachable (<error from
+   shell-mgr>). Continue the engagement on shell-server (raw TCP/PTY —
+   loses Meterpreter file transfer, module execution, and autoroute+SOCKS
+   pivoting), or pause while you fix <backend> (e.g. `pkill -f msfrpcd &&
+   ./run.sh` — see docs/installation.md)?"
+   Options: Continue on shell-server (Recommended if non-critical) |
+            Pause — I'll fix it
+3. Continue on shell-server → tell shell-mgr to proceed with shell-server
+   as the effective backend for the rest of the engagement; note this in
+   the operator-facing summary so it's visible in the final report, not
+   just buried in a teammate message.
+4. Pause → block ALL shell-dependent tasks. Wait for the operator to say
+   they've fixed it, then re-check (ask shell-mgr to retry its health
+   check) before resuming.
+
+This is distinct from a single shell's C2 upgrade failing (handled
+silently per-session in teammates/shell-mgr-metasploit.md — one target
+blocking the upgrade doesn't mean the backend is down). [backend-down]
+means the backend itself is unreachable, not just one shell's upgrade.
+```
 
 **Execution Achieved** (highest priority — act IMMEDIATELY, do not queue):
 ```

@@ -12,7 +12,10 @@ or agent definitions — they're prompt templates.
    `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` set, a named `Agent` call spawns a
    persistent teammate, not a one-shot subagent. No separate team-creation
    call exists; the team forms implicitly and is torn down automatically
-   when the lead's session ends.
+   when the lead's session ends. `name` must match
+   `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$` — no dots, so a name built from an IP
+   or FQDN (e.g. `net-enum-<target>` below) needs every `.` replaced with
+   `-` first.
 4. Teammate inherits the lead's MCP servers, permissions, and CLAUDE.md
 5. Teammate goes idle after activation — wakes on `SendMessage` from lead or peers
 

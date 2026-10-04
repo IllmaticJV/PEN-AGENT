@@ -287,7 +287,7 @@ fi
 # --- Summary ---
 echo ""
 echo "Installed ${native_count} native skill(s) to ${SKILLS_DST}/ (${MODE} mode)"
-echo "84 technique/discovery skills served via MCP skill-router"
+echo "84 technique/discovery skills served via MCP skill-router (SSE on 127.0.0.1:8023 — shared)"
 echo "nmap MCP server ready (Dockerized nmap)"
 echo "shell MCP server ready (SSE on 127.0.0.1:8022 — shared sessions)"
 echo "state MCP server ready (SQLite engagement state)"
@@ -298,6 +298,7 @@ if [[ "$config_warnings" -eq 0 ]]; then
     # Restart any running SSE MCP servers to pick up new code
     echo "Restarting SSE MCP servers..."
     if pkill -f "tools/shell-server/.*server.py" 2>/dev/null; then echo "  shell-server: stopped"; fi
+    if pkill -f "tools/skill-router/.*server.py" 2>/dev/null; then echo "  skill-router: stopped"; fi
     if pkill -f "tools/metasploit-server/.*server.py" 2>/dev/null; then echo "  metasploit-server: stopped"; fi
     sleep 1
     bash "${REPO_DIR}/tools/shell-server/start.sh"
@@ -306,6 +307,14 @@ if [[ "$config_warnings" -eq 0 ]]; then
     else
         echo "  WARNING: shell-server failed to start — run manually:"
         echo "    bash tools/shell-server/start.sh"
+    fi
+    # skill-router is a shared SSE daemon (loads the embedding model once).
+    echo "  skill-router: starting (loads embedding model, may take ~30s)…"
+    if bash "${REPO_DIR}/tools/skill-router/start.sh"; then
+        echo "  skill-router: listening (SSE on 127.0.0.1:${SKILL_ROUTER_SSE_PORT:-8023})"
+    else
+        echo "  WARNING: skill-router failed to start — run manually:"
+        echo "    bash tools/skill-router/start.sh"
     fi
     # Restart metasploit-server if a Metasploit RPC config exists
     if ss -tln 2>/dev/null | grep -q ":${MSF_SSE_PORT:-8024} " || [[ -f "${REPO_DIR}/engagement/msfrpc.yaml" ]]; then
@@ -317,7 +326,7 @@ if [[ "$config_warnings" -eq 0 ]]; then
     echo "Done! Next steps:"
     echo ""
     echo "  ./config.sh             # optional — configure C2 backend (Metasploit, custom)"
-    echo "  ./run.sh                # starts shell-server (+ Metasploit if installed) + Claude Code"
+    echo "  ./run.sh                # starts shell-server + skill-router (+ Metasploit if installed) + Claude Code"
     echo ""
     echo "  config.sh is only needed to pin a C2 backend. Without it, run.sh"
     echo "  auto-starts Metasploit RPC when metasploit-framework is installed,"

@@ -35,10 +35,19 @@ Re-run the indexer after adding, removing, or modifying skills.
 
 ### Start the server
 
-The server runs as an MCP server, started automatically by Claude Code via
-`.mcp.json`. To test manually:
+skill-router runs as a **persistent SSE daemon** (not a per-session stdio
+server), because it loads a sentence-transformer embedding model + ChromaDB
+on startup — too slow to re-pay in every spawned agent-team teammate. One
+shared instance means the model loads once and the lead plus every teammate
+connect to the same warm server by URL (`http://127.0.0.1:8023/sse`,
+configurable via `SKILL_ROUTER_SSE_PORT`).
+
+`run.sh` and `install.sh` start it for you via `start.sh` (idempotent — exits
+if already listening). To start/test manually:
 
 ```bash
+bash tools/skill-router/start.sh          # background daemon + readiness wait
+# or, foreground for debugging:
 uv run --directory tools/skill-router python server.py
 ```
 
