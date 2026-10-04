@@ -2,10 +2,6 @@
 
 Autonomous offensive-security assessment toolkit for Claude Code (CTF/lab + AI red teaming).
 
-<p align="center">
-  <img src="docs/banner.png" width="700" alt="PEN-AGENT banner">
-</p>
-
 ## Quick start
 
 ```bash
@@ -141,8 +137,9 @@ supply chain — mapped to the OffSec **AI-300 (OSAI)** syllabus).
 | Reporter | `tools/reporter/` — confirmed vulns → OffSec-style findings with reproducible exploit paths. |
 | Knowledge | `knowledge/lessons-learned.md` — persistent, cross-engagement lessons. |
 
-**87 skills** across 9 categories — web (37), AD (15), privesc (11), network
-(9), ai (8), credential/evasion/post-exploit/research (1 each). Full list:
+**84 skills** across 9 categories — web (37), AD (15), privesc (11), network
+(9), ai (8), credential/evasion/post-exploit/research (1 each) — plus the
+orchestrator and retrospective skills. Full list:
 [Skills Reference](docs/skills-reference.md).
 
 **Scope is enforced in code, not prompted.** The orchestrator writes
