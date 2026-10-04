@@ -7,6 +7,24 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **Falling back from Metasploit to shell-server happened silently.**
+  `shell-mgr` already sent `[backend-down]` to the lead when its activation
+  health check found the configured backend unreachable, and
+  `skills/ctf/SKILL.md`'s prose already said this should "notify the
+  operator and block shell-dependent tasks until resolved" — but the
+  Orchestrator Loop's message-handling pseudocode had no `from shell-mgr:`
+  branch at all, so nothing ever acted on it. Confirmed live: a
+  `msfrpc.yaml`-less run used shell-server for the whole engagement without
+  ever asking. Added a new **C2 Backend Unavailable** hard stop (asks the
+  operator: continue on shell-server, or pause to fix it first) wired into
+  the loop, the mandatory hard-stop pre-check, and the Shell Backend Health
+  section. Deliberately scoped to the backend being down, not a single
+  shell's C2 upgrade failing (that stays silent/automatic, per
+  `teammates/shell-mgr-metasploit.md` — one blocked target isn't a reason
+  to interrupt the operator).
+
+### Fixed
+
 - **`run.sh` left the msf-console/metasploit-server pair unable to connect
   after a `msfrpcd` daemon outlived its run.** `msfrpcd` is a detached
   background process (`&`), so it survives the Claude Code session that

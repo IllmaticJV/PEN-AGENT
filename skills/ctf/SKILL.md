@@ -387,6 +387,12 @@ while objectives_not_met:
             if source_code_found → trigger Source Code Discovered hard stop
             if blocked → message state-mgr: [add-blocked], find alternative
             if flag → prominent callout to operator
+        if from shell-mgr:
+            if [backend-down] → trigger C2 Backend Unavailable hard stop IMMEDIATELY
+              (do NOT let this pass silently — see Hard Stops below)
+            if [session-ready] / [session-restored] / [session-dead] →
+              update context for the teammate waiting on it, continue routing
+            if [pivot-ready] / [pivot-failed] → see Pivot identified + access exists
 ```
 
 **Teammate messages are the notification channel.** When a teammate messages
@@ -524,9 +530,10 @@ If Cancel → stop immediately.
 ### Shell Backend Health
 
 shell-mgr owns backend health checks — it verifies shell-server (and Metasploit
-if configured) on activation and reports issues to the lead. The orchestrator
-does NOT check shell-server directly. If shell-mgr reports a backend problem,
-notify the operator and block shell-dependent tasks until resolved.
+if configured) on activation and reports issues to the lead via
+`[backend-down]`. The orchestrator does NOT check shell-server directly.
+`[backend-down]` always triggers the **C2 Backend Unavailable** hard stop
+(see Hard Stops) — never let a fallback to shell-server happen silently.
 
 ### Engagement Configuration
 
@@ -806,6 +813,8 @@ whoami /priv, net user). Assign to the appropriate teammate.
   → trigger Execution Achieved hard stop
 □ Versioned software identified? (specific version, not just product name)
   → spawn research for PoC lookup alongside ops
+□ [backend-down] from shell-mgr?
+  → trigger C2 Backend Unavailable hard stop immediately — never silent
 ```
 This is a mandatory pre-check. Do NOT skip to routing until all boxes are clear.
 
@@ -876,6 +885,36 @@ Then walk ALL items, collect every actionable finding, present to operator:
 ```
 
 ### Hard Stops
+
+**C2 Backend Unavailable** (fires as early as shell-mgr's activation health
+check — before any shell is even needed):
+```
+Trigger: [backend-down] from shell-mgr, for the backend named in
+config.yaml's shell.backend (metasploit by default — see run.sh/config.sh).
+This must reach the operator — never let the engagement silently proceed
+on a fallback backend the operator didn't agree to.
+
+1. STOP routing new shell-dependent tasks.
+2. AskUserQuestion: "shell-mgr reports <backend> is unreachable (<error from
+   shell-mgr>). Continue the engagement on shell-server (raw TCP/PTY —
+   loses Meterpreter file transfer, module execution, and autoroute+SOCKS
+   pivoting), or pause while you fix <backend> (e.g. `pkill -f msfrpcd &&
+   ./run.sh` — see docs/installation.md)?"
+   Options: Continue on shell-server (Recommended if non-critical) |
+            Pause — I'll fix it
+3. Continue on shell-server → tell shell-mgr to proceed with shell-server
+   as the effective backend for the rest of the engagement; note this in
+   the operator-facing summary so it's visible in the final report, not
+   just buried in a teammate message.
+4. Pause → block ALL shell-dependent tasks. Wait for the operator to say
+   they've fixed it, then re-check (ask shell-mgr to retry its health
+   check) before resuming.
+
+This is distinct from a single shell's C2 upgrade failing (handled
+silently per-session in teammates/shell-mgr-metasploit.md — one target
+blocking the upgrade doesn't mean the backend is down). [backend-down]
+means the backend itself is unreachable, not just one shell's upgrade.
+```
 
 **Execution Achieved** (highest priority — act IMMEDIATELY, do not queue):
 ```
