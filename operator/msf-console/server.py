@@ -48,6 +48,19 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _MSF_CFG = _PROJECT_ROOT / "engagement" / "msfrpc.yaml"
 _SESSION_LOG_DIR = _PROJECT_ROOT / "engagement" / "evidence" / "msf-sessions"
 _CONSOLE_SPOOL = _PROJECT_ROOT / "engagement" / "evidence" / "msf-console.log"
+_OPERATOR_SESSIONS = _PROJECT_ROOT / "engagement" / "operator-sessions.json"
+
+
+def _load_reserved_sessions() -> dict:
+    """Session IDs reserved for the operator (written by metasploit-server)."""
+    try:
+        if _OPERATOR_SESSIONS.exists():
+            data = json.loads(_OPERATOR_SESSIONS.read_text())
+            if isinstance(data, dict) and isinstance(data.get("reserved"), dict):
+                return data["reserved"]
+    except Exception:
+        pass
+    return {}
 _TOKEN_FILE = Path.home() / ".config" / "pen-agent" / "viewer-token"  # shared with state-viewer
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
@@ -231,6 +244,7 @@ class _MsfState:
         if err:
             return {"error": err}
         try:
+            reserved = _load_reserved_sessions()
             out = []
             for sid, meta in client.sessions.list.items():
                 out.append(
@@ -241,6 +255,7 @@ class _MsfState:
                         "via_exploit": meta.get("via_exploit"),
                         "tunnel_peer": meta.get("tunnel_peer"),
                         "info": meta.get("info"),
+                        "operator_reserved": str(sid) in reserved,
                     }
                 )
             return {"sessions": out, "count": len(out)}

