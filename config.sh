@@ -109,11 +109,17 @@ case "$q5" in
             echo "  Found Metasploit RPC config: $default_cfg"
             shell_backend="metasploit"
             msf_config="$default_cfg"
-        elif pgrep -f "msfrpcd" &>/dev/null; then
-            echo "  msfrpcd already running, but no config at $default_cfg."
-            echo "  Stop it (pkill -f msfrpcd) and retry, or point to an"
-            echo "  existing config. Falling back to shell-server."
         else
+            if pgrep -f "msfrpcd" &>/dev/null; then
+                # Orphaned daemon from a previous run/engagement — it's a
+                # detached background process, so it outlives whatever
+                # session started it, and nobody has a record of its
+                # credentials. Restart clean rather than falling back.
+                echo "  msfrpcd is running but no config at $default_cfg —"
+                echo "  stale daemon from a previous run. Restarting with fresh credentials."
+                pkill -f "msfrpcd" 2>/dev/null || true
+                sleep 1
+            fi
             # Metasploit is the default backend — auto-start msfrpcd, same as run.sh.
             msf_port="${MSF_RPC_PORT:-55553}"
             msf_pass="$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 24)"

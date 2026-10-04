@@ -66,6 +66,16 @@ if command -v msfrpcd &>/dev/null && command -v msfconsole &>/dev/null; then
     echo "[c2] Metasploit detected"
     MSF_CFG="engagement/msfrpc.yaml"
     MSF_PORT="${MSF_RPC_PORT:-55553}"
+    if pgrep -f "msfrpcd" &>/dev/null && [[ ! -f "$MSF_CFG" ]]; then
+        # msfrpcd is running but nothing records its credentials — almost
+        # always an orphaned daemon from a previous run/engagement (it's a
+        # detached background process, so it outlives the session that
+        # started it). Restart it clean rather than leaving metasploit-server
+        # and msf-console unable to connect to a daemon nobody can log into.
+        echo "[c2] msfrpcd is running but engagement/msfrpc.yaml is missing — stale daemon from a previous run, restarting with fresh credentials"
+        pkill -f "msfrpcd" 2>/dev/null || true
+        sleep 1
+    fi
     if ! pgrep -f "msfrpcd" &>/dev/null; then
         mkdir -p engagement
         MSF_PASS="${MSF_RPC_PASSWORD:-$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 24)}"

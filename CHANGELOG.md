@@ -7,6 +7,22 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **`run.sh` left the msf-console/metasploit-server pair unable to connect
+  after a `msfrpcd` daemon outlived its run.** `msfrpcd` is a detached
+  background process (`&`), so it survives the Claude Code session that
+  started it; a later run finding it already listening would just log
+  "msfrpcd already running" and skip writing `engagement/msfrpc.yaml`
+  entirely — leaving a daemon nobody has credentials for. Confirmed live:
+  `pgrep -af msfrpcd` showed a running daemon while
+  `engagement/msfrpc.yaml` didn't exist. `run.sh` (and the equivalent
+  branch in `config.sh`, which detected this same case but only offered to
+  fall back to shell-server) now kill and restart `msfrpcd` with fresh
+  credentials whenever it's found running without a matching config,
+  rather than leaving it stranded. Verified with a stubbed `msfrpcd`: old
+  PID dies, new PID comes up with a fresh password, config gets written.
+
+### Fixed
+
 - **Teammate names built from a bare IP (e.g. `net-enum-192.168.121.10`)
   were rejected by the real `Agent` tool** — its `name` parameter requires
   `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`, which has no dot. Confirmed live:
