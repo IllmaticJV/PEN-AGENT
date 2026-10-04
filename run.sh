@@ -7,15 +7,52 @@ cd "$(dirname "$0")"
 PORT="${SHELL_SSE_PORT:-8022}"
 
 # Parse run.sh-specific flags, pass the rest to claude
+CLEAN_START=0
 claude_args=()
 for arg in "$@"; do
     case "$arg" in
-        --yolo)       claude_args+=("--dangerously-skip-permissions") ;;
-        *)            claude_args+=("$arg") ;;
+        --yolo)        claude_args+=("--dangerously-skip-permissions") ;;
+        --clean-start) CLEAN_START=1 ;;
+        *)             claude_args+=("$arg") ;;
     esac
 done
 
 skill="/pen-agent-ctf"
+
+# --clean-start: tear down anything left over from a previous run that would
+# otherwise be silently reused — the MCP SSE daemons are idempotent-by-port, so
+# a stale instance (pointing at old engagement state/creds) keeps serving unless
+# we kill it. Also drops the Metasploit C2 (tmux console + any headless daemon),
+# orphaned pen-agent containers, and the runtime C2 coordination files that are
+# tied to the now-dead Framework. Engagement DATA (state.db, findings, scope,
+# evidence) is left untouched.
+clean_start() {
+    echo "[clean-start] tearing down stale PEN-AGENT services…"
+    for svc in shell-server skill-router metasploit-server; do
+        pkill -f "${svc}.*server.py" 2>/dev/null && echo "  stopped ${svc}" || true
+    done
+    pkill -f "operator/portal.*server.py" 2>/dev/null && echo "  stopped operator portal" || true
+    for sess in "${PEN_AGENT_MSF_TMUX:-pen-msf}" "${PEN_AGENT_PORTAL_TMUX:-pen-portal}"; do
+        if command -v tmux &>/dev/null && tmux has-session -t "$sess" 2>/dev/null; then
+            tmux kill-session -t "$sess" 2>/dev/null && echo "  killed tmux session ($sess)" || true
+        fi
+    done
+    pkill -f msfrpcd 2>/dev/null && echo "  stopped msfrpcd" || true
+    if command -v docker &>/dev/null; then
+        local orphans; orphans="$(docker ps --filter name=pen-agent- -q 2>/dev/null)"
+        if [[ -n "$orphans" ]]; then
+            docker kill $orphans >/dev/null 2>&1 && echo "  killed orphaned pen-agent container(s)" || true
+        fi
+    fi
+    # Regenerated on fresh start; operator-sessions.json is cleared because its
+    # session IDs refer to the old Framework and MSF reuses small session IDs —
+    # a stale reservation would wrongly block a new session that reuses the ID.
+    rm -f engagement/msfrpc.yaml engagement/.msf-init.rc engagement/operator-sessions.json 2>/dev/null || true
+    sleep 1  # let listener sockets free before the start scripts re-bind
+    echo "[clean-start] done — starting fresh."
+}
+
+[[ "$CLEAN_START" == 1 ]] && clean_start
 
 # Check for existing shell-server with active sessions
 if ss -tln 2>/dev/null | grep -q ":${PORT} "; then
@@ -89,6 +126,33 @@ if command -v msfconsole &>/dev/null; then
 else
     echo "[c2] Metasploit not found — shell-server only (install metasploit-framework for C2)"
 fi
+
+# Auto-start the operator portal (scope · status · MSF logs) in its own tmux
+# session so it's always up without a second manual command. Idempotent:
+# skips if the session already exists or something already holds the port.
+start_portal() {
+    local sess="${PEN_AGENT_PORTAL_TMUX:-pen-portal}"
+    local pport="${PORTAL_PORT:-8099}"
+    if ! command -v uv &>/dev/null; then
+        echo "[portal] uv not found — start manually once installed: bash operator/portal/start.sh"
+        return
+    fi
+    if ! command -v tmux &>/dev/null; then
+        echo "[portal] tmux not found — run it in the foreground: bash operator/portal/start.sh"
+        return
+    fi
+    if tmux has-session -t "$sess" 2>/dev/null; then
+        echo "[portal] already running in tmux '${sess}' → http://127.0.0.1:${pport}"
+        return
+    fi
+    if ss -tln 2>/dev/null | grep -q ":${pport} "; then
+        echo "[portal] port ${pport} already in use — not starting a second instance"
+        return
+    fi
+    tmux new-session -d -s "$sess" "bash '$(pwd)/operator/portal/start.sh'"
+    echo "[portal] started in tmux '${sess}' → http://127.0.0.1:${pport}  (attach: tmux attach -t ${sess})"
+}
+start_portal
 
 exec claude "${claude_args[@]}" \
     --append-system-prompt "On activation, immediately invoke the skill: ${skill}"

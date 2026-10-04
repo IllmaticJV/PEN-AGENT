@@ -229,8 +229,9 @@ When tools fail on hostname resolution, the orchestrator follows the same hostna
 **Operator portal** — one read-only web view with three tabs (Objective &
 Scope, Status, MSF Logs) on `http://127.0.0.1:8099`. The Status tab is the live
 access-chain graph / targets / creds / progress; the MSF Logs tab shows
-sessions, listeners, and per-session command logs. Start in a separate
-terminal:
+sessions, listeners, and per-session command logs. `run.sh` auto-starts it in
+a tmux session (`pen-portal`) — just open the URL, or `tmux attach -t
+pen-portal` to see its log. To run it standalone:
 
 ```bash
 bash operator/portal/start.sh
