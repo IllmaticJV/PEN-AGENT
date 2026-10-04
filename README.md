@@ -11,34 +11,15 @@ Autonomous offensive-security assessment toolkit for Claude Code (CTF/lab + AI r
 ```bash
 git clone https://github.com/IllmaticJV/PEN-AGENT.git
 cd PEN-AGENT
-./install.sh                            # installs skills, MCP servers, Docker images
+./install.sh                            # installs skills, MCP servers, Docker images, .claude/settings.json
 bash preflight.sh --install --optional  # installs attackbox tools (nmap, ffuf, impacket, ...)
-```
-
-Create `.claude/settings.json` at the repo root — not shipped, see
-[Permissions](#permissions):
-
-```bash
-mkdir -p .claude
-cat > .claude/settings.json <<'EOF'
-{
-  "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" },
-  "enableAllProjectMcpServers": true,
-  "permissions": {
-    "allow": [
-      "mcp__skill-router__*", "mcp__nmap-server__*", "mcp__shell-server__*",
-      "mcp__browser-server__*", "mcp__rdp-server__*", "mcp__state__*",
-      "mcp__metasploit-server__*"
-    ],
-    "deny": ["Bash(sudo *)", "Bash(rm -rf *)"]
-  }
-}
-EOF
-```
-
-```bash
 ./run.sh
 ```
+
+`install.sh` writes `.claude/settings.json` for you if it doesn't already
+exist (see [Permissions](#permissions) for what it contains and why it's not
+committed to the repo). If it already exists, your copy is left untouched —
+re-run `install.sh` any time without fear of it clobbering customization.
 
 Then just talk to it: send a target (an IP, CIDR, or chatbot URL). The
 orchestrator defines scope, runs recon, and presents each routing decision for
@@ -61,11 +42,32 @@ Inside Claude Code, invoke the orchestrator with `/pen-agent-ctf`.
 
 ## Permissions
 
-`.mcp.json` ships in the repo. `.claude/settings.json` does not — Claude Code
-won't let a session write its own permission file, so you create it once
-(content above). It does two things: enables the agent-teams flag the
-orchestrator requires, and pre-approves every MCP tool PEN-AGENT uses so
-standard permission mode doesn't prompt for every call.
+`.mcp.json` ships in the repo. `.claude/settings.json` does not — it may hold
+machine-specific customization, and a running Claude Code session can't
+safely write its own permission file — so `install.sh` writes it once, only
+if missing:
+
+```json
+{
+  "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" },
+  "enableAllProjectMcpServers": true,
+  "permissions": {
+    "allow": [
+      "mcp__skill-router__*", "mcp__nmap-server__*", "mcp__shell-server__*",
+      "mcp__browser-server__*", "mcp__rdp-server__*", "mcp__state__*",
+      "mcp__metasploit-server__*"
+    ],
+    "deny": ["Bash(sudo *)", "Bash(rm -rf *)"]
+  }
+}
+```
+
+This does two things: enables the agent-teams flag the orchestrator requires,
+and pre-approves every MCP tool PEN-AGENT uses so standard permission mode
+doesn't prompt for every call. If `claude` reports agent-teams unavailable,
+confirm the file has `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` set and that you
+started a **fresh** session after it was written — the flag is read at
+process start, so `claude --resume` on an older session won't pick it up.
 
 **Don't use `--yolo` for real engagements.** It skips Claude Code's own
 permission prompts *and* the human-approval step the orchestrator is built

@@ -78,12 +78,15 @@ The installer runs these steps:
 
 **6. Browser setup** — Installs Chromium via Playwright (~150MB) for headless browser automation.
 
-**7. Config verification** — Checks that `.mcp.json` and `.claude/settings.json` are properly configured. `.mcp.json` ships in the repo; `.claude/settings.json` does not — Claude Code won't let a session write its own permission file (for good reason), so you create it once yourself. See [Permissions](#permissions).
+**7. Config verification** — `.mcp.json` ships in the repo. `.claude/settings.json` doesn't (it may hold machine-specific customization) — `install.sh` writes it here, once, only if it's missing; if you already have one, it's left untouched and only checked for the keys PEN-AGENT needs. See [Permissions](#permissions).
 
 ### Permissions
 
-Create `.claude/settings.json` at the repo root (it's not committed, and never
-will be — see above):
+`install.sh` writes `.claude/settings.json` at the repo root for you, **once,
+only if it doesn't already exist** — it's not committed (may hold
+machine-specific customization, and a running session can't safely write its
+own permission file), so this is the one piece `install.sh` has to generate
+rather than ship:
 
 ```json
 {
@@ -103,9 +106,17 @@ will be — see above):
 This does two things: enables the agent-teams experimental flag the
 orchestrator requires (see [Agent Teams](#agent-teams) below), and
 pre-approves every MCP tool PEN-AGENT uses so **standard permission mode is
-usable without `--yolo`**. Extend `allow` with specific tool invocations you
+usable without `--yolo`**. If the file already exists, `install.sh` leaves it
+alone and only warns if `enableAllProjectMcpServers` or
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` look missing — it won't try to merge
+into a customized file. Extend `allow` with specific tool invocations you
 approve often — see `/fewer-permission-prompts` — to cut prompt friction
 further without resorting to `--dangerously-skip-permissions`.
+
+If agent-teams still reports unavailable after this, make sure you started a
+**fresh** `claude`/`./run.sh` session — the flag is read at process start, so
+`claude --resume` on a session started before the file existed won't pick it
+up.
 
 **Prefer standard mode over `--yolo` for real engagements.** `--yolo` removes
 Claude Code's own permission prompts — and with them, the human approval step

@@ -5,6 +5,17 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Added
+
+- **`install.sh` now writes `.claude/settings.json` itself** (agent-teams
+  flag + MCP tool allowlist) when it's missing, instead of asking the
+  operator to create it by hand. Previously-documented manual heredoc
+  copy/paste was error-prone (a malformed hand-edit was reported breaking a
+  session). Never overwrites an existing file — only warns if it looks like
+  it's missing the keys PEN-AGENT needs. README/docs/CLAUDE.md updated to
+  match.
+
+
 ### Fixed
 
 - **All 7 MCP servers crash-looped or failed to start against `mcp` 2.x.**
