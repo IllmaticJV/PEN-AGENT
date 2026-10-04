@@ -201,10 +201,10 @@ check_network_scanning() {
     else fail "netexec (nxc)" "pipx install netexec"; fi
 
     if p=$(find_pipx enum4linux-ng); then pass "enum4linux-ng" "$p"
-    else warn "enum4linux-ng" "pipx install enum4linux-ng"; fi
+    else warn "enum4linux-ng" "pipx install git+https://github.com/cddmp/enum4linux-ng"; fi
 
-    if p=$(find_pipx manspider); then pass "manspider" "$p"
-    else warn "manspider" "pipx install manspider"; fi
+    if p=$(find_pipx man-spider manspider); then pass "manspider" "$p"
+    else warn "manspider" "pipx install man-spider"; fi
 
     if p=$(find_cmd snmpwalk); then pass "snmpwalk" "$p"
     else warn "snmpwalk" "sudo apt install snmp"; fi
@@ -241,8 +241,8 @@ check_web_testing() {
     if p=$(find_cmd xsstrike || find_cmd xsstrike.py); then pass "XSStrike" "$p"
     else warn "XSStrike" "install and add xsstrike to PATH"; fi
 
-    if p=$(find_pipx sstimap); then pass "sstimap" "$p"
-    else warn "sstimap" "pipx install sstimap"; fi
+    if p=$(find_cmd sstimap.py); then pass "sstimap" "$p"
+    else warn "sstimap" "git clone SSTImap + wrap (no PyPI package)"; fi
 
     if p=$(find_cmd tplmap || find_cmd tplmap.py); then pass "tplmap" "$p"
     else warn "tplmap" "install and add tplmap to PATH"; fi
@@ -268,12 +268,11 @@ check_web_testing() {
     if p=$(find_cmd XXEinjector.rb); then pass "XXEinjector" "$p"
     else warn "XXEinjector" "install and add XXEinjector.rb to PATH"; fi
 
-    if p=$(find_pipx jwt_tool jwt_tool); then pass "jwt-tool" "$p"
-    elif p=$(find_cmd jwt_tool); then pass "jwt-tool" "$p"
-    else warn "jwt-tool" "pipx install jwt-tool"; fi
+    if p=$(find_cmd jwt_tool.py || find_cmd jwt_tool); then pass "jwt-tool" "$p"
+    else warn "jwt-tool" "git clone jwt_tool + wrap (no PyPI package)"; fi
 
     if p=$(find_cmd domdig); then pass "domdig" "$p"
-    else warn "domdig" "npm install -g domdig"; fi
+    else warn "domdig" "git clone domdig + npm install (no global npm pkg)"; fi
 
     if p=$(find_cmd php_filter_chain_generator.py); then pass "php_filter_chain_gen" "$p"
     else warn "php_filter_chain_gen" "install and add php_filter_chain_generator.py to PATH"; fi
@@ -357,7 +356,7 @@ check_sccm_gpo() {
 
     local p
     if p=$(find_pipx sccmhunter); then pass "sccmhunter" "$p"
-    else warn "sccmhunter" "pipx install sccmhunter"; fi
+    else warn "sccmhunter" "pipx install git+https://github.com/garrettfoster13/sccmhunter"; fi
 
     if p=$(find_cmd pxethiefy.py || find_cmd pxethiefy); then pass "pxethiefy" "$p"
     else warn "pxethiefy" "install and add pxethiefy to PATH"; fi
@@ -366,7 +365,7 @@ check_sccm_gpo() {
     else warn "pyGPOAbuse" "install and add pyGPOAbuse.py to PATH"; fi
 
     if p=$(find_pipx gpohound || find_cmd gpohound); then pass "GPOHound" "$p"
-    else warn "GPOHound" "pipx install gpohound"; fi
+    else warn "GPOHound" "pipx install git+https://github.com/cogiceo/GPOHound"; fi
 }
 
 check_pivoting() {
@@ -515,7 +514,7 @@ check_target_tools() {
     done
 
     if p=$(find_pipx wesng wes || find_cmd wes); then pass "WES-NG" "$p"
-    else warn "WES-NG" "pipx install wesng"; fi
+    else warn "WES-NG" "pipx install git+https://github.com/bitsadmin/wesng"; fi
 
     # Potato privesc binaries (SeImpersonate → SYSTEM)
     local potato_dir="/usr/share/windows-binaries/potatoes"
@@ -575,45 +574,104 @@ apt_pkg() {  # apt install (idempotent-ish); $1 = package
     _sudo apt-get install -y -qq "$1"
 }
 pipx_tool() { as_owner env "PIPX_HOME=$TOOLS_PIPX" "PIPX_BIN_DIR=$TOOLS_BIN" pipx install --force "$1"; }
+# pipx straight from a GitHub repo — for tools not on PyPI, or whose PyPI
+# release lacks a console entry point. pipx builds an isolated venv (deps and
+# all) and exposes the package's declared scripts in $TOOLS_BIN.
+pipx_git()  { as_owner env "PIPX_HOME=$TOOLS_PIPX" "PIPX_BIN_DIR=$TOOLS_BIN" pipx install --force "git+https://github.com/$1"; }
 go_tool()   { as_owner env "GOBIN=$TOOLS_BIN" go install "$1"; }
 gem_tool()  { as_owner env "GEM_HOME=$TOOLS_GEMS" gem install --no-document --bindir "$TOOLS_BIN" "$1"; }
 npm_tool()  { as_owner npm install -g --prefix "$TOOLS_NPM" "$1"; }
 
-git_wrap() {  # repo dir entrypoint... : clone to $TOOLS_REPOS/<dir>, wrap python entrypoints into bin
+git_wrap() {  # repo dir entrypoint... : clone to $TOOLS_REPOS/<dir>, wrap entrypoints into bin
     local repo="$1" name="$2"; shift 2
     [[ -n "$DRYRUN" ]] && { echo "[dry] git clone https://github.com/$repo + wrap: $*" >>"$ILOG"; return 0; }
     local dir="$TOOLS_REPOS/$name"
     if [[ -d "$dir/.git" ]]; then (cd "$dir" && as_owner git pull -q) || true
     else as_owner git clone --depth 1 -q "https://github.com/$repo" "$dir"; fi
-    # install requirements if present (into a venv-free user install is messy; rely on system libs)
+    # Python entrypoints: if the repo pins requirements, install them into a
+    # per-repo venv (--system-site-packages so Kali's packaged libs still show)
+    # and run the tool from that venv. Best-effort — fall back to system
+    # python3 if venv/pip fails, so a wrapper is always produced.
+    local pyrunner="python3"
+    if [[ -f "$dir/requirements.txt" ]]; then
+        if as_owner python3 -m venv --system-site-packages "$dir/.venv" \
+           && as_owner "$dir/.venv/bin/pip" install -q --disable-pip-version-check -r "$dir/requirements.txt"; then
+            pyrunner="$dir/.venv/bin/python"
+        else
+            echo "[warn] $name: requirements install failed, using system python3" >>"$ILOG"
+        fi
+    fi
     local ep
     for ep in "$@"; do
         local base; base="$(basename "$ep")"
-        local runner="python3"; [[ "$ep" == *.rb ]] && runner="ruby"; [[ "$ep" == *.jar ]] && runner="java -jar"
+        local runner="$pyrunner"; [[ "$ep" == *.rb ]] && runner="ruby"; [[ "$ep" == *.jar ]] && runner="java -jar"
         { echo '#!/usr/bin/env bash'; echo "exec $runner \"$dir/$ep\" \"\$@\""; } > "$TOOLS_BIN/$base"
         chmod +x "$TOOLS_BIN/$base"
     done
 }
 
-gh_release_bin() {  # repo asset-grep dest-name : download matching latest-release asset to bin
-    local repo="$1" pat="$2" dest="$3" url
-    [[ -n "$DRYRUN" ]] && { echo "[dry] gh release $repo [$pat] -> $TOOLS_BIN/$dest" >>"$ILOG"; return 0; }
-    url="$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" \
+git_node() {  # repo dir [main.js] : clone, npm install in-tree, wrap `node <dir>/<main>`
+    local repo="$1" name="$2" main="${3:-$2.js}"
+    [[ -n "$DRYRUN" ]] && { echo "[dry] git clone https://github.com/$repo + npm install + wrap node $name" >>"$ILOG"; return 0; }
+    local dir="$TOOLS_REPOS/$name"
+    if [[ -d "$dir/.git" ]]; then (cd "$dir" && as_owner git pull -q) || true
+    else as_owner git clone --depth 1 -q "https://github.com/$repo" "$dir"; fi
+    ( cd "$dir" && as_owner npm install --silent --no-audit --no-fund ) || return 1
+    { echo '#!/usr/bin/env bash'; echo "exec node \"$dir/$main\" \"\$@\""; } > "$TOOLS_BIN/$name"
+    chmod +x "$TOOLS_BIN/$name"
+    [[ -s "$TOOLS_BIN/$name" ]]
+}
+
+# Resolve the first latest-release asset URL whose name matches a pattern.
+gh_release_url() {
+    curl -fsSL "https://api.github.com/repos/$1/releases/latest" \
         | grep -oE '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]+"' \
-        | cut -d'"' -f4 | grep -iE "$pat" | head -1)"
-    [[ -n "$url" ]] || return 1
+        | cut -d'"' -f4 | grep -iE "$2" | head -1
+}
+
+# Pick the wanted member out of an extracted archive. Prefers an x64 copy,
+# then an exact basename match, then the first plausible binary/jar.
+_release_extract() {  # tmpdir basename outpath
+    local tmp="$1" base="$2" out="$3" found
+    found="$(find "$tmp" -type f -ipath '*x64*' -iname "$base" | head -1)"
+    [[ -z "$found" ]] && found="$(find "$tmp" -type f -iname "$base" | head -1)"
+    [[ -z "$found" ]] && found="$(find "$tmp" -maxdepth 4 -type f \( -iname '*.exe' -o -iname '*.jar' \) ! -iname '*.txt' ! -iname '*.md' | head -1)"
+    [[ -n "$found" ]] && cp "$found" "$out"
+}
+
+# Fetch a latest-release asset and land ONE file at an absolute dest path.
+# Handles raw, .gz, .tar.gz/.tgz and .zip. Writes via _sudo so system staging
+# dirs (e.g. the potato dir) work; the final chown in run_install normalizes
+# ownership back to the operator. The asset URL is resolved at run time, so a
+# wrong pattern fails cleanly (return 1) rather than staging garbage.
+gh_release_file() {  # repo asset-grep dest-path
+    local repo="$1" pat="$2" dest="$3" url tmp base out
+    [[ -n "$DRYRUN" ]] && { echo "[dry] gh release $repo [$pat] -> $dest" >>"$ILOG"; return 0; }
+    url="$(gh_release_url "$repo" "$pat")"; [[ -n "$url" ]] || return 1
+    tmp="$(mktemp -d)"; base="$(basename "$dest")"; out="$tmp/$base"
     if [[ "$url" == *.gz && "$url" != *.tar.gz ]]; then
-        curl -fsSL "$url" | gunzip -c > "$TOOLS_BIN/$dest"
+        curl -fsSL "$url" | gunzip -c > "$out"
     elif [[ "$url" == *.tar.gz || "$url" == *.tgz ]]; then
-        local tmp; tmp="$(mktemp -d)"; curl -fsSL "$url" | tar -xz -C "$tmp"
-        local found; found="$(find "$tmp" -type f -name "$dest" | head -1)"
-        [[ -z "$found" ]] && found="$(find "$tmp" -maxdepth 2 -type f -perm -u+x ! -name '*.txt' ! -name '*.md' | head -1)"
-        [[ -n "$found" ]] && cp "$found" "$TOOLS_BIN/$dest"; rm -rf "$tmp"
+        curl -fsSL "$url" | tar -xz -C "$tmp"; _release_extract "$tmp" "$base" "$out"
+    elif [[ "$url" == *.zip ]]; then
+        curl -fsSL "$url" -o "$tmp/asset.zip" && unzip -oq "$tmp/asset.zip" -d "$tmp"
+        _release_extract "$tmp" "$base" "$out"
     else
-        curl -fsSL "$url" -o "$TOOLS_BIN/$dest"
+        curl -fsSL "$url" -o "$out"
     fi
-    chmod +x "$TOOLS_BIN/$dest" 2>/dev/null || true
-    [[ -s "$TOOLS_BIN/$dest" ]]
+    if [[ -s "$out" ]]; then
+        _sudo mkdir -p "$(dirname "$dest")"
+        _sudo cp "$out" "$dest"
+        _sudo chmod +x "$dest" 2>/dev/null || true
+        rm -rf "$tmp"; _sudo test -s "$dest"
+    else
+        rm -rf "$tmp"; return 1
+    fi
+}
+
+# Thin wrapper: stage a release asset into $TOOLS_BIN (on PATH).
+gh_release_bin() {  # repo asset-grep dest-name
+    gh_release_file "$1" "$2" "$TOOLS_BIN/$3"
 }
 gh_raw() {
     [[ -n "$DRYRUN" ]] && { echo "[dry] raw $1 -> $TOOLS_BIN/$2" >>"$ILOG"; return 0; }
@@ -646,6 +704,14 @@ ensure_base() {  # toolchains many installs need
     _try "has_cmd git"   "git"   apt_pkg git
     _try "has_cmd pipx"  "pipx"  apt_pkg pipx
     _try "has_cmd go"    "go (golang)" apt_pkg golang-go
+    _try "has_cmd unzip" "unzip" apt_pkg unzip
+}
+
+install_ysoserial() {  # jar + a `ysoserial` launcher wrapper
+    [[ -n "$DRYRUN" ]] && { echo "[dry] gh release frohoff/ysoserial -> $TOOLS_BIN/ysoserial.jar + wrapper" >>"$ILOG"; return 0; }
+    gh_release_bin frohoff/ysoserial 'ysoserial.*all\.jar$' ysoserial.jar || return 1
+    { echo '#!/usr/bin/env bash'; echo "exec java -jar \"$TOOLS_BIN/ysoserial.jar\" \"\$@\""; } > "$TOOLS_BIN/ysoserial"
+    chmod +x "$TOOLS_BIN/ysoserial"
 }
 
 install_uv()     { as_owner env "UV_INSTALL_DIR=$TOOLS_BIN" sh -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'; }
@@ -712,15 +778,20 @@ install_optional() {
               "npm:npm" "exiftool:libimage-exiftool-perl" "x86_64-w64-mingw32-gcc:mingw-w64"; do
         _try "has_cmd ${pb%%:*}" "${pb##*:}" apt_pkg "${pb##*:}"
     done
-    # pipx
-    for pp in "enum4linux-ng:enum4linux-ng:x" "manspider:manspider:manspider" \
-              "git-dumper:git-dumper:git-dumper" "arjun:arjun:arjun" "sstimap:sstimap:sstimap" \
-              "fenjing:fenjing:fenjing" "badsecrets:badsecrets:badsecrets" "pywhisker:pywhisker:pywhisker" \
-              "sccmhunter:sccmhunter:sccmhunter" "gpohound:gpohound:gpohound" "wesng:wesng:wes" \
-              "jwt-tool:jwt-tool:jwt_tool"; do
-        IFS=: read -r bin pkg _ <<<"$pp"
-        _try "has_cmd $bin" "$pkg" pipx_tool "$pkg"
+    # pipx — PyPI packages whose console script is named like the tool
+    for pb in git-dumper arjun fenjing badsecrets pywhisker; do
+        _try "has_cmd $pb" "$pb" pipx_tool "$pb"
     done
+    # pipx with a corrected PyPI id (the obvious name has no distributions)
+    _try "has_cmd manspider"     "manspider"     pipx_tool man-spider
+    # pipx straight from git — not on PyPI, or the PyPI build has no entry point
+    _try "has_cmd enum4linux-ng" "enum4linux-ng" pipx_git cddmp/enum4linux-ng
+    _try "has_cmd sccmhunter"    "sccmhunter"    pipx_git garrettfoster13/sccmhunter
+    _try "has_cmd gpohound"      "GPOHound"      pipx_git cogiceo/GPOHound
+    _try "has_cmd wes"           "WES-NG"        pipx_git bitsadmin/wesng
+    # git-clone python tools with no packaging — clone + venv deps + wrapper
+    _try "has_cmd sstimap.py"    "SSTImap"       git_wrap vladko312/SSTImap SSTImap sstimap.py
+    _try "has_cmd jwt_tool.py"   "jwt-tool"      git_wrap ticarpi/jwt_tool jwt_tool jwt_tool.py
     # go
     _try "has_cmd dalfox"            "dalfox"            go_tool github.com/hahwul/dalfox/v2@latest
     _try "has_cmd TInjA"             "TInjA"             go_tool github.com/Hackmanit/TInjA@latest
@@ -728,7 +799,7 @@ install_optional() {
     _try "has_cmd xxeserv"           "xxeserv"           go_tool github.com/staaldraad/xxeserv@latest
     # gem / npm
     _try "has_cmd wpscan"  "wpscan" gem_tool wpscan
-    _try "has_cmd domdig"  "domdig" npm_tool domdig
+    _try "has_cmd domdig"  "DOMDig" git_node fcavallarin/domdig domdig domdig.js
     # git-clone python/ruby/php toolkits
     _try "has_cmd xsstrike.py"       "XSStrike"       git_wrap s0md3v/XSStrike XSStrike xsstrike.py
     _try "has_cmd tplmap.py"         "tplmap"         git_wrap epinna/tplmap tplmap tplmap.py
@@ -751,13 +822,23 @@ install_optional() {
     _try "[[ -x $TOOLS_BIN/lse.sh ]]"  "lse.sh"  gh_raw diego-treitos/linux-smart-enumeration/master/lse.sh lse.sh
     _try "[[ -x $TOOLS_BIN/deepce.sh ]]" "deepce.sh" gh_raw stealthcopter/deepce/main/deepce.sh deepce.sh
     _try "[[ -x $TOOLS_BIN/linux-exploit-suggester.sh ]]" "linux-exploit-suggester" gh_raw The-Z-Labs/linux-exploit-suggester/master/linux-exploit-suggester.sh linux-exploit-suggester.sh
-    # Known-good but binary/AV-sensitive or build-required → flag as manual
-    for m in "ysoserial.jar (Java gadget chains)" "marshalsec (build from source)" \
-             "winPEAS.exe / mimikatz.exe / Rubeus.exe (Windows, AV-sensitive)" \
-             "Potato privesc binaries (GodPotato/PrintSpoofer/JuicyPotatoNG/SigmaPotato)" \
-             "RunasCs.exe"; do
-        _manual "$m"
-    done
+    _try "has_cmd pspy32"            "pspy32"         gh_release_bin DominicBreuker/pspy 'pspy32$' pspy32
+    # Payloads pre-staged for delivery to targets (release assets resolved at
+    # run time, so they self-heal as upstream renames assets).
+    _try "has_cmd ysoserial"         "ysoserial.jar"  install_ysoserial
+    # Windows target-side PEs — staged on PATH ($TOOLS_BIN) to match the checks.
+    _try "has_cmd winpeas.exe"       "winPEAS.exe"    gh_release_bin carlospolop/PEASS-ng 'winPEASx64\.exe$' winpeas.exe
+    _try "has_cmd mimikatz.exe"      "mimikatz.exe"   gh_release_bin gentilkiwi/mimikatz 'mimikatz.*\.zip$' mimikatz.exe
+    _try "has_cmd RunasCs.exe"       "RunasCs.exe"    gh_release_bin antonioCoco/RunasCs 'RunasCs\.zip$' RunasCs.exe
+    # Potato SeImpersonate→SYSTEM binaries — staged where the check looks.
+    local potatoes="/usr/share/windows-binaries/potatoes"
+    _try "[[ -s $potatoes/GodPotato-NET4.exe ]]" "GodPotato-NET4.exe" gh_release_file BeichenDream/GodPotato 'GodPotato-NET4\.exe$' "$potatoes/GodPotato-NET4.exe"
+    _try "[[ -s $potatoes/PrintSpoofer64.exe ]]" "PrintSpoofer64.exe" gh_release_file itm4n/PrintSpoofer 'PrintSpoofer64\.exe$' "$potatoes/PrintSpoofer64.exe"
+    _try "[[ -s $potatoes/JuicyPotatoNG.exe ]]"  "JuicyPotatoNG.exe"  gh_release_file antonioCoco/JuicyPotatoNG 'JuicyPotatoNG.*\.zip$' "$potatoes/JuicyPotatoNG.exe"
+    _try "[[ -s $potatoes/SigmaPotato.exe ]]"    "SigmaPotato.exe"    gh_release_file tylerdotrar/SigmaPotato 'SigmaPotato\.exe$' "$potatoes/SigmaPotato.exe"
+    # No reliable prebuilt binary upstream → operator must supply these.
+    _manual "Rubeus.exe (GhostPack — no official release binary; compile or supply from a trusted source)"
+    _manual "marshalsec (build the JAR from source with maven)"
 }
 
 run_install() {
