@@ -14,6 +14,36 @@ follows [Keep a Changelog](https://keepachangelog.com/).
   shell-server stays in the foreground first (it may prompt about prior
   sessions); `PEN_AGENT_MSF_AVAILABLE` is still exported in the parent shell so
   it reaches Claude Code.
+- **Two-tier skill loading (`get_skill`) to cut per-task tokens.** `get_skill`
+  previously returned the entire SKILL.md into a teammate's context on every
+  task; it now returns the skill's **core** (methodology + steps + payloads)
+  and omits the **Troubleshooting** section (~7-8% of each skill, only needed
+  when a step fails) with a one-line note on how to fetch it. On a failure a
+  teammate calls `get_skill(name, section="troubleshooting")`; `section="full"`
+  returns the whole file; any heading substring fetches that section. The
+  deferred set is tunable via `SKILL_DEFER_SECTIONS` (e.g. add "engagement
+  logging,state management" to defer the repeated boilerplate too, ~13%; empty
+  disables deferral). Pure text slicing on `## ` headings — no skill files
+  changed. CLAUDE.md teammate guidance + skill-router README updated.
+- **Trimmed `CLAUDE.md`'s per-turn footprint (~16 KB → ~13 KB, 354 → 270
+  lines).** It's auto-loaded into every lead and teammate turn, so the
+  repo-development-only sections (skill-file format, documentation rules,
+  directory layout, install, the full token-budget detail) moved to a new
+  `CONTRIBUTING.md`. `CLAUDE.md` keeps everything runtime agents use
+  (engagement workflow, architecture, skill routing, state, teammate protocol,
+  engagement directory, permission mode) plus short pointers — the mandatory
+  CHANGELOG rule and the token-budget essence stay visible in `CLAUDE.md` with
+  the detail in `CONTRIBUTING.md`.
+
+### Fixed
+
+- **metasploit-server: a session spawn no longer blocks every other teammate
+  for ~30s.** `spawn_session`/`spawn_operator_session` were `@_serialized`, so
+  the shared RPC lock was held through `_spawn_sibling`'s entire 30s
+  wait-for-new-session poll — stalling all other agents' Metasploit calls.
+  Locking is now fine-grained: the lock is taken only for the pre-checks +
+  module launch and for each brief poll read, and released during the 1s
+  sleeps, so other teammates' calls interleave while a spawn waits.
 
 ### Fixed
 
