@@ -32,9 +32,11 @@ natural-language triggers.
 
 ### Agent Teams (`/pen-agent-ctf`)
 
-The lead session runs the orchestrator skill, creates a team via `TeamCreate`,
-spawns persistent domain teammates via `Agent` with `team_name`, assigns tasks
-via `TaskCreate`/`TaskUpdate`, and chains vulnerabilities toward impact.
+The lead session runs the orchestrator skill. There is no team-creation call
+— spawning a domain teammate via `Agent` with a `name` parameter (with
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` set) is what forms the team
+implicitly, around the lead's session. The lead assigns tasks via
+`TaskCreate`/`TaskUpdate`, and chains vulnerabilities toward impact.
 Teammates communicate via `SendMessage` and write to state.db through
 state-mgr. All technique skills (80+) are served on-demand via the MCP
 skill-router. Teammate spawn templates live in `teammates/`.
@@ -312,8 +314,8 @@ PEN-AGENT/
 
 Agent teams works in standard permission mode — **not** `--yolo`
 (`--dangerously-skip-permissions`). MCP server tools are pre-allowed in
-`.claude/settings.json` (operator-created; see docs/installation.md#permissions
-— Claude Code won't let a session write its own permission file). The
+`.claude/settings.json`, which `install.sh` writes once if missing (see
+docs/installation.md#permissions) — it never overwrites an existing one. The
 orchestrator's approval gates provide human-in-the-loop control; `--yolo`
 removes that step along with the permission prompts, leaving only Claude
 Code's own safety classifiers between a teammate and the next tool call,

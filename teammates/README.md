@@ -6,12 +6,15 @@ or agent definitions — they're prompt templates.
 
 ## How they work
 
-1. Orchestrator calls `TeamCreate(team_name="pen-agent")` once per session
-2. Orchestrator decides to spawn a teammate (e.g., web vuln found → need web-ops)
-3. Orchestrator reads `teammates/web-ops.md` via the Read tool
-4. Orchestrator spawns via `Agent(prompt=<template>, name="web-ops", team_name="pen-agent")`
-5. Teammate inherits the lead's MCP servers, permissions, and CLAUDE.md
-6. Teammate goes idle after activation — wakes on `SendMessage` from lead or peers
+1. Orchestrator decides to spawn a teammate (e.g., web vuln found → need web-ops)
+2. Orchestrator reads `teammates/web-ops.md` via the Read tool
+3. Orchestrator spawns via `Agent(prompt=<template>, name="web-ops")` — with
+   `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` set, a named `Agent` call spawns a
+   persistent teammate, not a one-shot subagent. No separate team-creation
+   call exists; the team forms implicitly and is torn down automatically
+   when the lead's session ends.
+4. Teammate inherits the lead's MCP servers, permissions, and CLAUDE.md
+5. Teammate goes idle after activation — wakes on `SendMessage` from lead or peers
 
 ## Teammate types
 

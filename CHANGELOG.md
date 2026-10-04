@@ -7,6 +7,35 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **The orchestrator's agent-teams integration called tools that don't
+  exist.** `TeamCreate`, `TeamDelete`, and the `Agent` tool's `team_name`
+  parameter — used throughout `skills/ctf/SKILL.md`, `CLAUDE.md`, and
+  `teammates/README.md` for team creation, name-collision handling, and
+  teardown — are not part of Claude Code's real agent-teams API. The actual
+  mechanism: with `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` set, calling
+  `Agent` with a `name` parameter (no `team_name`) spawns a persistent
+  teammate and the team forms implicitly around the lead's session; team
+  state is cleaned up automatically when the session ends. This was the
+  actual root cause of "agent-teams tools aren't available in this
+  session" even on a correctly configured local CLI session — not an
+  environment or settings problem. Rewrote the team-spawn mechanics across
+  all three files to match the real API, including the correct resume
+  behavior (in-process teammates are not restored by `/resume`) and the
+  non-interactive-session (`-p` flag) limitation.
+
+### Added
+
+- **`install.sh` now writes `.claude/settings.json` itself** (agent-teams
+  flag + MCP tool allowlist) when it's missing, instead of asking the
+  operator to create it by hand. Previously-documented manual heredoc
+  copy/paste was error-prone (a malformed hand-edit was reported breaking a
+  session). Never overwrites an existing file — only warns if it looks like
+  it's missing the keys PEN-AGENT needs. README/docs/CLAUDE.md updated to
+  match.
+
+
+### Fixed
+
 - **All 7 MCP servers crash-looped or failed to start against `mcp` 2.x.**
   Every server's `pyproject.toml` declared `mcp[cli]` with only a lower
   bound, so a fresh resolve picked up the breaking 2.x release (FastMCP

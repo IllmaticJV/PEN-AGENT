@@ -245,11 +245,41 @@ if [[ ! -f "${REPO_DIR}/.mcp.json" ]]; then
     config_warnings=$((config_warnings + 1))
 fi
 
+# .claude/settings.json enables agent-teams and pre-approves PEN-AGENT's own
+# MCP tools. It's not committed to the repo (a session can't write its own
+# permission file, and it may hold machine-specific customization), so
+# install.sh writes it here — once, only if missing. If it already exists we
+# never touch it; we only warn about keys that look missing, since merging
+# into an operator-customized file safely isn't something to automate.
 settings_file="${REPO_DIR}/.claude/settings.json"
-if [[ -f "$settings_file" ]]; then
+if [[ ! -f "$settings_file" ]]; then
+    mkdir -p "${REPO_DIR}/.claude"
+    cat > "$settings_file" << 'JSON'
+{
+  "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" },
+  "enableAllProjectMcpServers": true,
+  "permissions": {
+    "allow": [
+      "mcp__skill-router__*", "mcp__nmap-server__*", "mcp__shell-server__*",
+      "mcp__browser-server__*", "mcp__rdp-server__*", "mcp__state__*",
+      "mcp__metasploit-server__*"
+    ],
+    "deny": ["Bash(sudo *)", "Bash(rm -rf *)"]
+  }
+}
+JSON
+    echo ""
+    echo "Wrote ${settings_file} (agent-teams flag + MCP tool allowlist)."
+else
     if ! grep -q '"enableAllProjectMcpServers"' "$settings_file"; then
         echo ""
         echo "WARNING: enableAllProjectMcpServers not set in .claude/settings.json"
+        config_warnings=$((config_warnings + 1))
+    fi
+    if ! grep -q "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" "$settings_file"; then
+        echo ""
+        echo "WARNING: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS not set in .claude/settings.json"
+        echo "  — the orchestrator needs this to spawn teammates. Add it under \"env\"."
         config_warnings=$((config_warnings + 1))
     fi
 fi
