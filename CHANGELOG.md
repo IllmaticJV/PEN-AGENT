@@ -3,6 +3,24 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-04
+
+### Fixed
+
+- **All 7 MCP servers crash-looped or failed to start against `mcp` 2.x.**
+  Every server's `pyproject.toml` declared `mcp[cli]` with only a lower
+  bound, so a fresh resolve picked up the breaking 2.x release (FastMCP
+  renamed to MCPServer). `metasploit-server` had no committed `uv.lock` at
+  all and broke on every run; the `uv.lock` files added for
+  nmap-server/rdp-server/skill-router in the previous fix were themselves
+  generated after `mcp` 2.x became available and were silently pinned to
+  the broken version. Pinned `mcp[cli]` to `<2.0.0` everywhere, regenerated
+  all affected locks (confirmed each server now imports and starts on
+  `mcp` 1.30.0/1.26.0), and added the missing `metasploit-server` lock.
+- **`pen-agent-shell` Docker image failed to build** —
+  `gem install evil-winrm` pulls in `readline-ext`, which needs
+  `libreadline-dev` at build time; added it to the Dockerfile.
+
 ## 2026-10-03
 
 ### Changed
