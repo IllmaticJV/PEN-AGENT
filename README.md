@@ -29,7 +29,7 @@ your approval before assigning work — answer those as they come up.
 | `./uninstall.sh` | Remove everything install.sh set up |
 | `bash preflight.sh [--install] [--optional]` | Check/install attackbox tools (nmap, ffuf, hashcat, impacket, ...) |
 | `bash config.sh` | Pre-engagement wizard — scan type, proxy, spray tier, cracking, C2 backend |
-| `./run.sh [--yolo]` | Start shell-server + skill-router (+ Metasploit if installed) + Claude Code |
+| `./run.sh [--yolo] [--clean-start]` | Start shell-server + skill-router (+ Metasploit if installed) + the operator portal (tmux) + Claude Code. `--clean-start` first tears down stale services from a previous run (see below) |
 | `uv run --directory tools/reporter python export_report.py --strict` | Export findings → `engagement/findings.json` + `report.md` |
 | `bash operator/portal/start.sh` | Operator portal (scope · status · MSF logs) → `http://127.0.0.1:8099` |
 
@@ -81,8 +81,10 @@ Code inside `tmux`.
 
 ## Operator portal
 
-One read-only web view (`operator/portal/`, port `8099`) with three tabs —
-`bash operator/portal/start.sh`:
+One read-only web view (`operator/portal/`, port `8099`) with three tabs.
+`run.sh` **auto-starts it in a tmux session** (`pen-portal`) on launch — open
+`http://127.0.0.1:8099`, or `tmux attach -t pen-portal` to see its log. To run
+it standalone: `bash operator/portal/start.sh`. The three tabs:
 
 - **Objective & Scope** — the engagement objective + rules of engagement
   (`engagement/scope.md`), the in-scope allowlist (`scope.allow`), and status.
@@ -121,6 +123,18 @@ live. You can work alongside them — the only contention is interacting with th
 when a session is idle (the read-only portal's per-session log lets you watch
 without attaching). Without `tmux`, `run.sh` falls back to a headless
 `msfrpcd` (agents work; no live operator console — install tmux for that).
+
+## Fresh start
+
+`./run.sh --clean-start` tears down anything left running from a previous
+session before launching — the MCP SSE daemons (shell-server, skill-router,
+metasploit-server) are idempotent-by-port and would otherwise be silently
+reused even if they point at stale state, plus the Metasploit C2 (tmux console
++ any `msfrpcd`), orphaned `pen-agent-*` containers, the portal, and the
+runtime C2 files tied to the dead Framework (`engagement/msfrpc.yaml`,
+`.msf-init.rc`, `operator-sessions.json`, all regenerated). **Engagement data
+— `state.db`, `findings/`, `scope.*`, `evidence/` — is left untouched.** Use it
+when interaction is flaky or after a crash.
 
 ## Documentation
 

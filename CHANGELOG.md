@@ -5,6 +5,24 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Added
+
+- **`run.sh --clean-start`** tears down stale services from a previous session
+  before launching, so interaction isn't broken by something silently reused:
+  the MCP SSE daemons (shell-server/skill-router/metasploit-server, which are
+  idempotent-by-port and otherwise kept serving even when pointing at old
+  state), the Metasploit C2 (tmux `pen-msf` console + any `msfrpcd`), orphaned
+  `pen-agent-*` containers, the operator portal, and the runtime C2 files tied
+  to the dead Framework (`engagement/msfrpc.yaml`, `.msf-init.rc`,
+  `operator-sessions.json` — regenerated on start; `operator-sessions.json` is
+  cleared because MSF reuses small session IDs and a stale reservation would
+  wrongly block a new session). Engagement data (state.db, findings, scope,
+  evidence) is left untouched.
+- **`run.sh` auto-starts the operator portal** in a tmux session (`pen-portal`)
+  on launch — `http://127.0.0.1:8099`, or `tmux attach -t pen-portal` for its
+  log. Idempotent (skips if the session exists or the port is held); falls back
+  to a manual-start hint when uv or tmux is missing.
+
 ### Changed
 
 - **Model tiering: host/network recon enum teammates dropped to Haiku.**
