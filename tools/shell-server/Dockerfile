@@ -7,8 +7,8 @@ ARG IMPACKET_VERSION=0.13.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     net-tools iproute2 iputils-ping dnsutils tcpdump gcc libc6-dev \
-    libffi-dev libssl-dev git curl socat proxychains-ng openssh-client \
-    ruby ruby-dev make \
+    libffi-dev libssl-dev libreadline-dev git curl socat proxychains-ng \
+    openssh-client ruby ruby-dev make \
     && rm -rf /var/lib/apt/lists/*
 
 # Evil-WinRM — WinRM shell for Windows targets
