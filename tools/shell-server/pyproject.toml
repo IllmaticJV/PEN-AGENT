@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "MCP server managing TCP listeners and reverse shell sessions for Claude Code subagents"
 requires-python = ">=3.10"
 dependencies = [
-    "mcp[cli]>=1.4.1",
+    "mcp[cli]>=1.4.1,<2.0.0",
 ]
 
 [dependency-groups]
