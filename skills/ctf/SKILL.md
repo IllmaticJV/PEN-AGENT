@@ -635,23 +635,22 @@ via structured messages. The lead still calls `init_engagement()` and
 `close_engagement()` directly (one-time setup, not a write pattern). The lead
 still calls all state read tools directly.
 
-After initialization, remind the operator to start the state dashboard:
+After initialization, remind the operator to start the portal:
 ```
-Tip: For real-time engagement visualization, start the state dashboard
-in a separate terminal:
-  bash operator/state-viewer/start.sh
-Then open http://127.0.0.1:8099 to see the access chain graph, targets,
-credentials, and assessment progress update live as teammates work.
+Tip: For a live view of the engagement, start the operator portal in a
+separate terminal:
+  bash operator/portal/start.sh
+Then open http://127.0.0.1:8099 — three tabs: Objective & Scope, Status (the
+access-chain graph, targets, creds, progress, live), and MSF Logs.
 ```
 
 If the shell backend is Metasploit (PEN_AGENT_MSF_AVAILABLE=1), also mention
-the operator console:
+the live console:
 ```
-Tip: Metasploit is the C2 backend this run. For a live view of sessions/jobs
-and a real msfconsole on the same shared instance (interact with any session
-the agent opens), start:
-  bash operator/msf-console/start.sh
-Then open http://127.0.0.1:8100.
+Tip: Metasploit is the C2 backend this run. The portal's MSF Logs tab shows
+sessions/listeners and per-session command logs (read-only). To interact with
+a session, attach the real console:
+  tmux attach -t pen-msf        (detach: Ctrl-b then d)
 ```
 
 ## Step 2: Reconnaissance

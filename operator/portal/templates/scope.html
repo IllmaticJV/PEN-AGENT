@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Objective &amp; Scope</title>
+<style>
+:root{--bg:#0b0d10;--panel:#14181d;--border:#2a2f37;--fg:#c9d1d9;--dim:#6e7681;
+      --accent:#8ab4f8;--green:#3fb950;--amber:#d29922}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+     font-family:ui-monospace,Menlo,Consolas,monospace;padding:18px;line-height:1.5}
+h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);
+   margin:22px 0 8px;border-bottom:1px solid var(--border);padding-bottom:4px}
+.meta{display:flex;flex-wrap:wrap;gap:10px 22px;font-size:13px}
+.meta b{color:var(--accent);font-weight:600}
+.pill{display:inline-block;font-size:12px;padding:2px 9px;margin:3px 5px 0 0;border-radius:10px;
+      border:1px solid var(--border);color:var(--fg)}
+.status-active{color:var(--green);border-color:var(--green)}
+.status-closed{color:var(--amber);border-color:var(--amber)}
+#allow .pill{border-color:var(--green);color:var(--green)}
+pre{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;
+    white-space:pre-wrap;word-break:break-word;font-size:13px;margin:0}
+.empty{color:var(--dim);font-size:13px}
+</style></head>
+<body>
+<div class="meta" id="meta"></div>
+
+<h2>In-scope allowlist <span class="empty" id="allow-note"></span></h2>
+<div id="allow"></div>
+
+<h2>Objective &amp; rules of engagement <span class="empty">(engagement/scope.md)</span></h2>
+<pre id="scope-md"></pre>
+
+<script>
+function esc(s){return (s??'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+function render(d){
+  const e = d.engagement;
+  const meta = document.getElementById('meta');
+  if (e) {
+    const st = (e.status||'').toLowerCase();
+    meta.innerHTML =
+      `<span><b>Engagement</b> ${esc(e.name)||'(unnamed)'}</span>`
+      + `<span><b>Mode</b> ${esc(e.mode)}</span>`
+      + `<span><b>Status</b> <span class="pill status-${esc(st)}">${esc(e.status)}</span></span>`
+      + `<span><b>Started</b> ${esc(e.created_at)}</span>`;
+  } else {
+    meta.innerHTML = '<span class="empty">No engagement initialized yet.</span>';
+  }
+  const allow = document.getElementById('allow');
+  const note = document.getElementById('allow-note');
+  if (d.scope_allow && d.scope_allow.length) {
+    allow.innerHTML = d.scope_allow.map(a => `<span class="pill">${esc(a)}</span>`).join('');
+    note.textContent = '';
+  } else {
+    allow.innerHTML = '';
+    note.textContent = '(scope.allow empty — enforcement OFF until the orchestrator writes it)';
+  }
+  const md = document.getElementById('scope-md');
+  md.textContent = d.scope_md && d.scope_md.trim() ? d.scope_md
+    : 'scope.md not written yet — the orchestrator creates it at engagement start.';
+}
+function load(){ fetch('/api/scope').then(r=>r.json()).then(render).catch(()=>{}); }
+load();
+setInterval(load, 5000);
+</script>
+</body></html>

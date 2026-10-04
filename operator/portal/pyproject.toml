@@ -1,0 +1,11 @@
+[project]
+name = "pen-agent-portal"
+version = "0.1.0"
+description = "PEN-AGENT operator portal — one tabbed web view: objective/scope, live engagement status, and browsable Metasploit session logs"
+requires-python = ">=3.10"
+dependencies = [
+    "pymetasploit3>=1.0.6",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

@@ -5,7 +5,7 @@
 # machine) and requires the token to access any page or API endpoint.
 #
 # Usage:
-#   bash operator/state-viewer/generate-token.sh
+#   bash operator/portal/generate-token.sh
 #   # Token is written to ~/.config/pen-agent/viewer-token
 #   # Copy the printed token and paste it into the browser login page.
 
@@ -27,5 +27,5 @@ echo "Token written to: $TOKEN_FILE"
 echo ""
 echo "  $TOKEN"
 echo ""
-echo "Paste this into the state dashboard login page."
+echo "Paste this into the operator portal login page."
 echo "The server will bind to 0.0.0.0 when a token file is present."

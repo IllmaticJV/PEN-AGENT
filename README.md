@@ -31,8 +31,7 @@ your approval before assigning work — answer those as they come up.
 | `bash config.sh` | Pre-engagement wizard — scan type, proxy, spray tier, cracking, C2 backend |
 | `./run.sh [--yolo]` | Start shell-server + skill-router (+ Metasploit if installed) + Claude Code |
 | `uv run --directory tools/reporter python export_report.py --strict` | Export findings → `engagement/findings.json` + `report.md` |
-| `bash operator/state-viewer/start.sh` | State dashboard → `http://127.0.0.1:8099` |
-| `bash operator/msf-console/start.sh` | Live msfconsole + session/job viewer → `http://127.0.0.1:8100` |
+| `bash operator/portal/start.sh` | Operator portal (scope · status · MSF logs) → `http://127.0.0.1:8099` |
 
 Inside Claude Code, invoke the orchestrator with `/pen-agent-ctf`.
 
@@ -80,27 +79,25 @@ teammates at all, flag or no flag; a named `Agent` call just runs as an
 ordinary subagent there. For split-pane teammate visibility, start Claude
 Code inside `tmux`.
 
-## Dashboards
+## Operator portal
 
-Both are Python stdlib HTTP servers (SSE live updates, no frontend build);
-each keeps its page markup in a sibling `templates/` directory. They bind
-`127.0.0.1` only by default; running
-`bash operator/state-viewer/generate-token.sh` writes a shared token to
-`~/.config/pen-agent/viewer-token` that makes **both** bind `0.0.0.0` and
-require login (`/login` cookie, or `Authorization: Bearer <token>`).
+One read-only web view (`operator/portal/`, port `8099`) with three tabs —
+`bash operator/portal/start.sh`:
 
-- **State** (`operator/state-viewer/`, port `8099`) — access-chain graph,
-  targets, creds, access, vulns, pivots, tunnels, event timeline, all live.
-  `--port`/`--db` flags if you need a different port or database path.
-- **msf-console** (`operator/msf-console/`, port `8100`) — **read-only** view
-  of the same Framework the `metasploit-server` MCP drives (same
-  `engagement/msfrpc.yaml`): the live session + listener/job list, a
-  **per-session command log** (what the agents ran on each session and its
-  output), and the shared console spool. Interaction is deliberately not done
-  here — the RPC/web console can't attach to a session (`sessions -i` crashes
-  inside it). For a full interactive console, attach the real one (below).
-  Needs `engagement/msfrpc.yaml`; shows a clear banner if Metasploit isn't
-  reachable rather than erroring.
+- **Objective & Scope** — the engagement objective + rules of engagement
+  (`engagement/scope.md`), the in-scope allowlist (`scope.allow`), and status.
+- **Status** — live engagement state from `state.db`: the access-chain graph,
+  targets, creds, access, vulns, pivots, tunnels, event timeline.
+- **MSF Logs** — the live session + listener/job list plus a **per-session
+  command log** (what the agents ran on each session and its output, with
+  operator-reserved sessions badged). Read-only — `sessions -i` can't run in an
+  RPC/web console, so interact in the real tmux msfconsole (see C2 backend).
+
+Python stdlib HTTP + SSE (the MSF tab reads the live session list via
+pymetasploit3, so the portal runs under `uv`). Binds `127.0.0.1` only by
+default; `bash operator/portal/generate-token.sh` writes a token to
+`~/.config/pen-agent/viewer-token` that makes it bind `0.0.0.0` and require
+login (`/login` cookie, or `Authorization: Bearer <token>`).
 
 ## C2 backend
 

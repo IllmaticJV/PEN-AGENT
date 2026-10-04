@@ -5,6 +5,20 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Changed
+
+- **The two operator dashboards are merged into one `operator/portal/`** (port
+  8099) — a single server/login with three tabs, each an isolated sub-page:
+  **Objective & Scope** (engagement/scope.md + scope.allow + engagement meta),
+  **Status** (the former state-viewer: live state.db — chain graph, targets,
+  creds, vulns, pivots, events), and **MSF Logs** (the former msf-console: live
+  session/listener list + per-session command logs + reserved badges,
+  read-only). `operator/state-viewer/` and `operator/msf-console/` are removed;
+  `run.sh`/`install.sh`/`uninstall.sh`/docs/skill updated. Start with `bash
+  operator/portal/start.sh`; token auth and `generate-token.sh` carry over
+  unchanged. The portal reads the live MSF session list via pymetasploit3, so
+  it runs under `uv`.
+
 ### Added
 
 - **Dedicated operator sessions — agents and the operator never contend for one

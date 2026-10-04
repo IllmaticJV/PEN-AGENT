@@ -144,7 +144,7 @@ function refreshLog() {
 
 setInterval(refreshLog, 2000);
 
-const es = new EventSource('/api/stream');
+const es = new EventSource('/api/msf/stream');
 es.onmessage = (ev) => {
   const msg = JSON.parse(ev.data);
   if (msg.type === 'sessions') {

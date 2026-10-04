@@ -52,8 +52,7 @@ skill-router. Teammate spawn templates live in `teammates/`.
 | browser-server | `tools/browser-server/` | Headless browser automation |
 | rdp-server | `tools/rdp-server/` | Headless RDP automation via aardwolf |
 | metasploit-server | `tools/metasploit-server/` | Metasploit RPC wrapper — C2 backend (sessions, modules, pivoting) |
-| state-viewer | `operator/state-viewer/` | Read-only web dashboard for state.db (not MCP) |
-| msf-console | `operator/msf-console/` | Live session/job list + interactive msfconsole on the shared msfrpcd (not MCP) |
+| portal | `operator/portal/` | Read-only operator web portal — tabs for objective/scope, live state.db status, and MSF session logs (not MCP) |
 
 In agent teams mode, **state-mgr** is the sole writer to state.db (LLM-level
 dedup + graph coherence). **shell-mgr** owns shell lifecycle (listeners,
@@ -302,7 +301,7 @@ opsec: low|medium|high
 | Skills | `skills/*/SKILL.md` | Self-contained |
 | Teammates | `teammates/*.md` | Self-contained (shared behavior in this file § Teammate Protocol) |
 | Hooks | `tools/hooks/README.md` | Update when hook scripts change |
-| Operator tools | Root `README.md` (Dashboards section) | No per-tool README — one README only. Update when behavior changes |
+| Operator portal | Root `README.md` (Operator portal section) | No per-tool README — one README only. Update when behavior changes |
 
 **Changelog is mandatory.** Every branch merged to main must update
 `CHANGELOG.md` under a date heading (`## YYYY-MM-DD`).
@@ -326,8 +325,7 @@ PEN-AGENT/
     skill-router/ nmap-server/ shell-server/ metasploit-server/
     browser-server/ rdp-server/ state-server/ hooks/
   operator/
-    state-viewer/        # Web dashboard
-    msf-console/         # Live msfconsole + session/job viewer
+    portal/              # Read-only web portal — scope · status · MSF logs (tabs)
     templates/           # File templates (config, scripts)
 ```
 
