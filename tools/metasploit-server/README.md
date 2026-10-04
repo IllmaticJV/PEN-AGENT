@@ -73,6 +73,17 @@ enforcement is off (all targets allowed) and a warning is logged. See
 | `download(session_id, remote_path, local_path)` | Download a file (Meterpreter) |
 | `ifconfig(session_id)` | List target network interfaces (pivot detection) |
 | `kill_session(session_id)` | Terminate a session |
+| `spawn_session(session_id, lhost, lport)` | Spawn a second session from a foothold for another agent to use (shell source → shell_to_meterpreter), so two agents never share one session's stream |
+| `spawn_operator_session(session_id, lhost, lport)` | Same spawn, but reserves the new session for the operator (shell source → shell_to_meterpreter) |
+| `reserve_operator_session(session_id, note)` | Reserve an existing session for the operator — agent session tools then refuse it |
+| `release_operator_session(session_id)` | Return a reserved session to the agents |
+
+Session-directed tools (`execute`, `upload`, `download`, `ifconfig`,
+`upgrade_to_meterpreter`, `kill_session`, `start_socks_proxy`) **refuse any
+session reserved for the operator** (returning `error: operator_reserved`), and
+`list_sessions()` flags them `operator_reserved: true`. The reservation lives
+in `engagement/operator-sessions.json` (also read by the operator console).
+This lets the operator work a host in the tmux msfconsole with no contention.
 
 ### Modules & Pivoting
 

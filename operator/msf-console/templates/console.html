@@ -23,6 +23,8 @@ td{padding:3px 4px;border-bottom:1px solid #1c2127;vertical-align:top}
 td.id{color:var(--accent);cursor:pointer;white-space:nowrap}
 td.id:hover{text-decoration:underline}
 tr.sel td.id{color:var(--amber);font-weight:600}
+.opbadge{color:var(--green);font-size:10px;border:1px solid var(--green);border-radius:8px;
+         padding:0 5px;margin-left:6px;white-space:nowrap}
 .empty{color:var(--dim);font-size:12px;padding:4px}
 #logwrap{flex:1;display:flex;flex-direction:column;min-width:0}
 #loghead{padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--dim);
@@ -92,8 +94,10 @@ function renderTable(id, emptyId, rows, cols, onClick) {
   for (const row of rows) {
     const tr = document.createElement('tr');
     if (id === 'sessions' && String(row.session_id) === String(selectedSid)) tr.className = 'sel';
+    const badge = (id === 'sessions' && row.operator_reserved)
+      ? '<span class="opbadge">operator</span>' : '';
     tr.innerHTML = cols.map((c, i) =>
-      `<td class="${i === 0 ? 'id' : ''}">${esc(row[c])}</td>`).join('');
+      `<td class="${i === 0 ? 'id' : ''}">${esc(row[c])}${i === 0 ? badge : ''}</td>`).join('');
     if (onClick) tr.querySelector('td.id').onclick = () => onClick(row);
     tbody.appendChild(tr);
   }

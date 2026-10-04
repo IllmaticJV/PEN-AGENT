@@ -5,6 +5,31 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Added
+
+- **Dedicated operator sessions — agents and the operator never contend for one
+  shell.** metasploit-server can now reserve a session for the human operator;
+  all agent-facing session tools (`execute`, `upload`, `download`, `ifconfig`,
+  `upgrade_to_meterpreter`, `kill_session`, `start_socks_proxy`) refuse a
+  reserved session with `error: operator_reserved`, and `list_sessions()` flags
+  it `operator_reserved: true`. New tools: `spawn_operator_session(session_id,
+  lhost, lport)` (spawns a second session from a foothold — reliable from a
+  shell via `shell_to_meterpreter` — and reserves it), `reserve_operator_session`,
+  `release_operator_session`. The shell-mgr-metasploit teammate now calls
+  `spawn_operator_session` once per host right after the foothold and treats
+  `operator_reserved` sessions as off-limits. Reservation lives in
+  `engagement/operator-sessions.json`; the operator console badges reserved
+  sessions. (From a Meterpreter-first foothold there's no shell to re-stage, so
+  spawn returns `needs_manual` — reserve a manually-caught session instead.)
+- **One session per interacting agent.** Same single-stream problem applies
+  between teammates, so shell-mgr now hands each agent that needs to interact
+  with a host its own session instead of sharing one. New
+  `spawn_session(session_id, lhost, lport)` tool (the non-reserving sibling of
+  `spawn_operator_session`, sharing one `_spawn_sibling` primitive) spawns a
+  fresh session from a shell foothold; both shell-mgr teammate templates
+  (Metasploit and shell-server) now allocate one session per `owner_teammate`
+  and only let genuinely one-off read-only checks reuse another's.
+
 ### Changed
 
 - **Metasploit C2 is now an interactive `msfconsole` (full operator console),

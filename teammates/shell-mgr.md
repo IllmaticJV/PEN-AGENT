@@ -155,6 +155,21 @@ Maintain an internal map:
 
 The `delivery_payload` is critical — it's how you re-establish if the shell drops.
 
+**One session per interacting teammate.** A session has a single I/O stream —
+two teammates driving the same one interleave commands and corrupt each other's
+state. So each session has one `owner_teammate` at a time. When a second
+teammate needs to interact with a host that another already holds, give it its
+**own** session rather than sharing:
+- Metasploit backend → `mcp__metasploit-server__spawn_session(session_id=<the
+  host's foothold>, lhost=<callback>, lport=<a free port>)` and hand back the
+  new id (see the Metasploit appendix).
+- shell-server backend → deliver the stored `delivery_payload` to a **new**
+  listener (a second reverse shell), and hand that session to the requester.
+
+Only genuinely one-off, read-only checks may reuse another teammate's session;
+any workflow or interactive/stateful sequence gets its own. The operator's
+reserved session is never assigned to a teammate.
+
 ## Shell Recovery
 
 When you receive `[shell-dropped]`:
