@@ -82,8 +82,9 @@ Code inside `tmux`.
 
 ## Dashboards
 
-Both are single-file Python stdlib HTTP servers (SSE live updates, no
-frontend build). They bind `127.0.0.1` only by default; running
+Both are Python stdlib HTTP servers (SSE live updates, no frontend build);
+each keeps its page markup in a sibling `templates/` directory. They bind
+`127.0.0.1` only by default; running
 `bash operator/state-viewer/generate-token.sh` writes a shared token to
 `~/.config/pen-agent/viewer-token` that makes **both** bind `0.0.0.0` and
 require login (`/login` cookie, or `Authorization: Bearer <token>`).

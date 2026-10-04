@@ -9,8 +9,9 @@ driving, and the embedded console is a real msfconsole running inside that
 same instance: commands typed here (`sessions -l`, `sessions -i 1`, any
 module) see and affect the exact sessions the agent sees, live.
 
-Single-file HTTP server, inline HTML/CSS/JS frontend, live updates via SSE —
-same shape as operator/state-viewer. The one non-stdlib dependency is
+Stdlib HTTP server with the HTML/CSS/JS frontend in templates/ (login.html,
+console.html), live updates via SSE — same shape as operator/state-viewer.
+The one non-stdlib dependency is
 pymetasploit3 (the RPC client), so this runs via `uv run` rather than bare
 python3; see start.sh.
 
@@ -43,6 +44,12 @@ from urllib.parse import unquote_plus
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _MSF_CFG = _PROJECT_ROOT / "engagement" / "msfrpc.yaml"
 _TOKEN_FILE = Path.home() / ".config" / "pen-agent" / "viewer-token"  # shared with state-viewer
+_TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+
+
+def _load_template(name: str) -> str:
+    """Load a page template from templates/ (markup kept out of the .py)."""
+    return (_TEMPLATE_DIR / name).read_text(encoding="utf-8")
 
 _SESSION_MAX_AGE = 86400  # 24h, matches state-viewer
 
@@ -273,176 +280,9 @@ _msf = _MsfState()
 # HTML
 # ---------------------------------------------------------------------------
 
-LOGIN_HTML = """<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>msf-console — login</title>
-<style>
-body{background:#0b0d10;color:#c9d1d9;font-family:ui-monospace,Menlo,Consolas,monospace;
-     display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-form{background:#14181d;border:1px solid #2a2f37;border-radius:8px;padding:28px 32px}
-h1{font-size:15px;color:#8ab4f8;margin:0 0 16px}
-input{background:#0b0d10;border:1px solid #2a2f37;color:#c9d1d9;padding:8px 10px;
-      border-radius:6px;width:280px;font-family:inherit}
-button{margin-top:12px;background:#2563eb;color:#fff;border:none;border-radius:6px;
-       padding:8px 14px;cursor:pointer;font-family:inherit}
-.err{color:#f85149;font-size:13px;margin-top:8px}
-</style></head>
-<body>
-<form method="POST" action="/login">
-  <h1>PEN-AGENT &middot; msf-console</h1>
-  <input type="password" name="token" placeholder="viewer token" autofocus>
-  <div><button type="submit">Enter</button></div>
-  <div class="err" id="err"></div>
-</form>
-<script>
-if (location.search.includes("fail=1")) document.getElementById("err").textContent = "Invalid token.";
-</script>
-</body></html>"""
+LOGIN_HTML = _load_template("login.html")
 
-CONSOLE_HTML = """<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>PEN-AGENT &middot; msf-console</title>
-<style>
-:root{--bg:#0b0d10;--panel:#14181d;--border:#2a2f37;--fg:#c9d1d9;--dim:#6e7681;
-      --accent:#8ab4f8;--green:#3fb950;--red:#f85149;--amber:#d29922}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,Menlo,Consolas,monospace;
-     height:100vh;display:flex;flex-direction:column}
-header{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;
-       align-items:center;gap:14px;flex-shrink:0}
-header h1{font-size:14px;margin:0;color:var(--accent);font-weight:600}
-#status{font-size:12px;padding:2px 8px;border-radius:10px;border:1px solid var(--border)}
-#status.ok{color:var(--green);border-color:var(--green)}
-#status.bad{color:var(--red);border-color:var(--red)}
-main{flex:1;display:flex;min-height:0}
-#side{width:340px;border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0}
-section{padding:10px 14px;border-bottom:1px solid var(--border)}
-section h2{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
-table{width:100%;border-collapse:collapse;font-size:12px}
-td{padding:3px 4px;border-bottom:1px solid #1c2127;vertical-align:top}
-td.id{color:var(--accent);cursor:pointer;white-space:nowrap}
-td.id:hover{text-decoration:underline}
-.empty{color:var(--dim);font-size:12px;padding:4px}
-#termwrap{flex:1;display:flex;flex-direction:column;min-width:0}
-#term{flex:1;overflow-y:auto;padding:12px 14px;white-space:pre-wrap;word-break:break-all;
-      font-size:13px;line-height:1.45}
-#inputrow{display:flex;border-top:1px solid var(--border);padding:8px 12px;gap:8px;flex-shrink:0}
-#prompt{color:var(--green);white-space:pre}
-#cmd{flex:1;background:transparent;border:none;color:var(--fg);font-family:inherit;
-     font-size:13px;outline:none}
-#hint{font-size:11px;color:var(--dim);padding:0 14px 8px}
-button.reset{background:transparent;border:1px solid var(--border);color:var(--dim);
-             border-radius:6px;font-size:11px;padding:3px 8px;cursor:pointer;font-family:inherit}
-button.reset:hover{color:var(--red);border-color:var(--red)}
-</style></head>
-<body>
-<header>
-  <h1>msf-console</h1>
-  <span id="status">connecting&hellip;</span>
-  <span style="flex:1"></span>
-  <button class="reset" onclick="resetConsole()">reset console</button>
-</header>
-<main>
-  <div id="side">
-    <section>
-      <h2>Sessions</h2>
-      <table id="sessions"><tbody></tbody></table>
-      <div class="empty" id="sessions-empty">none yet</div>
-    </section>
-    <section>
-      <h2>Jobs</h2>
-      <table id="jobs"><tbody></tbody></table>
-      <div class="empty" id="jobs-empty">none yet</div>
-    </section>
-  </div>
-  <div id="termwrap">
-    <div id="term"></div>
-    <div id="inputrow">
-      <span id="prompt">msf &gt;</span>
-      <input id="cmd" autofocus autocomplete="off" spellcheck="false">
-    </div>
-    <div id="hint">Enter to run &middot; &uarr;/&darr; history &middot; this is a real msfconsole on
-      the engagement's shared msfrpcd — <code>sessions -i &lt;id&gt;</code> interacts with whatever
-      the agent opened, live.</div>
-  </div>
-</main>
-<script>
-const term = document.getElementById('term');
-const cmdEl = document.getElementById('cmd');
-const statusEl = document.getElementById('status');
-let history = [], histIdx = -1;
-
-function append(text) {
-  if (!text) return;
-  term.textContent += text;
-  term.scrollTop = term.scrollHeight;
-}
-
-function setStatus(connected, msg) {
-  statusEl.textContent = msg || (connected ? 'connected' : 'disconnected');
-  statusEl.className = connected ? 'ok' : 'bad';
-}
-
-function renderTable(id, emptyId, rows, cols) {
-  const tbody = document.querySelector('#' + id + ' tbody');
-  tbody.innerHTML = '';
-  document.getElementById(emptyId).style.display = rows.length ? 'none' : 'block';
-  for (const row of rows) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = cols.map((c, i) =>
-      `<td class="${i === 0 ? 'id' : ''}">${(row[c] ?? '').toString().replace(/</g,'&lt;')}</td>`
-    ).join('');
-    if (cols[0] === 'session_id') {
-      tr.querySelector('td.id').onclick = () => runCommand('sessions -i ' + row.session_id);
-    }
-    tbody.appendChild(tr);
-  }
-}
-
-function runCommand(cmd) {
-  append('\\n' + cmd + '\\n');
-  fetch('/api/console/write', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({command: cmd})
-  }).then(r => r.json()).then(j => { if (j.error) append('[error] ' + j.error + '\\n'); });
-}
-
-function resetConsole() {
-  fetch('/api/console/reset', {method: 'POST'})
-    .then(() => append('\\n[console reset]\\n'));
-}
-
-cmdEl.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    const cmd = cmdEl.value;
-    if (cmd.trim() !== '') { history.push(cmd); histIdx = history.length; }
-    cmdEl.value = '';
-    runCommand(cmd);
-  } else if (e.key === 'ArrowUp') {
-    if (histIdx > 0) { histIdx--; cmdEl.value = history[histIdx] || ''; }
-    e.preventDefault();
-  } else if (e.key === 'ArrowDown') {
-    if (histIdx < history.length) { histIdx++; cmdEl.value = history[histIdx] || ''; }
-    e.preventDefault();
-  }
-});
-
-const es = new EventSource('/api/stream');
-es.onmessage = (ev) => {
-  const msg = JSON.parse(ev.data);
-  if (msg.type === 'console') {
-    if (msg.error) setStatus(false, msg.error);
-    else { setStatus(true); append(msg.data); }
-  } else if (msg.type === 'sessions') {
-    renderTable('sessions', 'sessions-empty', msg.payload,
-      ['session_id', 'type', 'info']);
-  } else if (msg.type === 'jobs') {
-    renderTable('jobs', 'jobs-empty', msg.payload, ['job_id', 'name']);
-  } else if (msg.type === 'status') {
-    setStatus(msg.connected, msg.connected ? 'connected' : (msg.error || 'disconnected'));
-  }
-};
-es.onerror = () => setStatus(false, 'stream lost — retrying');
-</script>
-</body></html>"""
+CONSOLE_HTML = _load_template("console.html")
 
 
 # ---------------------------------------------------------------------------
