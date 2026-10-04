@@ -5,6 +5,20 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Changed
+
+- **Made Metasploit's default-for-everything role explicit in the shell-mgr
+  templates.** The mechanics were already in place (Meterpreter upgrade,
+  autoroute+SOCKS pivoting, Meterpreter file transfer), but the wording was
+  soft and scattered ("attempt C2 upgrade *if configured*", "*preferred*
+  backend"). `teammates/shell-mgr-metasploit.md` now opens with an explicit
+  coverage list — Meterpreter is the default for interactive shells, file
+  transfer, pivoting/tunneling/proxying, and post-ex, with shell-server
+  scoped to initial raw-shell catch and automatic fallback only.
+  `teammates/shell-mgr.md` tightened to match (upgrade is the standard path
+  for every shell under the default backend, not optional; autoroute+SOCKS
+  is the default pivot method). No mechanics changed — clarity only.
+
 ### Fixed
 
 - **Falling back from Metasploit to shell-server happened silently.**

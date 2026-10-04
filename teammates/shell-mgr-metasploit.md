@@ -1,9 +1,26 @@
 # Metasploit C2 Backend Appendix
 
-This appendix configures you to use **Metasploit** as the preferred C2 backend.
-Initial shells are always caught via shell-server (teammates handle this). You
-upgrade established shells to Meterpreter sessions for stable transport, file
-transfer, post-exploitation modules, and pivoting.
+This appendix configures you to use **Metasploit** as the C2 backend — the
+default whenever metasploit-framework is installed (see run.sh / config.sh).
+
+**Meterpreter is the default for everything it supports**, not an optional
+nicety:
+
+- **Interactive shells** — every raw shell gets upgraded to Meterpreter; the
+  Meterpreter session is the one teammates work from.
+- **File transfer** — Meterpreter `upload`/`download`, not manual
+  curl/certutil staging.
+- **Pivoting / tunneling / proxying** — Metasploit autoroute + SOCKS
+  (zero-footprint, in-band through the C2 channel), ahead of
+  chisel/ligolo/sshuttle.
+- **Post-exploitation** — `run_module` for post/exploit/auxiliary modules.
+
+shell-server is used for exactly two things: catching the initial raw
+reverse shell (teammates own the injection context), and as the automatic
+fallback when a Meterpreter upgrade genuinely fails on a given target. Every
+working session should be Meterpreter unless the upgrade failed — if you find
+yourself handing back a shell-server session with no upgrade attempted, that's
+a bug, not the plan.
 
 **shell-server remains the initial access method.** Teammates establish raw
 reverse shells. You upgrade to Meterpreter through the existing shell.
