@@ -38,8 +38,8 @@ your PATH points. Run `bash preflight.sh` to verify.
 | nuclei | network-recon, web-discovery | `go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest` |
 | httpx | network-recon, web-discovery | `go install github.com/projectdiscovery/httpx/cmd/httpx@latest` |
 | NetExec (nxc) | network-recon, ad-discovery, credential-dumping, kerberos-roasting, pass-the-hash, password-spraying, smb-exploitation, many AD skills | `pipx install netexec` |
-| enum4linux-ng | network-recon, password-spraying | `pipx install enum4linux-ng` |
-| manspider | ad-discovery, gpo-abuse | `pipx install manspider` |
+| enum4linux-ng | network-recon, password-spraying | `pipx install git+https://github.com/cddmp/enum4linux-ng` (not on PyPI) |
+| manspider | ad-discovery, gpo-abuse | `pipx install man-spider` (PyPI id is hyphenated) |
 | snmpwalk | network-recon | `sudo apt install snmp` |
 | onesixtyone | network-recon | `sudo apt install onesixtyone` |
 
@@ -57,7 +57,7 @@ your PATH points. Run `bash preflight.sh` to verify.
 | commix | command-injection | `sudo apt install commix` or git clone |
 | dalfox | xss-reflected | `go install github.com/hahwul/dalfox/v2@latest` |
 | XSStrike | xss-reflected | `git clone https://github.com/s0md3v/XSStrike.git` |
-| sstimap | ssti-jinja2, ssti-freemarker, ssti-twig | `pipx install sstimap` |
+| sstimap | ssti-jinja2, ssti-freemarker, ssti-twig | `git clone https://github.com/vladko312/SSTImap` (not on PyPI) |
 | tplmap | ssti-jinja2, ssti-freemarker, ssti-twig | `git clone https://github.com/epinna/tplmap.git` |
 | TInjA | ssti-jinja2, ssti-freemarker, ssti-twig | `go install github.com/Hackmanit/TInjA@latest` |
 | Fenjing | ssti-jinja2 | `pipx install fenjing` |
@@ -66,8 +66,8 @@ your PATH points. Run `bash preflight.sh` to verify.
 | interactsh | xxe, ssrf, command-injection | `go install github.com/projectdiscovery/interactsh/cmd/interactsh-client@latest` |
 | xxeserv | xxe | `go install github.com/staaldraad/xxeserv@latest` |
 | XXEinjector | xxe | `git clone https://github.com/enjoiz/XXEinjector.git` |
-| jwt-tool | jwt-attacks | `pipx install jwt-tool` |
-| domdig | xss-dom | `npm install -g domdig` |
+| jwt-tool | jwt-attacks | `git clone https://github.com/ticarpi/jwt_tool` (not on PyPI) |
+| domdig | xss-dom | `git clone https://github.com/fcavallarin/domdig && (cd domdig && npm install)` (not a global npm pkg) |
 | php_filter_chain_generator | lfi | `git clone https://github.com/synacktiv/php_filter_chain_generator.git` |
 
 ### Deserialization
@@ -109,7 +109,7 @@ your PATH points. Run `bash preflight.sh` to verify.
 
 | Tool | Skills | Install |
 |------|--------|---------|
-| sccmhunter | sccm-exploitation | `pipx install sccmhunter` |
+| sccmhunter | sccm-exploitation | `pipx install git+https://github.com/garrettfoster13/sccmhunter` (not on PyPI) |
 | pxethiefy | sccm-exploitation | `git clone https://github.com/MWR-CyberSec/PXEThief` |
 
 ### GPO
@@ -118,7 +118,7 @@ your PATH points. Run `bash preflight.sh` to verify.
 |------|--------|---------|
 | pyGPOAbuse | gpo-abuse | `git clone https://github.com/Hackndo/pyGPOAbuse` |
 | GroupPolicyBackdoor | gpo-abuse | `git clone https://github.com/rootSySdk/GroupPolicyBackdoor` |
-| GPOHound | gpo-abuse | `pipx install gpohound` |
+| GPOHound | gpo-abuse | `pipx install git+https://github.com/cogiceo/GPOHound` (not on PyPI) |
 
 ### Pivoting and tunneling
 
@@ -254,7 +254,7 @@ sudo curl -sLO https://github.com/tylerdotrar/SigmaPotato/releases/download/v1.2
 sudo curl -sLO https://github.com/BeichenDream/PrintNotifyPotato/releases/download/v1.00/PrintNotifyPotato-NET46.exe
 ```
 | Watson | windows-kernel-exploits, windows-discovery | [GitHub](https://github.com/rasta-mouse/Watson) (compile with VS) |
-| WES-NG | windows-kernel-exploits, windows-discovery | `pipx install wesng` (runs on attackbox, analyzes systeminfo output) |
+| WES-NG | windows-kernel-exploits, windows-discovery | `pipx install git+https://github.com/bitsadmin/wesng` (PyPI build lacks the `wes` entry point; runs on attackbox) |
 | SpoolSample | kerberos-delegation, auth-coercion-relay | [GitHub](https://github.com/leechristensen/SpoolSample) (compile with VS) |
 | StandIn | acl-abuse, gpo-abuse | [GitHub](https://github.com/FuzzySecurity/StandIn) (compile with VS) |
 | SessionGopher | windows-credential-harvesting | [GitHub](https://github.com/Arvanaghi/SessionGopher) |
@@ -267,7 +267,11 @@ sudo curl -sLO https://github.com/BeichenDream/PrintNotifyPotato/releases/downlo
 
 ## Quick setup (Kali)
 
-Most tools are pre-installed on Kali Linux. This covers the common gaps:
+Most tools are pre-installed on Kali Linux. This covers the common gaps.
+**`bash preflight.sh --install --optional` automates everything below**
+(including the git-only Python tools, DOMDig, ysoserial, and the Windows /
+Potato payloads) into `/opt/PEN-AGENT/tools`; the manual commands here are for
+reference or one-off installs.
 
 ```bash
 # Go tools
@@ -282,13 +286,14 @@ pipx install impacket
 pipx install netexec
 pipx install certipy-ad
 pipx install bloodyad
-pipx install manspider
+pipx install man-spider
 pipx install git-dumper
-pipx install sccmhunter
 pipx install badsecrets
-pipx install sstimap
-pipx install gpohound
-pipx install wesng
+# Not on PyPI — install straight from git (pipx builds the venv + deps):
+pipx install git+https://github.com/cddmp/enum4linux-ng
+pipx install git+https://github.com/garrettfoster13/sccmhunter
+pipx install git+https://github.com/cogiceo/GPOHound
+pipx install git+https://github.com/bitsadmin/wesng   # exposes `wes`
 
 # Apt packages (if not already on Kali)
 sudo apt install -y seclists mingw-w64 golang-go hashcat john hydra \
@@ -313,10 +318,15 @@ git clone https://github.com/mbechler/marshalsec      # needs mvn build
 git clone https://github.com/swisskyrepo/SSRFmap
 git clone https://github.com/s0md3v/XSStrike
 git clone https://github.com/epinna/tplmap
+git clone https://github.com/vladko312/SSTImap          # not on PyPI
+git clone https://github.com/ticarpi/jwt_tool            # not on PyPI
+git clone https://github.com/fcavallarin/domdig && (cd domdig && npm install)
 git clone https://github.com/wallarm/jwt-secrets
 
-# Download binary releases and add to $PATH
-# kerbrute, pspy, linpeas, winpeas, chisel (agent builds),
-# ligolo-ng (agent builds), GodPotato, PrintSpoofer, JuicyPotato,
-# CDK, deepce — download from their GitHub releases pages
+# Download binary releases and add to $PATH (preflight --optional does this for
+# you): kerbrute, pspy32/64, linpeas, winpeas.exe, mimikatz.exe, RunasCs.exe,
+# chisel + ligolo-ng (agent builds), ysoserial-all.jar, and the Potato
+# binaries (GodPotato / PrintSpoofer64 / JuicyPotatoNG / SigmaPotato →
+# /usr/share/windows-binaries/potatoes/). Rubeus.exe and marshalsec have no
+# official release binary — compile from source or supply from a trusted build.
 ```

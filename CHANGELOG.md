@@ -5,6 +5,40 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Fixed
+
+- **preflight `--install --optional`: 8 tools that always failed to install.**
+  Root causes were wrong install sources, not environment issues:
+  - `manspider` → PyPI id is `man-spider` (the un-hyphenated name has no
+    distributions).
+  - `enum4linux-ng`, `sccmhunter`, `GPOHound` → not on PyPI; now installed
+    with a new `pipx_git` helper (`pipx install git+https://…`), which builds
+    an isolated venv with deps.
+  - `wesng` → the PyPI build ships no console entry point; installed from git
+    instead (exposes `wes`).
+  - `SSTImap`, `jwt-tool` → not on PyPI and no packaging; cloned and wrapped.
+    `git_wrap` now installs a cloned repo's `requirements.txt` into a per-repo
+    `--system-site-packages` venv (best-effort, falls back to system python3),
+    so these — and the other git-cloned Python tools — have their deps.
+  - `domdig` → not a global npm package; new `git_node` helper clones it and
+    runs `npm install` in-tree, then wraps `node domdig.js`.
+  The re-check and `docs/dependencies.md` install commands were corrected to
+  match.
+
+### Added
+
+- **preflight now auto-stages the previously "manual" payloads** with
+  `--install --optional`, so they no longer need hand-downloading:
+  `ysoserial.jar` (+ a `ysoserial` launcher), `winPEAS.exe`, `mimikatz.exe`,
+  `RunasCs.exe`, and the Potato binaries (GodPotato-NET4 / PrintSpoofer64 /
+  JuicyPotatoNG / SigmaPotato → `/usr/share/windows-binaries/potatoes/`), plus
+  `pspy32`. `gh_release_bin` gained `.zip` support and an x64-preferring
+  archive extractor, and a `gh_release_file` variant that stages to an
+  arbitrary (system) path. Assets are resolved from each project's latest
+  release at run time, so a renamed asset degrades to a clean skip rather than
+  staging the wrong file. `Rubeus.exe` and `marshalsec` stay manual — neither
+  has an official prebuilt binary.
+
 ### Changed
 
 - **Modular refactor of oversized server/dashboard files** (no behavior
