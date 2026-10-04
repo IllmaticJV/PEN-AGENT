@@ -95,10 +95,13 @@ require login (`/login` cookie, or `Authorization: Bearer <token>`).
 - **msf-console** (`operator/msf-console/`, port `8100`) — live session/job
   list plus a real msfconsole on the same `msfrpcd` the `metasploit-server`
   MCP drives (same `engagement/msfrpc.yaml`, same Framework instance — not a
-  copy). `sessions -i <id>` reaches whatever the agent opened, live, in
-  either direction. One shared console per server process — every tab writes
-  to the same terminal, by design. "Reset console" in the UI recreates it
-  without touching sessions/jobs. Needs `engagement/msfrpc.yaml` to exist
+  copy). Click a session in the sidebar to **attach** and interact with it
+  over the direct session RPC — the same path the agents use, in either
+  direction (`sessions -i` can't run inside an RPC/web console, so the UI
+  uses request/response session exec instead). One shared console per server
+  process — every tab writes to the same terminal, by design. "Reset console"
+  in the UI recreates it without touching sessions/jobs. Needs
+  `engagement/msfrpc.yaml` to exist
   (written automatically by `run.sh`); shows a clear banner if Metasploit
   isn't reachable rather than erroring.
 

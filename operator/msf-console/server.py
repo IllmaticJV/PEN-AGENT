@@ -6,8 +6,10 @@ to the *same* msfrpcd daemon via engagement/msfrpc.yaml. Metasploit sessions
 and jobs belong to that daemon's Framework instance, not to whichever RPC
 client created them — so this page shows the live session list the agent is
 driving, and the embedded console is a real msfconsole running inside that
-same instance: commands typed here (`sessions -l`, `sessions -i 1`, any
-module) see and affect the exact sessions the agent sees, live.
+same instance: commands typed here (`sessions -l`, any module) see and affect
+the exact sessions the agent sees, live. Attaching to a session (clicking it
+in the sidebar) interacts over the direct session RPC — the same path the
+agents use — because `sessions -i` cannot run inside an RPC/web console.
 
 Stdlib HTTP server with the HTML/CSS/JS frontend in templates/ (login.html,
 console.html), live updates via SSE — same shape as operator/state-viewer.
@@ -33,6 +35,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import re
 import socket
 import threading
 import time
@@ -200,10 +203,52 @@ class _MsfState:
                     pass
             self.console = None
 
+    def session_exec(self, session_id: str, command: str, timeout: int = 25) -> dict:
+        """Run one command in a live session and return its output.
+
+        Uses the same direct session RPC the metasploit-server MCP (the
+        agents) use — `sessions.session(id).run_with_output()` — NOT the
+        console's `sessions -i`, which crashes inside an RPC/web console
+        (rex tries to select() on a nil interactive stream). Request/response,
+        so it shares the session with the agents the way the agents share it
+        with each other, rather than holding the stream open.
+        """
+        client, err = self.require_client()
+        if err:
+            return {"error": err}
+        sid = str(session_id)
+        with self.lock:
+            try:
+                if sid not in {str(k) for k in client.sessions.list}:
+                    return {"error": f"session {sid} not found"}
+                sess = client.sessions.session(sid)
+                try:
+                    output = sess.run_with_output(command, timeout=timeout)
+                except TypeError:
+                    # Older API / session type without the timeout kwarg.
+                    sess.write(command)
+                    time.sleep(1.0)
+                    output = sess.read()
+                return {"ok": True, "output": output or ""}
+            except Exception as e:
+                return {"error": str(e)}
+
     def write(self, command: str) -> dict:
         client, err = self.require_client()
         if err:
             return {"error": err}
+        # `sessions -i <id>` cannot work through an RPC/web console — it makes
+        # msfrpcd attempt interactive stream-attach on a nil stream and raise
+        # "undefined method `closed?' for nil". Block it here and point the
+        # operator at the session-attach path (/api/session/exec) instead.
+        if re.match(r"^\s*sessions?\s+-i\b", command):
+            return {
+                "error": (
+                    "`sessions -i` doesn't work in the web console. Click a "
+                    "session in the sidebar to attach — that interacts with it "
+                    "directly over RPC, the same way the agents do."
+                )
+            }
         with self.lock:
             for attempt in (1, 2):
                 try:
@@ -455,6 +500,20 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/console/reset":
             _msf.reset_console()
             self._json({"ok": True})
+        elif self.path == "/api/session/exec":
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length).decode() if length else "{}"
+            try:
+                payload = json.loads(body)
+            except json.JSONDecodeError:
+                self._json({"error": "invalid JSON body"}, 400)
+                return
+            sid = str(payload.get("session_id", ""))
+            command = str(payload.get("command", ""))
+            if not sid:
+                self._json({"error": "session_id required"}, 400)
+                return
+            self._json(_msf.session_exec(sid, command))
         else:
             self.send_error(404)
 
