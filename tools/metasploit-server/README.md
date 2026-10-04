@@ -135,7 +135,10 @@ Two complementary surfaces, both on the same Framework this server drives:
 - **Full interactive console** — when tmux is present, `c2-up.sh` runs the C2
   as an `msfconsole`+`msgrpc` in tmux; `tmux attach -t pen-msf` is a real
   console (`sessions -i`, meterpreter interactive, all of it). Operator and
-  agents share it live.
+  agents share it live. A supervisor loop relaunches the console if it exits
+  (same creds → the MCP reconnects); if the whole tmux session is gone, re-run
+  `bash tools/metasploit-server/c2-up.sh` to recover (it reuses the recorded
+  `msfrpc.yaml` password/port). Stop it with `tmux kill-session -t pen-msf`.
 - **`operator/portal/` MSF Logs tab** (`bash operator/portal/start.sh` →
   `http://127.0.0.1:8099`) — read-only: the live session/listener list plus a
   **per-session command log**: every `execute()` this server runs is appended

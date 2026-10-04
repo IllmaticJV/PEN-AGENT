@@ -124,6 +124,22 @@ when a session is idle (the read-only portal's per-session log lets you watch
 without attaching). Without `tmux`, `run.sh` falls back to a headless
 `msfrpcd` (agents work; no live operator console — install tmux for that).
 
+**Resilience.** The RPC listener is a child of the console, so the tmux session
+runs a supervisor loop: if `msfconsole` exits (crash, or an accidental `exit`)
+it relaunches within ~3s on the **same** port/password, and the
+`metasploit-server` MCP reconnects with no change. Stop the C2 deliberately
+with `tmux kill-session -t pen-msf` (or `./run.sh --clean-start`), not by
+exiting the console. If the whole tmux server is gone (VM reset, `kill-server`),
+bring it back without restarting the session:
+
+```bash
+bash tools/metasploit-server/c2-up.sh     # reuses engagement/msfrpc.yaml creds; MCP reconnects
+```
+
+Live sessions live in the Framework's memory, so any relaunch starts fresh —
+in-flight sessions aren't resurrected. Run `msfdb init` once if you want the
+workspace (hosts/loot/creds) to persist across relaunches.
+
 ## Fresh start
 
 `./run.sh --clean-start` tears down anything left running from a previous

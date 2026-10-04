@@ -5,6 +5,21 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Fixed
+
+- **Metasploit C2 is now self-healing and recovers seamlessly.** The msgrpc
+  listener is a child of the tmux `msfconsole`, so if the console died the
+  whole RPC backend went with it (observed: console died ~9s after binding,
+  taking :55553 down). `c2-up.sh` now (1) runs the console under a **supervisor
+  loop** in tmux — if msfconsole exits (crash or an accidental `exit`) it
+  relaunches within ~3s on the same creds, and the MCP reconnects; and (2)
+  **reuses the recorded `msfrpc.yaml` password/port** on relaunch, so recovering
+  from a full tmux/VM loss is just `bash tools/metasploit-server/c2-up.sh` with
+  no config change for the running MCP (previously it minted a new password,
+  breaking the MCP's creds). Deliberate stop is `tmux kill-session -t pen-msf`
+  or `run.sh --clean-start`. Live sessions still can't survive a Framework
+  restart (in-memory); documented `msfdb init` for workspace persistence.
+
 ### Added
 
 - **`run.sh --clean-start`** tears down stale services from a previous session
