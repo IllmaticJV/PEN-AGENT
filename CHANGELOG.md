@@ -5,6 +5,24 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Fixed
+
+- **metasploit-server silently reported handlers as "listening" when
+  msfrpcd never bound them.** `module.execute()` over RPC doesn't raise on a
+  server-side failure — it returns `{"error": true, ...}` or a null
+  `job_id` — and the wrapper read `job_id`/`uuid` straight off that and
+  reported success. Root cause of the failure surfaced live: the Meterpreter
+  payload option `AutoLoadExtensions`'s RPC-exposed default comes back
+  non-scalar, so msfrpcd rejected it ("must be a scalar") and no listener was
+  ever created, while `start_handler` still returned `status: "listening"`.
+  `start_handler` and `run_module` now set `AutoLoadExtensions` explicitly
+  (guarded to payloads that expose it), and all job-starting tools
+  (`start_handler`, `upgrade_to_meterpreter`, `start_socks_proxy`,
+  `run_module`) route their RPC result through a new `_execute_error()` that
+  surfaces error dicts and — for always-background jobs — a null `job_id`,
+  returning `ERROR:` instead of a false success. Added unit tests
+  (`tests/test_execute_error.py`, 6 cases) covering the exact regression.
+
 ### Changed
 
 - **Made Metasploit's default-for-everything role explicit in the shell-mgr

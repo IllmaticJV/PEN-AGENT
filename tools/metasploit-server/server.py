@@ -68,6 +68,36 @@ def _parse_config(path: Path) -> dict:
     return cfg
 
 
+def _execute_error(result, expect_job: bool = False) -> str | None:
+    """Return an error string if a module.execute() RPC result signals
+    failure, else None.
+
+    pymetasploit3's module.execute() returns a dict. On a server-side failure
+    (e.g. option validation) msfrpcd does NOT raise — it returns
+    {"error": True, "error_message": "..."} instead, which the old code
+    ignored while reading a null job_id off it and still reporting success.
+    Always surface an explicit error flag. When `expect_job` is set (the
+    caller is starting something that always runs as a background job, like a
+    handler or the SOCKS proxy), also treat a null `job_id` as failure, since
+    that means msfrpcd never actually started the job. `run_module` with
+    as_job=False legitimately has no job_id, so it leaves expect_job False.
+    """
+    if not isinstance(result, dict):
+        return f"unexpected RPC result: {result!r}"
+    if result.get("error"):
+        return str(
+            result.get("error_message")
+            or result.get("error_string")
+            or result
+        )
+    if expect_job and result.get("job_id") is None:
+        return (
+            "msfrpcd returned no job_id — the module did not start "
+            f"(raw result: {result!r})"
+        )
+    return None
+
+
 def create_server() -> FastMCP:
     mcp = FastMCP(
         "pen-agent-metasploit-server",
@@ -164,8 +194,21 @@ def create_server() -> FastMCP:
             pay = client.modules.use("payload", payload)
             pay["LHOST"] = lhost
             pay["LPORT"] = int(lport)
+            # Work around an observed msfrpcd bug: this payload option's
+            # RPC-exposed default comes back non-scalar, so module.execute()
+            # fails server-side option validation ("Invalid module option
+            # value for AutoLoadExtensions: must be a scalar") WITHOUT
+            # raising — it returns an error dict instead. The old code read
+            # job_id off that dict (null) and still reported "listening", so
+            # no handler ever bound. Set it explicitly to avoid the bad
+            # default, and surface the error dict below instead of swallowing
+            # it.
+            pay["AutoLoadExtensions"] = True
             handler["ExitOnSession"] = bool(exit_on_session)
             result = handler.execute(payload=pay)
+            err_msg = _execute_error(result, expect_job=True)
+            if err_msg:
+                return f"ERROR: Failed to start handler: {err_msg}"
             return json.dumps(
                 {
                     "status": "listening",
@@ -382,6 +425,11 @@ def create_server() -> FastMCP:
             mod["LHOST"] = lhost
             mod["LPORT"] = int(lport)
             result = mod.execute()
+            # shell_to_meterpreter spins up its own handler job — a null
+            # job_id / error dict means the upgrade never actually launched.
+            err_msg = _execute_error(result, expect_job=True)
+            if err_msg:
+                return f"ERROR: Upgrade failed: {err_msg}"
             return json.dumps(
                 {
                     "status": "upgrade_started",
@@ -551,9 +599,26 @@ def create_server() -> FastMCP:
                 mod[k] = v
             if payload:
                 validate_module_name(payload)
-                result = mod.execute(payload=payload)
+                pay = client.modules.use("payload", payload)
+                # Same msfrpcd AutoLoadExtensions bug worked around in
+                # start_handler — set it explicitly, but only when the payload
+                # actually exposes the option (non-Meterpreter payloads don't,
+                # and setting an unknown option would itself error).
+                try:
+                    if "AutoLoadExtensions" in getattr(pay, "options", []):
+                        pay["AutoLoadExtensions"] = True
+                except Exception:
+                    pass
+                result = mod.execute(payload=pay)
             else:
                 result = mod.execute()
+            # expect_job stays False: auxiliary/post modules legitimately
+            # return no job_id, so only an explicit error dict is a failure
+            # here. (The null-job_id check is for always-background jobs like
+            # handlers and the SOCKS proxy.)
+            err_msg = _execute_error(result)
+            if err_msg:
+                return f"ERROR: Module execution failed: {err_msg}"
             return json.dumps({"status": "executed", "module": module_name, "result": result})
         except ValidationError as e:
             return f"ERROR: {e}"
@@ -635,13 +700,22 @@ def create_server() -> FastMCP:
             auto = client.modules.use("post", "multi/manage/autoroute")
             auto["SESSION"] = int(session_id)
             auto["CMD"] = "autoadd"
-            auto.execute()
+            auto_result = auto.execute()
+            auto_err = _execute_error(auto_result)
+            if auto_err:
+                return f"ERROR: autoroute failed, no routes added: {auto_err}"
 
             socks = client.modules.use("auxiliary", "server/socks_proxy")
             socks["SRVHOST"] = "127.0.0.1"
             socks["SRVPORT"] = int(srvport)
             socks["VERSION"] = "5"
             result = socks.execute()
+            # The SOCKS proxy always runs as a background job — a null job_id /
+            # error dict means it never bound, so don't report a usable
+            # endpoint the caller would then try (and fail) to proxy through.
+            err_msg = _execute_error(result, expect_job=True)
+            if err_msg:
+                return f"ERROR: Failed to start SOCKS proxy: {err_msg}"
             return json.dumps(
                 {
                     "status": "started",
