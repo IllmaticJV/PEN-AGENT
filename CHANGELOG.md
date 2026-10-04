@@ -7,6 +7,13 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **`run.sh` brings the slow daemons up in parallel.** skill-router (embedding
+  model, ~30s) and the Metasploit C2 (msfconsole load, up to ~90s) are
+  independent but were started in series; they now start concurrently and
+  `run.sh` waits once, cutting launch time to about the slower of the two.
+  shell-server stays in the foreground first (it may prompt about prior
+  sessions); `PEN_AGENT_MSF_AVAILABLE` is still exported in the parent shell so
+  it reaches Claude Code.
 - **Two-tier skill loading (`get_skill`) to cut per-task tokens.** `get_skill`
   previously returned the entire SKILL.md into a teammate's context on every
   task; it now returns the skill's **core** (methodology + steps + payloads)

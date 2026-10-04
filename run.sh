@@ -98,24 +98,24 @@ else
     bash tools/shell-server/start.sh
 fi
 
-# Start skill-router as a shared SSE daemon (loads the embedding model once,
-# so every agent-team teammate connects to one warm instance instead of
-# standing up its own slow copy). Backgrounded so its model load doesn't
-# delay launch — the readiness wait lives in start.sh.
-echo "[skill-router] starting (loads embedding model, may take ~30s)…"
-if bash tools/skill-router/start.sh; then
-    echo "[skill-router] ready (SSE on 127.0.0.1:${SKILL_ROUTER_SSE_PORT:-8023})"
-else
-    echo "[skill-router] WARNING: failed to start — teammates won't be able to load skills." >&2
-    echo "               Check the index: uv run --directory tools/skill-router python indexer.py" >&2
-fi
-
-# Detect and start Metasploit (C2 backend). c2-up.sh prefers an interactive
-# msfconsole+msgrpc in tmux (full operator console: `tmux attach -t pen-msf`)
-# and falls back to headless msfrpcd without tmux. Agents connect over RPC
-# either way (engagement/msfrpc.yaml).
-if command -v msfconsole &>/dev/null; then
-    export PEN_AGENT_MSF_AVAILABLE=1
+# The two slow daemons — skill-router (loads an embedding model, ~30s) and the
+# Metasploit C2 (msfconsole load, up to ~90s) — are independent, so bring them
+# up in PARALLEL and wait once, instead of in series. Cuts launch time to about
+# the slower of the two. (shell-server above is already up; it may prompt, so
+# it stays in the foreground before this.)
+_start_skill_router() {
+    echo "[skill-router] starting (loads embedding model, may take ~30s)…"
+    if bash tools/skill-router/start.sh; then
+        echo "[skill-router] ready (SSE on 127.0.0.1:${SKILL_ROUTER_SSE_PORT:-8023})"
+    else
+        echo "[skill-router] WARNING: failed to start — teammates won't be able to load skills." >&2
+        echo "               Check the index: uv run --directory tools/skill-router python indexer.py" >&2
+    fi
+}
+# c2-up.sh prefers an interactive msfconsole+msgrpc in tmux (full operator
+# console: `tmux attach -t pen-msf`), falls back to headless msfrpcd without
+# tmux. Agents connect over RPC either way (engagement/msfrpc.yaml).
+_start_c2() {
     echo "[c2] Metasploit detected"
     if bash tools/metasploit-server/c2-up.sh; then
         bash tools/metasploit-server/start.sh 2>/dev/null && echo "[c2] Metasploit MCP ready" \
@@ -123,9 +123,18 @@ if command -v msfconsole &>/dev/null; then
     else
         echo "[c2] C2 backend did not start — see messages above; continuing with shell-server"
     fi
+}
+
+_start_skill_router & sr_pid=$!
+c2_pid=""
+if command -v msfconsole &>/dev/null; then
+    export PEN_AGENT_MSF_AVAILABLE=1   # set in THIS shell so it reaches claude
+    _start_c2 & c2_pid=$!
 else
     echo "[c2] Metasploit not found — shell-server only (install metasploit-framework for C2)"
 fi
+wait "$sr_pid" 2>/dev/null || true
+[[ -n "$c2_pid" ]] && { wait "$c2_pid" 2>/dev/null || true; }
 
 # Auto-start the operator portal (scope · status · MSF logs) in its own tmux
 # session so it's always up without a second manual command. Idempotent:
