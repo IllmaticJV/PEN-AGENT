@@ -33,7 +33,7 @@ your approval before assigning work — answer those as they come up.
 | `./uninstall.sh` | Remove everything install.sh set up |
 | `bash preflight.sh [--install] [--optional]` | Check/install attackbox tools (nmap, ffuf, hashcat, impacket, ...) |
 | `bash config.sh` | Pre-engagement wizard — scan type, proxy, spray tier, cracking, C2 backend |
-| `./run.sh [--yolo]` | Start shell-server (+ Metasploit if installed) + Claude Code |
+| `./run.sh [--yolo]` | Start shell-server + skill-router (+ Metasploit if installed) + Claude Code |
 | `uv run --directory tools/reporter python export_report.py --strict` | Export findings → `engagement/findings.json` + `report.md` |
 | `bash operator/state-viewer/start.sh` | State dashboard → `http://127.0.0.1:8099` |
 | `bash operator/msf-console/start.sh` | Live msfconsole + session/job viewer → `http://127.0.0.1:8100` |

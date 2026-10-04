@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Launch PEN-AGENT: starts shell-server, then Claude Code.
+# Launch PEN-AGENT: starts shell-server + skill-router (+ Metasploit if
+# installed), then Claude Code.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -58,6 +59,18 @@ for s in data.get('sessions', []):
     fi
 else
     bash tools/shell-server/start.sh
+fi
+
+# Start skill-router as a shared SSE daemon (loads the embedding model once,
+# so every agent-team teammate connects to one warm instance instead of
+# standing up its own slow copy). Backgrounded so its model load doesn't
+# delay launch — the readiness wait lives in start.sh.
+echo "[skill-router] starting (loads embedding model, may take ~30s)…"
+if bash tools/skill-router/start.sh; then
+    echo "[skill-router] ready (SSE on 127.0.0.1:${SKILL_ROUTER_SSE_PORT:-8023})"
+else
+    echo "[skill-router] WARNING: failed to start — teammates won't be able to load skills." >&2
+    echo "               Check the index: uv run --directory tools/skill-router python indexer.py" >&2
 fi
 
 # Detect and start Metasploit RPC (C2 backend)

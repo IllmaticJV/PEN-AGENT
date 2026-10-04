@@ -52,8 +52,11 @@ def _get_collection(db_dir: Path) -> chromadb.Collection:
 
 def create_server(skills_dir: Path, db_dir: Path) -> FastMCP:
     """Create and configure the MCP server with skill routing tools."""
+    sse_port = int(os.environ.get("SKILL_ROUTER_SSE_PORT", "8023"))
     mcp = FastMCP(
         "pen-agent-skill-router",
+        host="127.0.0.1",
+        port=sse_port,
         instructions=(
             "Provides pentesting skill discovery and retrieval for PEN-AGENT. "
             "Use search_skills to find relevant skills by describing a scenario. "
@@ -226,7 +229,13 @@ def main() -> None:
         sys.exit(1)
 
     server = create_server(args.skills_dir, args.db_dir)
-    server.run()
+    # SSE, not stdio: skill-router loads a sentence-transformer embedding model
+    # + ChromaDB (tens of seconds). As a stdio server every spawned agent-team
+    # teammate would stand up its OWN copy and re-pay that cost, which is why
+    # teammates couldn't resolve its tools in time. Run it once as a shared SSE
+    # daemon (like shell-server/metasploit-server) so the lead and every
+    # teammate connect to the same warm instance.
+    server.run(transport="sse")
 
 
 if __name__ == "__main__":

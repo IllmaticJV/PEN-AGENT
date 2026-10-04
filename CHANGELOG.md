@@ -5,6 +5,29 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Changed
+
+- **skill-router converted from a per-session stdio server to a shared SSE
+  daemon** (like shell-server and metasploit-server). Root cause of spawned
+  agent-team teammates being unable to resolve `mcp__skill-router__*` tools:
+  stdio MCP servers start one subprocess per session, so every teammate
+  stood up its own skill-router and re-paid the sentence-transformer +
+  ChromaDB load (tens of seconds) — often never resolving its tools within
+  the teammate's lifetime, while instant-start stdio servers (`state`) and
+  already-shared SSE servers (`metasploit`, `shell`) resolved fine. Now
+  `run.sh`/`install.sh` start one skill-router daemon (`start.sh`, SSE on
+  `127.0.0.1:8023`, `SKILL_ROUTER_SSE_PORT`); the model loads once and the
+  lead plus every teammate connect to the same warm instance. `.mcp.json`
+  switched from a `command` entry to a `url` entry; `HF_HUB_OFFLINE=1`
+  (previously set in `.mcp.json`) is now applied in `start.sh`;
+  `uninstall.sh` stops the daemon. This fixes the teammate skill-loading
+  gap at the source (the earlier wait/retry guidance remains as a safety
+  net) and speeds up teammate spawns (no per-teammate model reload). Docs
+  (mcp-servers, installation, skill-router README, README command table)
+  updated. Not live-booted in this sandbox — the embedding-model download
+  is proxy-blocked here — so verify the daemon comes up on first real
+  `install.sh`/`run.sh`.
+
 ### Fixed
 
 - **Concurrent teammate access to metasploit-server crashed the shared RPC
