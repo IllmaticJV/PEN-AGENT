@@ -7,6 +7,25 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **Concurrent teammate access to metasploit-server crashed the shared RPC
+  connection.** All teammates connect to the one metasploit-server SSE
+  instance and share a single pymetasploit3 `MsfRpcClient`. FastMCP runs the
+  sync tool handlers in a threadpool, so two teammates calling msf tools at
+  the same time drove that client — and its single `requests.Session` and
+  console objects — from two threads at once, which pymetasploit3 /
+  `requests.Session` are not thread-safe for (interleaved request/response
+  framing, shared auth token, shared console IDs → corrupted stream, dropped
+  connection). Every RPC-touching tool is now wrapped with `@_serialized`, a
+  single reentrant lock, so msf calls run one at a time; `generate_payload`
+  (pure msfvenom subprocess, no shared client) is excluded so a long build
+  doesn't block live RPC. Verified the decorator preserves the FastMCP tool
+  schema (all parameters still exposed) and actually serializes. This is
+  per-process — the operator `msf-console` has its own client and `msfrpcd`
+  handles multiple distinct clients, so operator + agents can still drive the
+  same instance concurrently.
+
+### Fixed
+
 - **Teammates declared themselves blocked on a skill-router race instead of
   waiting.** skill-router loads an embedding model + ChromaDB at startup, so
   it connects far slower than `state` (which just opens a SQLite file). A

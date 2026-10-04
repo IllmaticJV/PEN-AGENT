@@ -19,10 +19,12 @@ access and are not target-gated.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -115,6 +117,32 @@ def create_server() -> FastMCP:
 
     _state: dict = {"client": None}
 
+    # One shared MsfRpcClient (and the consoles it creates) is reused across
+    # every tool call. FastMCP runs these sync tool handlers in a threadpool,
+    # so two teammates calling msf tools at once would otherwise hit the same
+    # client — and its single underlying requests.Session and console
+    # objects — concurrently. pymetasploit3's client / requests.Session are
+    # NOT thread-safe (interleaved request/response framing, a shared auth
+    # token, shared console IDs), which corrupts the RPC stream and crashes
+    # the connection. Serialize every RPC-touching tool behind one reentrant
+    # lock: msf operations are effectively serial at msfrpcd anyway, so this
+    # trades a little parallelism for not crashing. The lock is NOT held
+    # during generate_payload (pure msfvenom subprocess, no shared client) so
+    # a long payload build never blocks live RPC.
+    _rpc_lock = threading.RLock()
+
+    def _serialized(fn):
+        """Serialize a tool handler's shared-client access behind _rpc_lock.
+        functools.wraps preserves the signature/annotations FastMCP
+        introspects to build the tool schema (inspect.signature follows
+        __wrapped__), so the exposed tool is unchanged apart from locking.
+        """
+        @functools.wraps(fn)
+        def _wrapper(*args, **kwargs):
+            with _rpc_lock:
+                return fn(*args, **kwargs)
+        return _wrapper
+
     def _get_client():
         """Return a connected MsfRpcClient, or None if unavailable."""
         config_path = _find_config()
@@ -163,6 +191,7 @@ def create_server() -> FastMCP:
     # ── Handler / listener management ───────────────────────────────
 
     @mcp.tool()
+    @_serialized
     def start_handler(
         payload: str = "",
         lhost: str = "",
@@ -223,6 +252,7 @@ def create_server() -> FastMCP:
             return f"ERROR: Failed to start handler: {e}"
 
     @mcp.tool()
+    @_serialized
     def list_jobs() -> str:
         """List active Metasploit jobs (handlers, servers, aux modules)."""
         client, err = _require_client()
@@ -236,6 +266,7 @@ def create_server() -> FastMCP:
             return f"ERROR: {e}"
 
     @mcp.tool()
+    @_serialized
     def kill_job(job_id: str = "") -> str:
         """Stop a Metasploit job.
 
@@ -333,6 +364,7 @@ def create_server() -> FastMCP:
     # ── Session management ──────────────────────────────────────────
 
     @mcp.tool()
+    @_serialized
     def list_sessions() -> str:
         """List all active Metasploit sessions with metadata."""
         client, err = _require_client()
@@ -360,6 +392,7 @@ def create_server() -> FastMCP:
             return f"ERROR: {e}"
 
     @mcp.tool()
+    @_serialized
     def execute(session_id: str = "", command: str = "", timeout: int = 30) -> str:
         """Run a command on an existing session (shell or Meterpreter).
 
@@ -400,6 +433,7 @@ def create_server() -> FastMCP:
             return f"ERROR: Command execution failed: {e}"
 
     @mcp.tool()
+    @_serialized
     def upgrade_to_meterpreter(session_id: str = "", lhost: str = "", lport: int = 4433) -> str:
         """Upgrade a raw shell session to Meterpreter.
 
@@ -442,6 +476,7 @@ def create_server() -> FastMCP:
             return f"ERROR: Upgrade failed: {e}"
 
     @mcp.tool()
+    @_serialized
     def upload(session_id: str = "", local_path: str = "", remote_path: str = "") -> str:
         """Upload a file to a Meterpreter session target.
 
@@ -469,6 +504,7 @@ def create_server() -> FastMCP:
             return f"ERROR: Upload failed: {e}"
 
     @mcp.tool()
+    @_serialized
     def download(session_id: str = "", remote_path: str = "", local_path: str = "") -> str:
         """Download a file from a Meterpreter session target.
 
@@ -501,6 +537,7 @@ def create_server() -> FastMCP:
             return f"ERROR: Download failed: {e}"
 
     @mcp.tool()
+    @_serialized
     def ifconfig(session_id: str = "") -> str:
         """List network interfaces on a Meterpreter session target (pivot detection).
 
@@ -524,6 +561,7 @@ def create_server() -> FastMCP:
             return f"ERROR: {e}"
 
     @mcp.tool()
+    @_serialized
     def kill_session(session_id: str = "") -> str:
         """Terminate a Metasploit session.
 
@@ -547,6 +585,7 @@ def create_server() -> FastMCP:
     # ── Generic module execution (scope-gated on RHOSTS) ────────────
 
     @mcp.tool()
+    @_serialized
     def run_module(
         module_type: str = "",
         module_name: str = "",
@@ -628,6 +667,7 @@ def create_server() -> FastMCP:
     # ── Raw console (scope-gated on `set RHOSTS`) ───────────────────
 
     @mcp.tool()
+    @_serialized
     def console_exec(command: str = "", read_timeout: int = 30) -> str:
         """Run raw msfconsole command(s) and return the output.
 
@@ -680,6 +720,7 @@ def create_server() -> FastMCP:
     # ── Pivoting: autoroute + SOCKS ─────────────────────────────────
 
     @mcp.tool()
+    @_serialized
     def start_socks_proxy(session_id: str = "", srvport: int = 1080) -> str:
         """Pivot into a session's internal network via autoroute + SOCKS5.
 
