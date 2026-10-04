@@ -57,9 +57,25 @@ directly or writing handoff scripts.
 ```
 Scan types (match lead's instruction exactly):
   quick → options="-sV -sC --top-ports 1000 -T4"
-  full  → options="-A -p- -T4"
+  full  → STAGED, fast-first (see below) — NOT one blocking -p- scan
   custom → translate lead's description to nmap flags
 ```
+
+**Staged full scan (fast-first) — unblocks the lead sooner.** A `-p- ` scan
+takes minutes and `nmap_scan` blocks your turn until it returns, so don't make
+the lead wait for it before routing. When the lead asks for a **full** scan:
+
+1. Run the quick scan first: `nmap_scan(target, "-sV -sC --top-ports 1000 -T4")`.
+2. **Report those results to the lead immediately** (Task Summary format) so it
+   can start routing service enum / exploitation on the common ports NOW, in
+   parallel, while you keep scanning.
+3. Then run the deep scan: `nmap_scan(target, "-p- -T4")`. When it returns,
+   message the lead a **delta** — only the ADDITIONAL ports/services beyond the
+   quick scan — so it routes those too. Save both to `engagement/evidence/`.
+
+For a plain `quick` scan, just do step 1 and report. (`nmap_scan` is an MCP
+call, not a shell command — it can't be `run_in_background`; the parallelism is
+the LEAD working other teammates while your deep scan runs.)
 
 ## Shell Establishment
 

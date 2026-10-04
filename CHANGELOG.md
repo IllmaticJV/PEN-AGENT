@@ -5,6 +5,20 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Changed
+
+- **Staged (fast-first) recon + recon fan-out — shorten the critical path.**
+  A full `-p-` nmap scan blocks routing for minutes; net-enum now runs the
+  quick top-ports scan first and reports it IMMEDIATELY so the lead starts
+  routing service enum / exploitation on the common ports while the deep `-p-`
+  scan continues, then reports only the additional ports as a delta. The
+  orchestrator routes on that first report instead of waiting for `-p-`. And
+  for multiple in-scope hosts it fans out a `net-enum-<host>` per host
+  (concurrent) under one batched approval, rather than one teammate scanning
+  them serially. (`nmap_scan` is an MCP call and can't be backgrounded in
+  net-enum's own turn — the parallelism is the lead working other teammates
+  while the deep scan runs.)
+
 ### Fixed
 
 - **Metasploit C2 is now self-healing and recovers seamlessly.** The msgrpc
