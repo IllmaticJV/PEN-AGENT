@@ -5,6 +5,16 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Changed
+
+- **`run.sh` brings the slow daemons up in parallel.** skill-router (embedding
+  model, ~30s) and the Metasploit C2 (msfconsole load, up to ~90s) are
+  independent but were started in series; they now start concurrently and
+  `run.sh` waits once, cutting launch time to about the slower of the two.
+  shell-server stays in the foreground first (it may prompt about prior
+  sessions); `PEN_AGENT_MSF_AVAILABLE` is still exported in the parent shell so
+  it reaches Claude Code.
+
 ### Fixed
 
 - **Metasploit C2 is now self-healing and recovers seamlessly.** The msgrpc
