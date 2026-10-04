@@ -5,6 +5,18 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Changed
+
+- **Trimmed `CLAUDE.md`'s per-turn footprint (~16 KB → ~13 KB, 354 → 270
+  lines).** It's auto-loaded into every lead and teammate turn, so the
+  repo-development-only sections (skill-file format, documentation rules,
+  directory layout, install, the full token-budget detail) moved to a new
+  `CONTRIBUTING.md`. `CLAUDE.md` keeps everything runtime agents use
+  (engagement workflow, architecture, skill routing, state, teammate protocol,
+  engagement directory, permission mode) plus short pointers — the mandatory
+  CHANGELOG rule and the token-budget essence stay visible in `CLAUDE.md` with
+  the detail in `CONTRIBUTING.md`.
+
 ### Fixed
 
 - **Metasploit C2 is now self-healing and recovers seamlessly.** The msgrpc
