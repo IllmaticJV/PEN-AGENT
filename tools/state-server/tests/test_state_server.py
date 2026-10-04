@@ -16,7 +16,7 @@ import pytest
 # Add server directory to path so we can import server modules
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import server as server_mod
+import common as common_mod
 from schema import SCHEMA_VERSION, init_db
 from server import create_server
 
@@ -59,7 +59,7 @@ def db(db_path: Path):
 @pytest.fixture
 def srv(db_path: Path, monkeypatch):
     """Create a server with a temp database, engagement initialized."""
-    monkeypatch.setattr(server_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(common_mod, "DB_PATH", db_path)
     s = create_server()
     call(s, "init_engagement", name="test")
     return s

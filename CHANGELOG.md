@@ -41,6 +41,28 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Modular refactor of oversized server/dashboard files** (no behavior
+  change; integration preserved and verified).
+  - `tools/state-server/server.py` (2055 lines, 27 tools in one
+    `create_server()`) split by concern into `common.py` (shared DB/enum/
+    event helpers + attack-graph prune/restore) plus eight tool modules
+    (`reads`, `engagement`, `targets`, `credentials`, `access`, `vulns`,
+    `pivots`, `tunnels`), each exposing `register(mcp)`. `server.py` is now
+    a thin wiring layer. `DB_PATH` lives in `common.py` as the single patch
+    point (tests monkeypatch `common.DB_PATH`). All 30 tests pass; all 27
+    tools register identically.
+  - `operator/state-viewer` and `operator/msf-console` dashboards: the
+    multi-KB inline HTML/CSS/JS page literals moved to sibling `templates/`
+    files loaded at startup (`state-viewer` `server.py` 1425→447 lines,
+    `msf-console` 652→492). Server logic stays stdlib-only.
+  - `tools/shell-server/server.py` (1349 lines) split into `callback.py`
+    (callback-IP resolution + reverse-shell payloads), `docker_shell.py`
+    (privileged-Docker image config + container lifecycle), and
+    `session.py` (Listener/Session primitives, I/O, prompt detection);
+    `server.py` (→1024 lines) keeps the stateful listener/session registry,
+    threads, and seven MCP tools. All 7 tools register; a loopback
+    listener→command→close path was exercised end-to-end.
+
 - **skill-router converted from a per-session stdio server to a shared SSE
   daemon** (like shell-server and metasploit-server). Root cause of spawned
   agent-team teammates being unable to resolve `mcp__skill-router__*` tools:
