@@ -7,6 +7,19 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Model tiering: host/network recon enum teammates dropped to Haiku.**
+  `net-enum`, `lin-enum`, and `win-enum` now spawn on Haiku instead of Sonnet —
+  their work is mechanical, high-volume run-tool-and-summarize recon that the
+  lead re-tasks if anything is under-reported, so the faster/cheaper model is a
+  clean win. Everything with real judgment stays on Sonnet (all ops/
+  exploitation teammates, state-mgr's graph coherence, shell-mgr's
+  access-critical lifecycle, ad-/web-/ai-enum interpretation, bypass); spray and
+  recover were already Haiku. Added a "Model tiering" rationale to the
+  orchestrator so the reasoning-critical roles aren't downgraded later for
+  speed.
+
+### Changed
+
 - **The two operator dashboards are merged into one `operator/portal/`** (port
   8099) — a single server/login with three tabs, each an isolated sub-page:
   **Objective & Scope** (engagement/scope.md + scope.allow + engagement meta),

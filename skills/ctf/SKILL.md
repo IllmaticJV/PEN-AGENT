@@ -182,11 +182,11 @@ Read spawn templates from `teammates/` at runtime via the Read tool.
 
 | Template | Naming | Domain | Model | Skills |
 |----------|--------|--------|-------|--------|
-| `teammates/net-enum.md` | net-enum, net-enum-\<target\> | Network recon + service enum | sonnet | network-recon, smb-enumeration, db-enumeration, remote-access-enumeration, infrastructure-enumeration |
+| `teammates/net-enum.md` | net-enum, net-enum-\<target\> | Network recon + service enum | haiku | network-recon, smb-enumeration, db-enumeration, remote-access-enumeration, infrastructure-enumeration |
 | `teammates/web-enum.md` | web-enum-\<site\> | Web app discovery | sonnet | web-discovery |
 | `teammates/ad-enum.md` | ad-enum | AD discovery | sonnet | ad-discovery |
-| `teammates/lin-enum.md` | lin-enum-\<host\> | Linux host discovery | sonnet | linux-discovery |
-| `teammates/win-enum.md` | win-enum-\<host\> | Windows host discovery | sonnet | windows-discovery |
+| `teammates/lin-enum.md` | lin-enum-\<host\> | Linux host discovery | haiku | linux-discovery |
+| `teammates/win-enum.md` | win-enum-\<host\> | Windows host discovery | haiku | windows-discovery |
 | `teammates/ai-enum.md` | ai-enum-\<target\> | AI target recon + threat modeling | sonnet | ai-recon |
 
 **Operations teammates** (one per target surface when parallel paths exist):
@@ -218,6 +218,25 @@ Sonnet teammates spawn as **Sonnet 200k** by default. For longer engagements
 where teammates accumulate significant context, add to `.claude/settings.json`:
 `"ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-6[1m]"` (in the `env` block).
 This may hit rate limits more frequently.
+
+**Model tiering (why each teammate is where it is).** Match the model to the
+cognitive load; downgrading the wrong teammate costs more than it saves:
+
+- **haiku** — mechanical, high-volume, verifiable work: host/network recon
+  (`net-/lin-/win-enum` run tools and summarize ports/services/shares; the lead
+  re-tasks if something's under-reported), password spraying, offline cracking.
+- **sonnet** (default) — anything with real judgment: all **ops/exploitation**
+  teammates (chaining, adapting payloads), **state-mgr** (dedup + graph
+  coherence drive the attack graph — a weak call corrupts it silently),
+  **shell-mgr** (access-critical lifecycle decisions), evasion, and the enum
+  teammates whose output is interpretation not transcription (`ad-enum` attack
+  paths, `web-enum` surface, `ai-enum` threat modeling).
+- **opus / ask** — reserve for the lead and for `research` on genuinely open
+  problems (unknown vectors, source-code review).
+
+Do NOT downgrade state-mgr, shell-mgr, or any ops teammate for speed — the
+engagement's correctness depends on them. Speed comes from parallelism and
+fewer serialization points, not from weakening those roles.
 
 ### Spawning a Teammate
 
