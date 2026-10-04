@@ -56,7 +56,7 @@ uv run --directory tools/skill-router python server.py
 | Tool | Parameters | Description |
 |------|-----------|-------------|
 | `search_skills` | `query` (required), `n` (default 5), `category` (optional), `min_similarity` (default 0.4) | Semantic search across all indexed skills |
-| `get_skill` | `name` (required) | Load a skill's full SKILL.md content by name |
+| `get_skill` | `name` (required), `section` (optional) | Load a skill by name. Default returns the **core** (methodology + steps + payloads) with the Troubleshooting section omitted to save tokens; `section="troubleshooting"` fetches that on demand (any heading substring works), `section="full"` returns the whole file. Deferred sections are tunable via `SKILL_DEFER_SECTIONS` (comma-separated heading substrings; empty disables deferral). |
 | `list_skills` | `category` (optional) | List all available skills, optionally filtered by category |
 
 ## How indexing works

@@ -5,6 +5,20 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Changed
+
+- **Two-tier skill loading (`get_skill`) to cut per-task tokens.** `get_skill`
+  previously returned the entire SKILL.md into a teammate's context on every
+  task; it now returns the skill's **core** (methodology + steps + payloads)
+  and omits the **Troubleshooting** section (~7-8% of each skill, only needed
+  when a step fails) with a one-line note on how to fetch it. On a failure a
+  teammate calls `get_skill(name, section="troubleshooting")`; `section="full"`
+  returns the whole file; any heading substring fetches that section. The
+  deferred set is tunable via `SKILL_DEFER_SECTIONS` (e.g. add "engagement
+  logging,state management" to defer the repeated boilerplate too, ~13%; empty
+  disables deferral). Pure text slicing on `## ` headings — no skill files
+  changed. CLAUDE.md teammate guidance + skill-router README updated.
+
 ### Fixed
 
 - **Metasploit C2 is now self-healing and recovers seamlessly.** The msgrpc

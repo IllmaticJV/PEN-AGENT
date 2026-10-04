@@ -68,7 +68,10 @@ appropriate teammate.
 
 **Mandatory skill loading**: Never execute a technique without loading the
 matching skill via `get_skill()`. Skills contain methodology, payloads, and
-troubleshooting that general knowledge does not.
+troubleshooting that general knowledge does not. `get_skill(name)` returns the
+skill's core (methodology + steps + payloads); the **Troubleshooting** section
+is omitted to save tokens — when a step fails, fetch it with
+`get_skill(name, section="troubleshooting")` (or `section="full"`).
 
 **Built-in sub-agents** (Explore, Plan, general-purpose) do NOT have MCP
 access — use them only for local processing, never for target-level work.
