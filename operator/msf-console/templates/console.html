@@ -12,6 +12,8 @@ header h1{font-size:14px;margin:0;color:var(--accent);font-weight:600}
 #status{font-size:12px;padding:2px 8px;border-radius:10px;border:1px solid var(--border)}
 #status.ok{color:var(--green);border-color:var(--green)}
 #status.bad{color:var(--red);border-color:var(--red)}
+.attach{font-size:12px;color:var(--dim)}
+.attach code{color:var(--amber)}
 main{flex:1;display:flex;min-height:0}
 #side{width:340px;border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0}
 section{padding:10px 14px;border-bottom:1px solid var(--border)}
@@ -20,25 +22,31 @@ table{width:100%;border-collapse:collapse;font-size:12px}
 td{padding:3px 4px;border-bottom:1px solid #1c2127;vertical-align:top}
 td.id{color:var(--accent);cursor:pointer;white-space:nowrap}
 td.id:hover{text-decoration:underline}
+tr.sel td.id{color:var(--amber);font-weight:600}
 .empty{color:var(--dim);font-size:12px;padding:4px}
-#termwrap{flex:1;display:flex;flex-direction:column;min-width:0}
-#term{flex:1;overflow-y:auto;padding:12px 14px;white-space:pre-wrap;word-break:break-all;
-      font-size:13px;line-height:1.45}
-#inputrow{display:flex;border-top:1px solid var(--border);padding:8px 12px;gap:8px;flex-shrink:0}
-#prompt{color:var(--green);white-space:pre}
-#cmd{flex:1;background:transparent;border:none;color:var(--fg);font-family:inherit;
-     font-size:13px;outline:none}
-#hint{font-size:11px;color:var(--dim);padding:0 14px 8px}
-button.reset{background:transparent;border:1px solid var(--border);color:var(--dim);
-             border-radius:6px;font-size:11px;padding:3px 8px;cursor:pointer;font-family:inherit}
-button.reset:hover{color:var(--red);border-color:var(--red)}
+#logwrap{flex:1;display:flex;flex-direction:column;min-width:0}
+#loghead{padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--dim);
+         display:flex;align-items:center;gap:10px;flex-shrink:0}
+#logtitle{color:var(--fg)}
+#log{flex:1;overflow-y:auto;padding:12px 14px;white-space:pre-wrap;word-break:break-all;
+     font-size:13px;line-height:1.45}
+.rec{margin:0 0 14px}
+.rec .cmd{color:var(--green)}
+.rec .cmd::before{content:"$ ";color:var(--dim)}
+.rec .ts{color:var(--dim);font-size:11px;margin-left:8px}
+.rec .out{color:var(--fg);margin-top:2px}
+.pill{font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:10px;
+      cursor:pointer;color:var(--dim)}
+.pill:hover{color:var(--fg)}
+.pill.active{color:var(--accent);border-color:var(--accent)}
 </style></head>
 <body>
 <header>
   <h1>msf-console</h1>
   <span id="status">connecting&hellip;</span>
   <span style="flex:1"></span>
-  <button class="reset" onclick="resetConsole()">reset console</button>
+  <span class="attach">read-only viewer &middot; interact in the real console:
+    <code>tmux attach -t pen-msf</code></span>
 </header>
 <main>
   <div id="side">
@@ -48,94 +56,99 @@ button.reset:hover{color:var(--red);border-color:var(--red)}
       <div class="empty" id="sessions-empty">none yet</div>
     </section>
     <section>
-      <h2>Jobs</h2>
+      <h2>Listeners / Jobs</h2>
       <table id="jobs"><tbody></tbody></table>
       <div class="empty" id="jobs-empty">none yet</div>
     </section>
   </div>
-  <div id="termwrap">
-    <div id="term"></div>
-    <div id="inputrow">
-      <span id="prompt">msf &gt;</span>
-      <input id="cmd" autofocus autocomplete="off" spellcheck="false">
+  <div id="logwrap">
+    <div id="loghead">
+      <span id="logtitle">Select a session to view its command log</span>
+      <span style="flex:1"></span>
+      <span class="pill" id="pill-console" onclick="showConsole()">console spool</span>
     </div>
-    <div id="hint">Enter to run &middot; &uarr;/&darr; history &middot; this is a real msfconsole on
-      the engagement's shared msfrpcd — <code>sessions -i &lt;id&gt;</code> interacts with whatever
-      the agent opened, live.</div>
+    <div id="log"></div>
   </div>
 </main>
 <script>
-const term = document.getElementById('term');
-const cmdEl = document.getElementById('cmd');
 const statusEl = document.getElementById('status');
-let history = [], histIdx = -1;
-
-function append(text) {
-  if (!text) return;
-  term.textContent += text;
-  term.scrollTop = term.scrollHeight;
-}
+const logEl = document.getElementById('log');
+const logTitle = document.getElementById('logtitle');
+let selectedSid = null;   // viewing a session log
+let viewConsole = false;  // viewing the console spool instead
+let sessionsCache = [];
 
 function setStatus(connected, msg) {
   statusEl.textContent = msg || (connected ? 'connected' : 'disconnected');
   statusEl.className = connected ? 'ok' : 'bad';
 }
 
-function renderTable(id, emptyId, rows, cols) {
+function esc(s) { return (s ?? '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+function renderTable(id, emptyId, rows, cols, onClick) {
   const tbody = document.querySelector('#' + id + ' tbody');
   tbody.innerHTML = '';
   document.getElementById(emptyId).style.display = rows.length ? 'none' : 'block';
   for (const row of rows) {
     const tr = document.createElement('tr');
+    if (id === 'sessions' && String(row.session_id) === String(selectedSid)) tr.className = 'sel';
     tr.innerHTML = cols.map((c, i) =>
-      `<td class="${i === 0 ? 'id' : ''}">${(row[c] ?? '').toString().replace(/</g,'&lt;')}</td>`
-    ).join('');
-    if (cols[0] === 'session_id') {
-      tr.querySelector('td.id').onclick = () => runCommand('sessions -i ' + row.session_id);
-    }
+      `<td class="${i === 0 ? 'id' : ''}">${esc(row[c])}</td>`).join('');
+    if (onClick) tr.querySelector('td.id').onclick = () => onClick(row);
     tbody.appendChild(tr);
   }
 }
 
-function runCommand(cmd) {
-  append('\n' + cmd + '\n');
-  fetch('/api/console/write', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({command: cmd})
-  }).then(r => r.json()).then(j => { if (j.error) append('[error] ' + j.error + '\n'); });
+function selectSession(sid) {
+  selectedSid = String(sid);
+  viewConsole = false;
+  document.getElementById('pill-console').classList.remove('active');
+  logTitle.textContent = 'session ' + selectedSid + ' — command log';
+  renderTable('sessions', 'sessions-empty', sessionsCache,
+    ['session_id', 'type', 'info'], r => selectSession(r.session_id));
+  refreshLog();
 }
 
-function resetConsole() {
-  fetch('/api/console/reset', {method: 'POST'})
-    .then(() => append('\n[console reset]\n'));
+function showConsole() {
+  viewConsole = true;
+  selectedSid = null;
+  document.getElementById('pill-console').classList.add('active');
+  logTitle.textContent = 'shared msfconsole spool';
+  renderTable('sessions', 'sessions-empty', sessionsCache,
+    ['session_id', 'type', 'info'], r => selectSession(r.session_id));
+  refreshLog();
 }
 
-cmdEl.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    const cmd = cmdEl.value;
-    if (cmd.trim() !== '') { history.push(cmd); histIdx = history.length; }
-    cmdEl.value = '';
-    runCommand(cmd);
-  } else if (e.key === 'ArrowUp') {
-    if (histIdx > 0) { histIdx--; cmdEl.value = history[histIdx] || ''; }
-    e.preventDefault();
-  } else if (e.key === 'ArrowDown') {
-    if (histIdx < history.length) { histIdx++; cmdEl.value = history[histIdx] || ''; }
-    e.preventDefault();
+function refreshLog() {
+  if (viewConsole) {
+    fetch('/api/console/log').then(r => r.json()).then(j => {
+      logEl.textContent = j.data || (j.error ? '[error] ' + j.error : '(console spool empty — enable spool in tmux, or no activity yet)');
+      logEl.scrollTop = logEl.scrollHeight;
+    });
+    return;
   }
-});
+  if (selectedSid === null) return;
+  fetch('/api/session/log?id=' + encodeURIComponent(selectedSid)).then(r => r.json()).then(j => {
+    const recs = j.records || [];
+    if (!recs.length) { logEl.innerHTML = '<div class="empty">no commands recorded for this session yet</div>'; return; }
+    logEl.innerHTML = recs.map(r =>
+      `<div class="rec"><div class="cmd">${esc(r.command)}<span class="ts">${esc(r.ts)}</span></div>`
+      + `<div class="out">${esc(r.output)}</div></div>`).join('');
+    logEl.scrollTop = logEl.scrollHeight;
+  }).catch(e => { logEl.textContent = '[error] ' + e; });
+}
+
+setInterval(refreshLog, 2000);
 
 const es = new EventSource('/api/stream');
 es.onmessage = (ev) => {
   const msg = JSON.parse(ev.data);
-  if (msg.type === 'console') {
-    if (msg.error) setStatus(false, msg.error);
-    else { setStatus(true); append(msg.data); }
-  } else if (msg.type === 'sessions') {
+  if (msg.type === 'sessions') {
+    sessionsCache = msg.payload;
     renderTable('sessions', 'sessions-empty', msg.payload,
-      ['session_id', 'type', 'info']);
+      ['session_id', 'type', 'info'], r => selectSession(r.session_id));
   } else if (msg.type === 'jobs') {
-    renderTable('jobs', 'jobs-empty', msg.payload, ['job_id', 'name']);
+    renderTable('jobs', 'jobs-empty', msg.payload, ['job_id', 'name'], null);
   } else if (msg.type === 'status') {
     setStatus(msg.connected, msg.connected ? 'connected' : (msg.error || 'disconnected'));
   }

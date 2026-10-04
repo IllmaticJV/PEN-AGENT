@@ -92,22 +92,38 @@ require login (`/login` cookie, or `Authorization: Bearer <token>`).
 - **State** (`operator/state-viewer/`, port `8099`) — access-chain graph,
   targets, creds, access, vulns, pivots, tunnels, event timeline, all live.
   `--port`/`--db` flags if you need a different port or database path.
-- **msf-console** (`operator/msf-console/`, port `8100`) — live session/job
-  list plus a real msfconsole on the same `msfrpcd` the `metasploit-server`
-  MCP drives (same `engagement/msfrpc.yaml`, same Framework instance — not a
-  copy). `sessions -i <id>` reaches whatever the agent opened, live, in
-  either direction. One shared console per server process — every tab writes
-  to the same terminal, by design. "Reset console" in the UI recreates it
-  without touching sessions/jobs. Needs `engagement/msfrpc.yaml` to exist
-  (written automatically by `run.sh`); shows a clear banner if Metasploit
-  isn't reachable rather than erroring.
+- **msf-console** (`operator/msf-console/`, port `8100`) — **read-only** view
+  of the same Framework the `metasploit-server` MCP drives (same
+  `engagement/msfrpc.yaml`): the live session + listener/job list, a
+  **per-session command log** (what the agents ran on each session and its
+  output), and the shared console spool. Interaction is deliberately not done
+  here — the RPC/web console can't attach to a session (`sessions -i` crashes
+  inside it). For a full interactive console, attach the real one (below).
+  Needs `engagement/msfrpc.yaml`; shows a clear banner if Metasploit isn't
+  reachable rather than erroring.
 
 ## C2 backend
 
 Metasploit is the default — `run.sh` auto-detects `metasploit-framework` and
-starts `msfrpcd` + the metasploit-server MCP with no extra steps, falling back
-to shell-server if it isn't installed. Run `bash config.sh` to pin a backend
+starts the C2 + the metasploit-server MCP with no extra steps, falling back to
+shell-server if it isn't installed. Run `bash config.sh` to pin a backend
 explicitly or wire a custom C2.
+
+**Full interactive console.** When `tmux` is present, the C2 is an actual
+`msfconsole` running the `msgrpc` plugin inside a tmux session — one Framework
+instance shared by the operator and the agents. Attach it for a 100% real
+console (full `sessions -i`, meterpreter interactive, tab-complete):
+
+```bash
+tmux attach -t pen-msf        # detach with Ctrl-b then d
+```
+
+The agents drive this same instance over RPC, so sessions/jobs/loot are shared
+live. You can work alongside them — the only contention is interacting with the
+*same* session's shell at the same instant; use a different session or jump in
+when a session is idle (the read-only portal's per-session log lets you watch
+without attaching). Without `tmux`, `run.sh` falls back to a headless
+`msfrpcd` (agents work; no live operator console — install tmux for that).
 
 ## Documentation
 

@@ -75,14 +75,13 @@ esac
 # --- Q5: Shell backend ---
 echo ""
 echo "Q5 — Shell backend"
-if command -v msfrpcd &>/dev/null; then
+if command -v msfconsole &>/dev/null; then
     default_q5=2
-    if pgrep -f "msfrpcd" &>/dev/null; then
-        echo "  1) shell-server  (raw TCP/PTY, always available — fallback)"
-        echo "  2) metasploit    (Metasploit C2 — msfrpcd running) [default]"
+    echo "  1) shell-server  (raw TCP/PTY, always available — fallback)"
+    if command -v tmux &>/dev/null; then
+        echo "  2) metasploit    (Metasploit C2 — interactive msfconsole in tmux) [default]"
     else
-        echo "  1) shell-server  (raw TCP/PTY, always available — fallback)"
-        echo "  2) metasploit    (Metasploit C2 — will auto-start msfrpcd) [default]"
+        echo "  2) metasploit    (Metasploit C2 — headless msfrpcd; install tmux for a live console) [default]"
     fi
 else
     default_q5=1
@@ -101,41 +100,19 @@ custom_ref=""
 case "$q5" in
     2)
         default_cfg="engagement/msfrpc.yaml"
-        if ! command -v msfrpcd &>/dev/null; then
+        if ! command -v msfconsole &>/dev/null; then
             echo "  metasploit-framework not found on PATH."
             echo "  Install it (see docs/installation.md), then re-run ./config.sh."
             echo "  Falling back to shell-server."
-        elif [[ -f "$default_cfg" ]]; then
-            echo "  Found Metasploit RPC config: $default_cfg"
-            shell_backend="metasploit"
-            msf_config="$default_cfg"
         else
-            if pgrep -f "msfrpcd" &>/dev/null; then
-                # Orphaned daemon from a previous run/engagement — it's a
-                # detached background process, so it outlives whatever
-                # session started it, and nobody has a record of its
-                # credentials. Restart clean rather than falling back.
-                echo "  msfrpcd is running but no config at $default_cfg —"
-                echo "  stale daemon from a previous run. Restarting with fresh credentials."
-                pkill -f "msfrpcd" 2>/dev/null || true
-                sleep 1
+            # Shared with run.sh: prefers an interactive msfconsole+msgrpc in
+            # tmux (full operator console), falls back to headless msfrpcd.
+            if bash tools/metasploit-server/c2-up.sh; then
+                shell_backend="metasploit"
+                msf_config="$default_cfg"
+            else
+                echo "  Could not start the Metasploit C2 backend — falling back to shell-server."
             fi
-            # Metasploit is the default backend — auto-start msfrpcd, same as run.sh.
-            msf_port="${MSF_RPC_PORT:-55553}"
-            msf_pass="$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 24)"
-            echo "  Starting msfrpcd on 127.0.0.1:${msf_port}..."
-            msfrpcd -P "$msf_pass" -U msf -a 127.0.0.1 -p "$msf_port" &>/dev/null &
-            cat > "$default_cfg" <<YAML
-host: 127.0.0.1
-port: ${msf_port}
-user: msf
-password: ${msf_pass}
-ssl: true
-YAML
-            chmod 600 "$default_cfg"
-            echo "  Config saved to $default_cfg"
-            shell_backend="metasploit"
-            msf_config="$default_cfg"
         fi
         ;;
     3)

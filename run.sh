@@ -73,42 +73,19 @@ else
     echo "               Check the index: uv run --directory tools/skill-router python indexer.py" >&2
 fi
 
-# Detect and start Metasploit RPC (C2 backend)
-if command -v msfrpcd &>/dev/null && command -v msfconsole &>/dev/null; then
+# Detect and start Metasploit (C2 backend). c2-up.sh prefers an interactive
+# msfconsole+msgrpc in tmux (full operator console: `tmux attach -t pen-msf`)
+# and falls back to headless msfrpcd without tmux. Agents connect over RPC
+# either way (engagement/msfrpc.yaml).
+if command -v msfconsole &>/dev/null; then
     export PEN_AGENT_MSF_AVAILABLE=1
     echo "[c2] Metasploit detected"
-    MSF_CFG="engagement/msfrpc.yaml"
-    MSF_PORT="${MSF_RPC_PORT:-55553}"
-    if pgrep -f "msfrpcd" &>/dev/null && [[ ! -f "$MSF_CFG" ]]; then
-        # msfrpcd is running but nothing records its credentials — almost
-        # always an orphaned daemon from a previous run/engagement (it's a
-        # detached background process, so it outlives the session that
-        # started it). Restart it clean rather than leaving metasploit-server
-        # and msf-console unable to connect to a daemon nobody can log into.
-        echo "[c2] msfrpcd is running but engagement/msfrpc.yaml is missing — stale daemon from a previous run, restarting with fresh credentials"
-        pkill -f "msfrpcd" 2>/dev/null || true
-        sleep 1
-    fi
-    if ! pgrep -f "msfrpcd" &>/dev/null; then
-        mkdir -p engagement
-        MSF_PASS="${MSF_RPC_PASSWORD:-$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 24)}"
-        msfrpcd -P "$MSF_PASS" -U msf -a 127.0.0.1 -p "$MSF_PORT" &>/dev/null &
-        cat > "$MSF_CFG" <<YAML
-host: 127.0.0.1
-port: ${MSF_PORT}
-user: msf
-password: ${MSF_PASS}
-ssl: true
-YAML
-        chmod 600 "$MSF_CFG"
-        echo "[c2] msfrpcd started on 127.0.0.1:${MSF_PORT} (config: ${MSF_CFG})"
-        sleep 2  # brief wait for RPC to bind
+    if bash tools/metasploit-server/c2-up.sh; then
+        bash tools/metasploit-server/start.sh 2>/dev/null && echo "[c2] Metasploit MCP ready" \
+            || echo "[c2] Metasploit MCP failed to start (check engagement/msfrpc.yaml)"
     else
-        echo "[c2] msfrpcd already running"
+        echo "[c2] C2 backend did not start — see messages above; continuing with shell-server"
     fi
-    # Start metasploit-server MCP
-    bash tools/metasploit-server/start.sh 2>/dev/null && echo "[c2] Metasploit MCP ready" \
-        || echo "[c2] Metasploit MCP failed to start (check engagement/msfrpc.yaml)"
 else
     echo "[c2] Metasploit not found — shell-server only (install metasploit-framework for C2)"
 fi
