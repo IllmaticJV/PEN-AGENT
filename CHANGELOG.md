@@ -7,6 +7,18 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **msf-console (operator): session interaction no longer crashes.** Clicking
+  a session ran `sessions -i <id>` in the shared RPC console, which makes
+  msfrpcd attempt interactive stream-attach on a nil stream and raise
+  `undefined method 'closed?' for nil` (a Metasploit limitation — `sessions
+  -i` can't run inside an RPC/web console). Clicking a session now **attaches**
+  it and interacts over the direct session RPC (`sessions.session(id)
+  .run_with_output()`) — the exact path the metasploit-server MCP (the agents)
+  already use — via a new `/api/session/exec` endpoint and a request/response
+  attach mode in the UI (Esc or `exit` detaches). Typing `sessions -i` into
+  the console is now intercepted with a pointer to the attach flow instead of
+  being forwarded to the daemon. No change to how agents drive sessions.
+
 - **preflight `--install --optional`: 8 tools that always failed to install.**
   Root causes were wrong install sources, not environment issues:
   - `manspider` → PyPI id is `man-spider` (the un-hyphenated name has no

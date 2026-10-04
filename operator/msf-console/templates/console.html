@@ -59,21 +59,53 @@ button.reset:hover{color:var(--red);border-color:var(--red)}
       <span id="prompt">msf &gt;</span>
       <input id="cmd" autofocus autocomplete="off" spellcheck="false">
     </div>
-    <div id="hint">Enter to run &middot; &uarr;/&darr; history &middot; this is a real msfconsole on
-      the engagement's shared msfrpcd — <code>sessions -i &lt;id&gt;</code> interacts with whatever
-      the agent opened, live.</div>
+    <div id="hint">Enter to run &middot; &uarr;/&darr; history &middot; real msfconsole on the
+      engagement's shared msfrpcd. Click a session to <b>attach</b> (direct RPC, like the
+      agents); <code>Esc</code> or <code>exit</code> detaches back to the console.</div>
   </div>
 </main>
 <script>
 const term = document.getElementById('term');
 const cmdEl = document.getElementById('cmd');
 const statusEl = document.getElementById('status');
+const promptEl = document.getElementById('prompt');
 let history = [], histIdx = -1;
+let attachedSid = null;   // null = console mode; else interacting with a session
 
 function append(text) {
   if (!text) return;
   term.textContent += text;
   term.scrollTop = term.scrollHeight;
+}
+
+function setPrompt() {
+  promptEl.textContent = attachedSid === null ? 'msf >' : ('session ' + attachedSid + ' >');
+  promptEl.style.color = attachedSid === null ? 'var(--green)' : 'var(--amber)';
+}
+
+function attachSession(sid) {
+  attachedSid = String(sid);
+  append('\n[attached to session ' + attachedSid + ' — Esc or `exit` to detach]\n');
+  setPrompt();
+  cmdEl.focus();
+}
+
+function detachSession() {
+  if (attachedSid === null) return;
+  append('\n[detached from session ' + attachedSid + ']\n');
+  attachedSid = null;
+  setPrompt();
+}
+
+function sessionExec(cmd) {
+  append('\n' + cmd + '\n');
+  fetch('/api/session/exec', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({session_id: attachedSid, command: cmd})
+  }).then(r => r.json()).then(j => {
+    if (j.error) append('[error] ' + j.error + '\n');
+    else append(j.output || '');
+  }).catch(e => append('[error] ' + e + '\n'));
 }
 
 function setStatus(connected, msg) {
@@ -91,7 +123,7 @@ function renderTable(id, emptyId, rows, cols) {
       `<td class="${i === 0 ? 'id' : ''}">${(row[c] ?? '').toString().replace(/</g,'&lt;')}</td>`
     ).join('');
     if (cols[0] === 'session_id') {
-      tr.querySelector('td.id').onclick = () => runCommand('sessions -i ' + row.session_id);
+      tr.querySelector('td.id').onclick = () => attachSession(row.session_id);
     }
     tbody.appendChild(tr);
   }
@@ -115,7 +147,15 @@ cmdEl.addEventListener('keydown', (e) => {
     const cmd = cmdEl.value;
     if (cmd.trim() !== '') { history.push(cmd); histIdx = history.length; }
     cmdEl.value = '';
-    runCommand(cmd);
+    if (attachedSid !== null) {
+      if (cmd.trim() === 'exit' || cmd.trim() === 'detach') { detachSession(); }
+      else { sessionExec(cmd); }
+    } else {
+      runCommand(cmd);
+    }
+  } else if (e.key === 'Escape') {
+    detachSession();
+    e.preventDefault();
   } else if (e.key === 'ArrowUp') {
     if (histIdx > 0) { histIdx--; cmdEl.value = history[histIdx] || ''; }
     e.preventDefault();
