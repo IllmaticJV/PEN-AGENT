@@ -8,12 +8,19 @@ post-exploitation, and pivoting.
 
 ## Prerequisites
 
-- **metasploit-framework** installed (`msfconsole`, `msfvenom`, `msfrpcd` on PATH)
-- **msfrpcd** running and an engagement config at `engagement/msfrpc.yaml`.
-  `run.sh` starts the daemon and writes this file automatically; `config.sh`
-  wires it as the shell backend. Manual start:
+- **metasploit-framework** installed (`msfconsole`, `msfvenom` on PATH)
+- A running RPC instance and an engagement config at `engagement/msfrpc.yaml`.
+  `run.sh`/`config.sh` start it via `tools/metasploit-server/c2-up.sh` and
+  write this file automatically. `c2-up.sh` prefers an interactive
+  `msfconsole` running the `msgrpc` plugin inside tmux (so the operator gets a
+  full console via `tmux attach -t pen-msf`), and falls back to headless
+  `msfrpcd` when tmux is absent. Either way pymetasploit3 connects to the same
+  RPC. Manual equivalents:
 
   ```bash
+  # interactive (recommended): console IS the RPC server
+  msfconsole -q -x "load msgrpc ServerHost=127.0.0.1 ServerPort=55553 User=msf Pass=<password> SSL=true"
+  # headless daemon (no operator console)
   msfrpcd -P <password> -U msf -a 127.0.0.1 -p 55553
   ```
 
@@ -112,13 +119,18 @@ back non-scalar and fails option validation.
 
 ## Operator Visibility
 
-`operator/msf-console/` connects to the same `msfrpcd` daemon (same
-`engagement/msfrpc.yaml`) and gives the human operator a live session/job
-list plus a real, interactive msfconsole on that shared Framework instance —
-`sessions -i <id>` there reaches whatever the agent opened here, live, and
-anything run from it is visible to this server's next `list_sessions()`/
-`list_jobs()` call. `bash operator/msf-console/start.sh` →
-`http://127.0.0.1:8100`.
+Two complementary surfaces, both on the same Framework this server drives:
+
+- **Full interactive console** — when tmux is present, `c2-up.sh` runs the C2
+  as an `msfconsole`+`msgrpc` in tmux; `tmux attach -t pen-msf` is a real
+  console (`sessions -i`, meterpreter interactive, all of it). Operator and
+  agents share it live.
+- **`operator/msf-console/` read-only viewer** (`bash
+  operator/msf-console/start.sh` → `http://127.0.0.1:8100`) — the live
+  session/listener list plus a **per-session command log**: every `execute()`
+  this server runs is appended to `engagement/evidence/msf-sessions/<id>.jsonl`
+  so the operator can watch what agents did on a session without attaching to
+  (and stealing) its stream.
 
 ## HTTP Endpoints
 

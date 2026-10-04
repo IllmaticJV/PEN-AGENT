@@ -5,19 +5,29 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
-### Fixed
+### Changed
 
-- **msf-console (operator): session interaction no longer crashes.** Clicking
-  a session ran `sessions -i <id>` in the shared RPC console, which makes
-  msfrpcd attempt interactive stream-attach on a nil stream and raise
-  `undefined method 'closed?' for nil` (a Metasploit limitation — `sessions
-  -i` can't run inside an RPC/web console). Clicking a session now **attaches**
-  it and interacts over the direct session RPC (`sessions.session(id)
-  .run_with_output()`) — the exact path the metasploit-server MCP (the agents)
-  already use — via a new `/api/session/exec` endpoint and a request/response
-  attach mode in the UI (Esc or `exit` detaches). Typing `sessions -i` into
-  the console is now intercepted with a pointer to the attach flow instead of
-  being forwarded to the daemon. No change to how agents drive sessions.
+- **Metasploit C2 is now an interactive `msfconsole` (full operator console),
+  not a headless `msfrpcd`.** A new shared `tools/metasploit-server/c2-up.sh`
+  (used by both `run.sh` and `config.sh`) starts `msfconsole` with the
+  `msgrpc` plugin inside a tmux session (`pen-msf`) — one Framework instance,
+  so `tmux attach -t pen-msf` is a 100% real console (`sessions -i`,
+  meterpreter interactive, tab-complete) while the agents drive the *same*
+  instance over RPC. `engagement/msfrpc.yaml` is unchanged, so the
+  metasploit-server MCP connects exactly as before. Without tmux, c2-up.sh
+  falls back to the old headless `msfrpcd` (agents work; no live console).
+  This replaces the web portal's crippled RPC console as the way an operator
+  interacts with Metasploit — the RPC/web console cannot attach to a session.
+- **msf-console web portal is now a read-only viewer.** It shows the live
+  session + listener/job list, a **per-session command log** (every command
+  the agents run via `metasploit-server.execute()` is recorded to
+  `engagement/evidence/msf-sessions/<id>.jsonl` with its output), and the
+  shared console spool. The command input, the RPC console, and the
+  `/api/console/write`/`reset` endpoints were removed — interaction belongs in
+  the tmux console above. (Supersedes the interactive-portal approach; the
+  `sessions -i` crash no longer applies since the portal never attaches.)
+
+### Fixed
 
 - **preflight `--install --optional`: 8 tools that always failed to install.**
   Root causes were wrong install sources, not environment issues:

@@ -22,10 +22,12 @@ from __future__ import annotations
 import functools
 import json
 import os
+import re
 import shutil
 import subprocess
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -98,6 +100,31 @@ def _execute_error(result, expect_job: bool = False) -> str | None:
             f"(raw result: {result!r})"
         )
     return None
+
+
+def _log_session_io(session_id: str, command: str, output: str) -> None:
+    """Append one command+output record to the per-session log that the
+    operator console reads (engagement/evidence/msf-sessions/<id>.jsonl).
+
+    Best-effort: never breaks a tool call over logging, and skips silently
+    when there's no engagement dir.
+    """
+    try:
+        eng = _PROJECT_ROOT / "engagement"
+        if not eng.exists():
+            return
+        d = eng / "evidence" / "msf-sessions"
+        d.mkdir(parents=True, exist_ok=True)
+        safe = re.sub(r"[^A-Za-z0-9_-]", "_", str(session_id)) or "unknown"
+        rec = {
+            "ts": datetime.now(tz=timezone.utc).isoformat(timespec="seconds"),
+            "command": command,
+            "output": output or "",
+        }
+        with (d / f"{safe}.jsonl").open("a") as f:
+            f.write(json.dumps(rec) + "\n")
+    except Exception:
+        pass
 
 
 def create_server() -> FastMCP:
@@ -415,6 +442,7 @@ def create_server() -> FastMCP:
             if session is None:
                 return f"ERROR: Session {session_id} not found or dead."
             output = session.run_with_output(command, timeout=timeout)
+            _log_session_io(session_id, command, output)
             return json.dumps(
                 {"status": "executed", "session_id": str(session_id), "output": output}
             )
@@ -423,9 +451,11 @@ def create_server() -> FastMCP:
             try:
                 session.write(command)
                 time.sleep(2)
+                output = session.read()
+                _log_session_io(session_id, command, output)
                 return json.dumps(
                     {"status": "executed", "session_id": str(session_id),
-                     "output": session.read()}
+                     "output": output}
                 )
             except Exception as e:
                 return f"ERROR: Command execution failed: {e}"

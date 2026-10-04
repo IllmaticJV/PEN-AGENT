@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
-"""Operator web console for PEN-AGENT's shared Metasploit RPC instance.
+"""Operator READ-ONLY viewer for PEN-AGENT's Metasploit C2.
 
-metasploit-server (the MCP server teammates use) and this viewer both connect
-to the *same* msfrpcd daemon via engagement/msfrpc.yaml. Metasploit sessions
-and jobs belong to that daemon's Framework instance, not to whichever RPC
-client created them — so this page shows the live session list the agent is
-driving, and the embedded console is a real msfconsole running inside that
-same instance: commands typed here (`sessions -l`, any module) see and affect
-the exact sessions the agent sees, live. Attaching to a session (clicking it
-in the sidebar) interacts over the direct session RPC — the same path the
-agents use — because `sessions -i` cannot run inside an RPC/web console.
+metasploit-server (the MCP server teammates use) and this viewer connect to
+the *same* RPC instance via engagement/msfrpc.yaml. Sessions and jobs belong
+to that Framework instance, so this page shows the live session/listener list
+the agents are driving, plus a per-session command log (the commands the
+agents ran on each session and their output, recorded by metasploit-server to
+engagement/evidence/msf-sessions/<id>.jsonl) and the shared console spool.
+
+It is deliberately READ-ONLY: the RPC/web console can't do interactive session
+attach (`sessions -i` crashes inside an RPC console), so interaction happens in
+the real msfconsole that c2-up.sh runs in tmux — `tmux attach -t pen-msf` is a
+full console sharing this exact Framework. This page is for observing.
 
 Stdlib HTTP server with the HTML/CSS/JS frontend in templates/ (login.html,
 console.html), live updates via SSE — same shape as operator/state-viewer.
-The one non-stdlib dependency is
-pymetasploit3 (the RPC client), so this runs via `uv run` rather than bare
+The one non-stdlib dependency is pymetasploit3 (the RPC client, used only to
+read the live session/job list), so this runs via `uv run` rather than bare
 python3; see start.sh.
 
 Authentication: reuses operator/state-viewer's token file
 (~/.config/pen-agent/viewer-token). If present, this server binds 0.0.0.0 and
-requires it; otherwise it binds 127.0.0.1 only. This console is equivalent to
-local msfconsole access to the engagement's C2 — treat the token the same way
-you would an SSH key to the attackbox.
+requires it; otherwise it binds 127.0.0.1 only.
 
 Usage:
     uv run --directory operator/msf-console python server.py [--port 8100]
@@ -42,10 +42,12 @@ import time
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote_plus
+from urllib.parse import parse_qs, unquote_plus, urlparse
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _MSF_CFG = _PROJECT_ROOT / "engagement" / "msfrpc.yaml"
+_SESSION_LOG_DIR = _PROJECT_ROOT / "engagement" / "evidence" / "msf-sessions"
+_CONSOLE_SPOOL = _PROJECT_ROOT / "engagement" / "evidence" / "msf-console.log"
 _TOKEN_FILE = Path.home() / ".config" / "pen-agent" / "viewer-token"  # shared with state-viewer
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
@@ -187,96 +189,42 @@ class _MsfState:
             return None, _NOT_CONNECTED
         return client, None
 
-    def get_console(self, client):
-        """Returns the shared console, creating it if needed."""
-        with self.lock:
-            if self.console is None:
-                self.console = client.consoles.console()
-            return self.console
-
-    def reset_console(self):
-        with self.lock:
-            if self.console is not None and self.client is not None:
+    def session_log(self, session_id: str, max_records: int = 500) -> dict:
+        """Read the per-session command log the metasploit-server MCP writes
+        (engagement/evidence/msf-sessions/<id>.jsonl) — commands the agents ran
+        on this session and their output. Read-only; no RPC, no stream-steal."""
+        safe = re.sub(r"[^A-Za-z0-9_-]", "_", str(session_id)) or "unknown"
+        path = _SESSION_LOG_DIR / f"{safe}.jsonl"
+        if not path.exists():
+            return {"session_id": str(session_id), "records": []}
+        records = []
+        try:
+            for line in path.read_text(errors="replace").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
                 try:
-                    self.client.consoles.destroy(self.console.cid)
-                except Exception:
-                    pass
-            self.console = None
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        except OSError as e:
+            return {"session_id": str(session_id), "records": [], "error": str(e)}
+        return {"session_id": str(session_id), "records": records[-max_records:]}
 
-    def session_exec(self, session_id: str, command: str, timeout: int = 25) -> dict:
-        """Run one command in a live session and return its output.
-
-        Uses the same direct session RPC the metasploit-server MCP (the
-        agents) use — `sessions.session(id).run_with_output()` — NOT the
-        console's `sessions -i`, which crashes inside an RPC/web console
-        (rex tries to select() on a nil interactive stream). Request/response,
-        so it shares the session with the agents the way the agents share it
-        with each other, rather than holding the stream open.
-        """
-        client, err = self.require_client()
-        if err:
-            return {"error": err}
-        sid = str(session_id)
-        with self.lock:
-            try:
-                if sid not in {str(k) for k in client.sessions.list}:
-                    return {"error": f"session {sid} not found"}
-                sess = client.sessions.session(sid)
-                try:
-                    output = sess.run_with_output(command, timeout=timeout)
-                except TypeError:
-                    # Older API / session type without the timeout kwarg.
-                    sess.write(command)
-                    time.sleep(1.0)
-                    output = sess.read()
-                return {"ok": True, "output": output or ""}
-            except Exception as e:
-                return {"error": str(e)}
-
-    def write(self, command: str) -> dict:
-        client, err = self.require_client()
-        if err:
-            return {"error": err}
-        # `sessions -i <id>` cannot work through an RPC/web console — it makes
-        # msfrpcd attempt interactive stream-attach on a nil stream and raise
-        # "undefined method `closed?' for nil". Block it here and point the
-        # operator at the session-attach path (/api/session/exec) instead.
-        if re.match(r"^\s*sessions?\s+-i\b", command):
-            return {
-                "error": (
-                    "`sessions -i` doesn't work in the web console. Click a "
-                    "session in the sidebar to attach — that interacts with it "
-                    "directly over RPC, the same way the agents do."
-                )
-            }
-        with self.lock:
-            for attempt in (1, 2):
-                try:
-                    console = self.get_console(client)
-                    console.write(command)
-                    return {"ok": True}
-                except Exception as e:
-                    self.reset_console()
-                    if attempt == 2:
-                        return {"error": str(e)}
-        return {"error": "unreachable"}
-
-    def read(self) -> dict:
-        client, err = self.require_client()
-        if err:
-            return {"data": "", "prompt": "", "busy": False, "error": err}
-        with self.lock:
-            try:
-                console = self.get_console(client)
-                chunk = console.read()
-                return {
-                    "data": chunk.get("data", ""),
-                    "prompt": chunk.get("prompt", ""),
-                    "busy": bool(chunk.get("busy", False)),
-                }
-            except Exception as e:
-                self.reset_console()
-                return {"data": "", "prompt": "", "busy": False, "error": str(e)}
+    def console_log(self, max_bytes: int = 60000) -> dict:
+        """Tail the shared msfconsole spool (what the operator typed in tmux and
+        its output), if SessionLogging/spool is enabled by c2-up.sh."""
+        if not _CONSOLE_SPOOL.exists():
+            return {"data": ""}
+        try:
+            with _CONSOLE_SPOOL.open("rb") as f:
+                f.seek(0, 2)
+                size = f.tell()
+                f.seek(max(0, size - max_bytes))
+                data = f.read().decode(errors="replace")
+            return {"data": data}
+        except OSError as e:
+            return {"data": "", "error": str(e)}
 
     def list_sessions(self) -> dict:
         client, err = self.require_client()
@@ -408,6 +356,15 @@ class Handler(BaseHTTPRequestHandler):
             self._json(_msf.list_sessions())
         elif self.path == "/api/jobs":
             self._json(_msf.list_jobs())
+        elif self.path.startswith("/api/session/log"):
+            qs = parse_qs(urlparse(self.path).query)
+            sid = (qs.get("id") or [""])[0]
+            if not sid:
+                self._json({"error": "id required"}, 400)
+            else:
+                self._json(_msf.session_log(sid))
+        elif self.path == "/api/console/log":
+            self._json(_msf.console_log())
         elif self.path == "/api/stream":
             if not self._is_authenticated():
                 self._json({"error": "unauthorized"}, 401)
@@ -423,33 +380,24 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Connection", "keep-alive")
         self.end_headers()
 
-        last_slow = 0.0
+        # Read-only viewer: push the live session/job list + connection status.
+        # Interaction happens in the real tmux msfconsole, not here.
         try:
             while True:
-                chunk = _msf.read()
-                if chunk.get("data") or chunk.get("error"):
-                    self.wfile.write(
-                        f"data: {json.dumps({'type': 'console', **chunk})}\n\n".encode()
-                    )
-                    self.wfile.flush()
-
-                now = time.time()
-                if now - last_slow >= 2:
-                    last_slow = now
-                    status = _msf.status()
-                    self.wfile.write(
-                        f"data: {json.dumps({'type': 'status', **status})}\n\n".encode()
-                    )
-                    sessions = _msf.list_sessions()
-                    self.wfile.write(
-                        f"data: {json.dumps({'type': 'sessions', 'payload': sessions.get('sessions', [])})}\n\n".encode()
-                    )
-                    jobs = _msf.list_jobs()
-                    self.wfile.write(
-                        f"data: {json.dumps({'type': 'jobs', 'payload': jobs.get('jobs', [])})}\n\n".encode()
-                    )
-                    self.wfile.flush()
-                time.sleep(0.4)
+                status = _msf.status()
+                self.wfile.write(
+                    f"data: {json.dumps({'type': 'status', **status})}\n\n".encode()
+                )
+                sessions = _msf.list_sessions()
+                self.wfile.write(
+                    f"data: {json.dumps({'type': 'sessions', 'payload': sessions.get('sessions', [])})}\n\n".encode()
+                )
+                jobs = _msf.list_jobs()
+                self.wfile.write(
+                    f"data: {json.dumps({'type': 'jobs', 'payload': jobs.get('jobs', [])})}\n\n".encode()
+                )
+                self.wfile.flush()
+                time.sleep(2)
         except (BrokenPipeError, ConnectionResetError):
             pass
 
@@ -482,40 +430,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
             return
 
-        if not self._require_auth():
-            return
-
-        if self.path == "/api/console/write":
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length).decode() if length else "{}"
-            try:
-                payload = json.loads(body)
-            except json.JSONDecodeError:
-                self._json({"error": "invalid JSON body"}, 400)
-                return
-            command = str(payload.get("command", ""))
-            if not command.endswith("\n"):
-                command += "\n"
-            self._json(_msf.write(command))
-        elif self.path == "/api/console/reset":
-            _msf.reset_console()
-            self._json({"ok": True})
-        elif self.path == "/api/session/exec":
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length).decode() if length else "{}"
-            try:
-                payload = json.loads(body)
-            except json.JSONDecodeError:
-                self._json({"error": "invalid JSON body"}, 400)
-                return
-            sid = str(payload.get("session_id", ""))
-            command = str(payload.get("command", ""))
-            if not sid:
-                self._json({"error": "session_id required"}, 400)
-                return
-            self._json(_msf.session_exec(sid, command))
-        else:
-            self.send_error(404)
+        # Read-only viewer — no write endpoints. /login is the only POST.
+        self.send_error(404)
 
 
 def main():
