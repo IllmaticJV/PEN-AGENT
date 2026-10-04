@@ -62,9 +62,22 @@ Validate relevance before assigning — embedding similarity ≠ guaranteed matc
 
 ### If Skill Router Is Unavailable
 
-STOP. Do not fall back to inline execution. Tell operator:
-> MCP skill-router not connected. Check `.mcp.json` and server status.
-> Rebuild index: `uv run --directory tools/skill-router python indexer.py`
+skill-router is the slowest server to come up (embedding model + ChromaDB),
+so a teammate reporting it unavailable **right after spawn is usually a
+race, not a dead server** — the teammate was told to wait and retry (see
+CLAUDE.md § Teammate Protocol), so by the time it escalates to you it has
+already waited. Before telling the operator anything:
+
+1. Check it yourself — you use skill-router every routing decision
+   (`search_skills`). If your own `search_skills`/`get_skill` calls work,
+   the server is up; the teammate likely just needs to retry. Re-send the
+   task; if it still fails, the teammate's own connection is wedged — spawn
+   a fresh teammate for the same target surface (per "Assigning Tasks") and
+   reassign.
+2. If your own skill-router calls ALSO fail, the server is genuinely down.
+   STOP — do not fall back to inline execution. Tell the operator:
+   > MCP skill-router not connected. Check `.mcp.json` and server status.
+   > Rebuild index: `uv run --directory tools/skill-router python indexer.py`
 
 ## Commands the Lead May Execute
 

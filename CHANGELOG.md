@@ -7,6 +7,23 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **Teammates declared themselves blocked on a skill-router race instead of
+  waiting.** skill-router loads an embedding model + ChromaDB at startup, so
+  it connects far slower than `state` (which just opens a SQLite file). A
+  teammate that spawned and immediately tried `get_skill` could find
+  skill-router still connecting, and — correctly refusing to run a technique
+  without the skill loaded — reported blocked on the *first* miss rather
+  than waiting the few extra seconds. Hardened the protocol: the teammate
+  Activation Protocol now warms up the skill-router connection at spawn
+  (before any task arrives), the Task Workflow waits-and-retries (≈60s) on a
+  still-connecting skill-router before escalating, and the orchestrator's
+  "If Skill Router Is Unavailable" handling now distinguishes a per-teammate
+  race (re-send / respawn that teammate) from the server genuinely being
+  down (its own `search_skills` also failing) before alarming the operator.
+  Guidance only — no mechanics changed.
+
+### Fixed
+
 - **metasploit-server silently reported handlers as "listening" when
   msfrpcd never bound them.** `module.execute()` over RPC doesn't raise on a
   server-side failure — it returns `{"error": true, ...}` or a null

@@ -108,10 +108,20 @@ defined in their templates.
 1. The lead assigns a task via `SendMessage` starting with `[TASK]`,
    including: skill name, target, and context.
 2. Load the skill via `mcp__skill-router__get_skill(name="<skill-name>")`
-   — call it directly, not via a subagent. If not callable yet, run
-   `ToolSearch("select:mcp__skill-router__get_skill")` first. The full
-   skill text MUST be in YOUR context window. **Never use the Agent tool
-   or Skill tool to load skills.**
+   — call it directly, not via a subagent. The full skill text MUST be in
+   YOUR context window. **Never use the Agent tool or Skill tool to load
+   skills.**
+   **If `get_skill` isn't resolvable yet, WAIT — do not report blocked on
+   the first miss.** skill-router loads an embedding model + ChromaDB on
+   startup, so it connects much slower than `state` (seconds vs. tens of
+   seconds); if `state` resolves but skill-router doesn't, it's almost
+   always still connecting, not down. Call
+   `ToolSearch("select:mcp__skill-router__get_skill")` (it waits for a
+   still-connecting server) and retry get_skill. Only after it stays
+   unresolvable across a real wait (≈60s, a few retries) do you message the
+   lead `[blocked] reason="skill-router unavailable"` — then the lead
+   re-checks the server (see orchestrator), rather than you silently
+   giving up.
 3. Execute the skill's methodology end-to-end.
 4. Message state-mgr with findings using `[action]` protocol.
 5. Message the lead with a structured summary.
@@ -210,8 +220,15 @@ On activation (this runs once, before any task):
    model — an empty result is expected, not an error. If they're absent,
    coordinate with the lead and peers through `SendMessage` only; don't
    retry the search or treat it as a blocker.
-2. `get_state_summary()` — load engagement state
-3. Go idle. Your first task arrives as a `SendMessage` starting with `[TASK]`.
+2. `ToolSearch("select:mcp__skill-router__get_skill")` — warm up the
+   skill-router connection NOW, while the first teammate is initializing,
+   so it's ready before any `[TASK]` needs a skill. skill-router is the
+   slowest server to come up (embedding model + ChromaDB). If it doesn't
+   resolve yet, that's fine at this stage — it's still loading; you'll wait
+   on it per Task Workflow step 2 when a task actually arrives. Don't report
+   blocked here.
+3. `get_state_summary()` — load engagement state
+4. Go idle. Your first task arrives as a `SendMessage` starting with `[TASK]`.
 
 ### Target Knowledge Ethics
 
