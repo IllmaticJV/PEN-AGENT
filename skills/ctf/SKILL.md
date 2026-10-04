@@ -690,6 +690,16 @@ spawn/message recon teammate (alone — do NOT batch with other spawns):
   "Load skill 'network-recon'. Target: <IP/range>. Scan type: <type>."
 ```
 
+**Full scan = staged (fast-first).** net-enum reports the quick top-ports
+results FIRST, then keeps running the deep `-p-` scan. **Route on that first
+report immediately** — start service enum / exploitation on the common ports
+while the deep scan runs; don't wait for `-p-`. net-enum follows up with a
+delta of any additional ports — route those as they arrive.
+
+**Fan out recon across hosts.** For multiple in-scope hosts/ranges, spawn a
+`net-enum-<host>` per host so they scan concurrently, rather than one net-enum
+walking them serially (one approval covers the whole parallel batch).
+
 ### Deferred shell-mgr Spawn
 
 **After the first domain teammate is spawned and working**, spawn shell-mgr
