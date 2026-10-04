@@ -40,6 +40,39 @@ _DEFAULT_SKILLS_DIR = _SCRIPT_DIR.parent.parent / "skills"
 _DEFAULT_DB_DIR = _SCRIPT_DIR / ".chromadb"
 
 
+# Sections get_skill defers from the default load (fetch on demand with
+# section=...). Troubleshooting is only needed when a step actually fails, so
+# it's deferred by default to cut per-task tokens. Tune with the env var
+# SKILL_DEFER_SECTIONS (comma-separated heading substrings, case-insensitive);
+# set it to "" to disable deferral and always return the full skill.
+_DEFER_DEFAULT = "troubleshooting"
+
+
+def _deferred_section_matchers() -> list[str]:
+    raw = os.environ.get("SKILL_DEFER_SECTIONS", _DEFER_DEFAULT)
+    return [s.strip().lower() for s in raw.split(",") if s.strip()]
+
+
+def _split_sections(content: str) -> tuple[str, list[tuple[str, str]]]:
+    """Split a SKILL.md body into (preamble, [(heading_text, section_text), …]).
+
+    A section runs from a level-2 `## ` heading to the next level-2 heading, so
+    `###` subsections stay with their parent. Preamble is everything before the
+    first `## `. Pure text slicing — nothing is reflowed.
+    """
+    lines = content.splitlines(keepends=True)
+    starts = [i for i, ln in enumerate(lines) if ln.startswith("## ")]
+    if not starts:
+        return content, []
+    preamble = "".join(lines[: starts[0]])
+    sections: list[tuple[str, str]] = []
+    for idx, s in enumerate(starts):
+        end = starts[idx + 1] if idx + 1 < len(starts) else len(lines)
+        heading = lines[s][3:].strip()
+        sections.append((heading, "".join(lines[s:end])))
+    return preamble, sections
+
+
 def _get_collection(db_dir: Path) -> chromadb.Collection:
     """Get the ChromaDB collection with pinned embedding function."""
     embedding_fn = SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
@@ -117,16 +150,21 @@ def create_server(skills_dir: Path, db_dir: Path) -> FastMCP:
         return "\n\n".join(lines)
 
     @mcp.tool()
-    def get_skill(name: str) -> str:
-        """Load a pentesting skill's full SKILL.md content by name.
+    def get_skill(name: str, section: str = "") -> str:
+        """Load a pentesting skill's SKILL.md by name.
 
-        The returned content contains complete methodology, payloads, and
-        instructions. Read it and follow the instructions for the engagement.
+        By default returns the skill's CORE — full methodology, steps and
+        payloads — with long-tail sections (Troubleshooting) omitted to save
+        tokens; the response lists what was omitted. If a step fails, fetch the
+        rest with section="troubleshooting" (or section="full" for everything).
 
         Args:
             name: Skill name (e.g., "sql-injection-union", "kerberos-roasting",
                   "linux-sudo-suid-capabilities"). Use search_skills to discover
                   available names.
+            section: "" (default) = core; "full" = the entire SKILL.md;
+                  otherwise a heading substring (e.g. "troubleshooting") to fetch
+                  just that section on demand.
         """
         # Look up the skill path from ChromaDB metadata
         results = collection.get(ids=[name], include=["metadatas"])
@@ -164,7 +202,43 @@ def create_server(skills_dir: Path, db_dir: Path) -> FastMCP:
             f"**Source**: {skill_path}\n\n"
             f"---\n\n"
         )
-        return header + content
+
+        want = section.strip().lower()
+        if want == "full":
+            return header + content
+
+        preamble, sections = _split_sections(content)
+
+        # Specific section requested → return just the matching section(s).
+        if want:
+            hits = [text for heading, text in sections if want in heading.lower()]
+            if hits:
+                return header + "".join(hits)
+            avail = ", ".join(h for h, _ in sections) or "(none)"
+            return (
+                f"{header}No section matching '{section}' in skill '{name}'.\n"
+                f"Available sections: {avail}\n"
+                f'Use get_skill("{name}", section="full") for the whole skill.'
+            )
+
+        # Default → core (everything except the deferred sections), plus a note.
+        matchers = _deferred_section_matchers()
+        core_parts = [preamble]
+        deferred: list[str] = []
+        for heading, text in sections:
+            if matchers and any(m in heading.lower() for m in matchers):
+                deferred.append(heading)
+            else:
+                core_parts.append(text)
+        core = "".join(core_parts)
+        if deferred:
+            names = ", ".join(deferred)
+            core += (
+                f"\n\n---\n_Omitted to save tokens: **{names}**. "
+                f'If a step fails, fetch it with get_skill("{name}", '
+                f'section="{deferred[0].lower()}") — or section="full" for everything._\n'
+            )
+        return header + core
 
     @mcp.tool()
     def list_skills(category: str | None = None) -> str:
