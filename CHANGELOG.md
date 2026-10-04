@@ -5,6 +5,24 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-04
 
+### Fixed
+
+- **The orchestrator's agent-teams integration called tools that don't
+  exist.** `TeamCreate`, `TeamDelete`, and the `Agent` tool's `team_name`
+  parameter — used throughout `skills/ctf/SKILL.md`, `CLAUDE.md`, and
+  `teammates/README.md` for team creation, name-collision handling, and
+  teardown — are not part of Claude Code's real agent-teams API. The actual
+  mechanism: with `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` set, calling
+  `Agent` with a `name` parameter (no `team_name`) spawns a persistent
+  teammate and the team forms implicitly around the lead's session; team
+  state is cleaned up automatically when the session ends. This was the
+  actual root cause of "agent-teams tools aren't available in this
+  session" even on a correctly configured local CLI session — not an
+  environment or settings problem. Rewrote the team-spawn mechanics across
+  all three files to match the real API, including the correct resume
+  behavior (in-process teammates are not restored by `/resume`) and the
+  non-interactive-session (`-p` flag) limitation.
+
 ### Added
 
 - **`install.sh` now writes `.claude/settings.json` itself** (agent-teams

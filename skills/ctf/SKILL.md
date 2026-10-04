@@ -73,7 +73,6 @@ allowed:
   mkdir -p engagement/evidence/logs
   Write/Edit to: engagement/scope.md, engagement/config.yaml,
                  engagement/web-proxy.json, engagement/web-proxy.sh
-  TeamCreate, TeamDelete (once per session)
   TaskCreate, TaskUpdate, TaskList, TaskGet (task coordination)
   SendMessage (teammate communication)
   state MCP read tools (init_engagement, close_engagement, get_state_summary,
@@ -95,52 +94,40 @@ forbidden (route to teammates):
 
 ### Team Lifecycle
 
-The lead creates the team once per engagement session using `TeamCreate`. This
-creates the shared task list and team config. Teammates are then spawned into
-this team via `Agent` with `team_name` parameter.
+There is no team-creation call. With `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`
+set (see Installation / `.claude/settings.json`), calling the `Agent` tool
+with a `name` parameter spawns a **persistent teammate** instead of a
+one-shot subagent — the team forms implicitly around the lead's session the
+first time this happens, with no separate setup step. Team state is stored
+under a session-derived name (`~/.claude/teams/session-<id>/`), and the team
+config directory is removed automatically when the lead's session ends —
+there is no manual cleanup call either.
 
-**CRITICAL — team name collision:** `TeamCreate` silently renames the team if
-the name is already taken (returns a generated name like
-`federated-sparking-sutherland` instead of `PEN-AGENT`). If you then hardcode
-`team_name="pen-agent"` in Agent calls, teammates join the OLD team, splitting
-lead and teammates with no error surfaced. **Handle collisions:**
+**Requires an interactive session.** Spawning teammates does not work in
+non-interactive mode (`-p` flag, Agent SDK sessions) — a named `Agent` call
+there runs as an ordinary subagent even with the flag set. If `/pen-agent-ctf`
+can't spawn teammates, confirm this is a plain interactive `claude`/`./run.sh`
+session, that `.claude/settings.json` actually sets
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` (see `docs/installation.md#permissions`
+— `install.sh` writes this once if missing), and that the session was
+started fresh **after** that file existed — the flag is read at process
+start, so `claude --resume` on an older session won't pick it up.
 
-```
-1. Check for existing team — metadata only (config.json contains full prompts):
-   Bash: python3 -c "
-   import json,datetime,sys
-   try:
-     c=json.load(open(sys.argv[1]))
-     d=datetime.datetime.fromtimestamp(c['createdAt']/1000).strftime('%Y-%m-%d %H:%M')
-     print(f'{len(c.get(\"members\",[]))} members, created {d}')
-   except: print('NONE')
-   " ~/.claude/teams/PEN-AGENT/config.json
-   NEVER read or cat config.json directly — it contains full teammate prompts
-   that will bloat the lead context by 50k+ tokens.
-2. If members found — another PEN-AGENT team exists. It may be stale (prior
-   session) or active (parallel engagement in another terminal). Ask:
-   AskUserQuestion: "A PEN-AGENT team already exists (<N> members, created
-   <date>). Delete it, or use a new name alongside it?"
-   Options: Delete and recreate | Use pen-agent-2 (keep both) | Abort
-   - Delete → Bash: rm -rf ~/.claude/teams/PEN-AGENT/ ~/.claude/tasks/PEN-AGENT/
-             (this removes config, inboxes, and task files)
-             then TeamCreate(team_name="pen-agent")
-   - Keep both → find next available name: pen-agent-2, pen-agent-3, etc.
-             TeamCreate(team_name="pen-agent-<N>")
-   - Abort → STOP.
-3. If no collision: TeamCreate(team_name="pen-agent", description="pen-agent")
-4. Wipe stale inboxes: Bash: rm -rf ~/.claude/teams/<TEAM_NAME>/inboxes/*.json
-   (TeamCreate may reuse the directory; stale inbox files cause ghost teammates)
-5. Store the ACTUAL team name returned by TeamCreate. Use it for ALL
-   subsequent Agent(team_name=...) calls — never hardcode "pen-agent".
-```
+If spawning still fails after confirming all of the above, stop and tell the
+operator — do not improvise a workaround (e.g. trying to run every teammate's
+work yourself in one session). That collapses the whole point of
+compartmentalized, narrowly-scoped teammates into one long transcript and is
+far more likely to trip safety classifiers on sustained offensive-tool use,
+on top of losing parallelism.
 
-On resume (new session, `engagement/state.db` exists): create a fresh team —
-previous teammates are gone but the team config is new per session. The stale
-team cleanup above handles this automatically.
+On resume (new session, `engagement/state.db` exists): in-process teammates
+are **not** restored by `/resume` — any teammate from a previous session no
+longer exists. Spawn fresh teammates as needed; do not attempt to message a
+pre-resume teammate by name.
 
 On engagement close: gracefully shut down all teammates via
-`SendMessage(message={type: "shutdown_request"})`, then call `TeamDelete`.
+`SendMessage(message={type: "shutdown_request"})`. No further cleanup call is
+needed — team state is removed automatically when the lead's session ends.
 
 ### Teammate Map
 
@@ -196,18 +183,17 @@ This may hit rate limits more frequently.
 
 ### Spawning a Teammate
 
-Spawn teammates using the Agent tool with `team_name` and `name` parameters.
-The `team_name` parameter registers the teammate in the team — without it,
-the Agent tool spawns an ephemeral subagent that runs to completion and exits.
-Teammates inherit all MCP servers from the lead session.
+Spawn teammates using the Agent tool with a `name` parameter. With agent
+teams enabled, naming the call is what makes it a persistent teammate instead
+of an ephemeral subagent that runs to completion and exits. Teammates inherit
+all MCP servers from the lead session.
 
 ```
 1. Read teammates/<domain>.md via Read tool
 2. TaskCreate(subject="<skill> — <target>") → taskId
 3. Agent(prompt=<template content ONLY — NO task>,
         description="<3-5 word summary>",
-        name="<name>", model="<model>", team_name=<TEAM_NAME>)
-   Use the ACTUAL team name from TeamCreate — never hardcode "pen-agent".
+        name="<name>", model="<model>")
    Do NOT include the task in the prompt. The template tells the teammate
    to load schemas, read state, and go idle.
 4. TaskUpdate(taskId=<N>, owner="<name>")
@@ -307,8 +293,8 @@ AskUserQuestion: "Engagement objectives met. Shut down all teammates?"
 Only after operator confirms:
     for each active teammate:
         SendMessage(to="<name>", message={type: "shutdown_request"})
-    after all teammates shut down:
-        TeamDelete()   # removes team config + task list
+    # No further cleanup call needed — team state is removed automatically
+    # when the lead's session ends.
 ```
 
 ### Flag Capture Directive
@@ -450,10 +436,9 @@ If `engagement/state.db` exists:
 ```
 
 Do NOT re-initialize scope or re-run init_engagement(). State.db is source of truth.
-Previous teammates are gone (new session) — create a fresh team and spawn as needed:
+Previous teammates are gone (in-process teammates aren't restored across
+`/resume` — see Team Lifecycle) — spawn fresh as needed:
 ```
-# Handle team name collision (see Team Lifecycle — team name collision)
-# TeamCreate → store returned name as TEAM_NAME
 # Spawn state-mgr first (alone), then proceed to routing
 # Defer shell-mgr until after the first domain teammate is working
 ```
@@ -570,24 +555,21 @@ Call `init_engagement(name="...")`.
 Copy dump-state script (use Bash `cp`, do NOT read the file):
 `cp operator/templates/dump-state.sh engagement/dump-state.sh && chmod +x engagement/dump-state.sh`
 
-### Create Team and Spawn state-mgr
+### Spawn state-mgr
 
-**Immediately after init_engagement**, create the team and spawn state-mgr.
-The team must exist before any teammate can be spawned. state-mgr must be
-alive before any state writes. **Do NOT spawn shell-mgr yet** — it is
-deferred to reduce startup time (see below).
+**Immediately after init_engagement**, spawn state-mgr — the first named
+`Agent` call of the session, which is what forms the team (see Team
+Lifecycle). state-mgr must be alive before any state writes. **Do NOT spawn
+shell-mgr yet** — it is deferred to reduce startup time (see below).
 
 Print: "Spawning state-mgr — the first teammate takes ~2 minutes to initialize.
 Subsequent teammates spawn faster."
 
 ```
-1. Handle team name collision (see Team Lifecycle — team name collision).
-2. TeamCreate → store returned name as TEAM_NAME.
-3. Spawn state-mgr (alone — do NOT batch with other spawns):
-   a. Read teammates/state-mgr.md via Read tool
-   b. Agent(prompt=<template content>, description="State management",
-            name="state-mgr", model="sonnet", team_name=<TEAM_NAME>)
-4. state-mgr goes idle after activation — this is normal.
+1. Read teammates/state-mgr.md via Read tool
+2. Agent(prompt=<template content>, description="State management",
+         name="state-mgr", model="sonnet")
+3. state-mgr goes idle after activation — this is normal.
 ```
 
 All subsequent state writes from the lead and teammates go through state-mgr
@@ -643,8 +625,7 @@ minutes — shell-mgr will be ready well before anyone needs a shell.
    `command -v msfrpcd && command -v msfconsole` succeeds, else "shell-server".
 2. Read teammates/shell-mgr.md (base) + teammates/shell-mgr-<backend>.md (appendix)
 3. Agent(prompt=<base + appendix>, description="Shell lifecycle management",
-         name="shell-mgr", model="sonnet", team_name=<TEAM_NAME>,
-         run_in_background=true)
+         name="shell-mgr", model="sonnet", run_in_background=true)
 ```
 
 All shell lifecycle operations (listeners, processes, upgrades) go through
@@ -1067,7 +1048,7 @@ If accepted:
    a. Read teammates/research.md via Read tool
    b. TaskCreate(subject="Retrospective — <engagement name>")
    c. Agent(prompt=<template>, description="Engagement retrospective",
-            name="retro", model="sonnet", team_name=<TEAM_NAME>)
+            name="retro", model="sonnet")
    d. TaskUpdate(taskId=<N>, owner="retro")
    e. SendMessage(to="retro", message="[TASK] #<N> — retrospective\n
       Load skill via get_skill. Engagement state is in state.db.

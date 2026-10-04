@@ -133,13 +133,17 @@ decision.
 ### Agent Teams
 
 PEN-AGENT's orchestrator (`/pen-agent-ctf`) uses [Claude Code agent
-teams](https://code.claude.com/docs/en/agent-teams) — `TeamCreate`,
-`Agent(team_name=...)`, persistent peer `SendMessage`. This is an experimental
-CLI feature, enabled by the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var
-above, and it is **not available in every Claude Code surface** — hosted/cloud
-sessions in particular may not expose `TeamCreate` or the `team_name`
-parameter on `Agent` at all, regardless of settings. Run PEN-AGENT from a
-local Claude Code CLI session (an isolated VM or dedicated pentesting
+teams](https://code.claude.com/docs/en/agent-teams) — calling `Agent` with a
+`name` parameter spawns a persistent teammate instead of a one-shot subagent,
+and the team forms implicitly around the lead's session (no separate
+creation call). Teammates then use persistent peer `SendMessage` and the
+shared `TaskCreate`/`TaskList`/`TaskUpdate`/`TaskGet` task list. This is an
+experimental CLI feature, enabled by the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`
+env var above, and it is **not available in every Claude Code surface** —
+hosted/cloud sessions and non-interactive (`-p`) runs in particular don't
+spawn persistent teammates at all, regardless of settings; a named `Agent`
+call there just runs as an ordinary subagent. Run PEN-AGENT from a local,
+interactive Claude Code CLI session (an isolated VM or dedicated pentesting
 machine — see [Prerequisites](#prerequisites)). For split-pane teammate
 visibility, start Claude Code inside a `tmux` session; without tmux, teammates
 run in in-process mode instead (cycle through them with Shift+Down).

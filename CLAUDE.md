@@ -32,9 +32,11 @@ natural-language triggers.
 
 ### Agent Teams (`/pen-agent-ctf`)
 
-The lead session runs the orchestrator skill, creates a team via `TeamCreate`,
-spawns persistent domain teammates via `Agent` with `team_name`, assigns tasks
-via `TaskCreate`/`TaskUpdate`, and chains vulnerabilities toward impact.
+The lead session runs the orchestrator skill. There is no team-creation call
+— spawning a domain teammate via `Agent` with a `name` parameter (with
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` set) is what forms the team
+implicitly, around the lead's session. The lead assigns tasks via
+`TaskCreate`/`TaskUpdate`, and chains vulnerabilities toward impact.
 Teammates communicate via `SendMessage` and write to state.db through
 state-mgr. All technique skills (80+) are served on-demand via the MCP
 skill-router. Teammate spawn templates live in `teammates/`.

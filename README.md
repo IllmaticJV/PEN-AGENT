@@ -78,9 +78,11 @@ sessions breaking mid-engagement usually trace back to this. Extend the
 `allow` list instead (see `/fewer-permission-prompts`) if prompts are the
 annoyance.
 
-**Agent teams** requires a local Claude Code CLI session — hosted/cloud
-sessions don't expose `TeamCreate`/`Agent(team_name=...)` at all, flag or no
-flag. For split-pane teammate visibility, start Claude Code inside `tmux`.
+**Agent teams** requires a local, interactive Claude Code CLI session —
+hosted/cloud sessions and non-interactive (`-p`) runs don't spawn persistent
+teammates at all, flag or no flag; a named `Agent` call just runs as an
+ordinary subagent there. For split-pane teammate visibility, start Claude
+Code inside `tmux`.
 
 ## Dashboards
 
