@@ -5,6 +5,28 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Added
+
+- **ligolo-ng operator-free pivot setup (opt-in).** Ligolo-ng is the most
+  stable pivot but requires root on the attackbox for TUN setup + routes —
+  one `sudo` password prompt per pivot. New `tools/ligolo/` ships four narrow
+  helpers (`pen-agent-ligolo-{up,down,route,unroute}`) plus
+  `install-sudoers.sh`, an opt-in installer that places the helpers in
+  `/usr/local/bin` and writes `/etc/sudoers.d/pen-agent-ligolo` granting
+  NOPASSWD for ONLY those four absolute paths to the invoking user. The route
+  helpers validate IPv4 CIDRs themselves (reject IPv6, `0.0.0.0/0`,
+  `127.0.0.0/8`); the TUN helpers hardcode the `ligolo` interface name — the
+  sudoers file contains **no wildcarded `ip` command**, so the grant can't be
+  turned into an escape hatch. Installer validates the sudoers file with
+  `visudo -c` before saving. `skills/network/pivoting-tunneling/SKILL.md`
+  Step 2 (Ligolo-ng) detects the helpers via `command -v
+  pen-agent-ligolo-up` and takes the operator-free path when present (one
+  `sudo -n` call for TUN, one per subnet route; no handoff). Falls back to
+  the operator-handoff path when the helpers are not installed. `install.sh`
+  prompts about installing at the end of the main install (opt-in; default
+  skip; honors an existing entry). Full threat model + revoke instructions
+  in `tools/ligolo/README.md`.
+
 ### Changed
 
 - **Pivots now default to out-of-Framework tools; MSF SOCKS is a labeled

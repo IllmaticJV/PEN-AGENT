@@ -237,6 +237,38 @@ else
     echo "  operator portal dependency install failed (check uv/network)"
 fi
 
+# ligolo-ng operator-free pivot (OPT-IN; writes /etc/sudoers.d/pen-agent-ligolo
+# via tools/ligolo/install-sudoers.sh). Not installed silently — this grants
+# the invoking user password-free execution of four narrow helpers (TUN
+# up/down and scoped IPv4 route add/del, bound to the `ligolo` interface
+# name). See tools/ligolo/README.md for the full scope and threat model.
+if [[ -f "${REPO_DIR}/tools/ligolo/install-sudoers.sh" ]]; then
+    if [[ -f /etc/sudoers.d/pen-agent-ligolo ]]; then
+        echo ""
+        echo "  ligolo operator-free helpers: /etc/sudoers.d/pen-agent-ligolo already present (skipping prompt)"
+    elif [[ -t 0 ]]; then
+        echo ""
+        echo "OPTIONAL — ligolo-ng pivot can run operator-free (no password prompt per pivot)."
+        echo "  Installs 4 narrow helpers to /usr/local/bin + a tightly-scoped sudoers.d entry"
+        echo "  (grants NOPASSWD for ONLY the ligolo TUN helpers; not a wildcarded 'ip' grant)."
+        echo "  Details: tools/ligolo/README.md"
+        read -rp "  Install now? Requires sudo. [y/N] " _ans
+        if [[ "${_ans,,}" == "y" || "${_ans,,}" == "yes" ]]; then
+            if sudo bash "${REPO_DIR}/tools/ligolo/install-sudoers.sh"; then
+                echo "  ligolo operator-free helpers: installed"
+            else
+                echo "  ligolo operator-free helpers: install failed (see output above)"
+            fi
+        else
+            echo "  ligolo operator-free helpers: skipped (install later with: sudo bash tools/ligolo/install-sudoers.sh)"
+        fi
+    else
+        echo ""
+        echo "  ligolo operator-free helpers: non-interactive install; skipped."
+        echo "    Opt in later with: sudo bash tools/ligolo/install-sudoers.sh"
+    fi
+fi
+
 # --- Step 5: Verify project config ---
 config_warnings=0
 if [[ ! -f "${REPO_DIR}/.mcp.json" ]]; then

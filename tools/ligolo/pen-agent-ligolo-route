@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# pen-agent-ligolo-route <CIDR> — add a route for CIDR via the ligolo TUN.
+# Argument is validated as an IPv4 CIDR here BEFORE touching ip, so the
+# NOPASSWD grant in sudoers covers only "add a route for a validated CIDR
+# through the ligolo interface" — no wildcard that an attacker could abuse to
+# add a route to elsewhere, hijack a prefix, or hit a different interface.
+
+set -euo pipefail
+
+IFACE="ligolo"
+
+if [[ $# -ne 1 ]]; then
+    echo "usage: pen-agent-ligolo-route <IPv4-CIDR>" >&2
+    exit 2
+fi
+
+CIDR="$1"
+
+IP="$(command -v ip || true)"
+if [[ -z "$IP" ]]; then
+    echo "pen-agent-ligolo-route: iproute2 (ip) not found on PATH." >&2
+    exit 2
+fi
+
+# Reject anything that isn't an IPv4 CIDR. Delegating to python3's ipaddress
+# matches the server-side CIDR validation we use elsewhere (strict=False
+# normalizes host bits; IPv6 rejected explicitly).
+if ! python3 - "$CIDR" <<'PY' 2>/dev/null
+import ipaddress, sys
+try:
+    net = ipaddress.ip_network(sys.argv[1].strip(), strict=False)
+except ValueError:
+    sys.exit(1)
+if net.version != 4:
+    sys.exit(1)
+# Refuse to install routes that would steal traffic for the attacker machine's
+# own networks: 0.0.0.0/0, loopback, link-local, the host's primary subnet.
+# Simple belt-and-braces: reject 0.0.0.0/0 and 127.0.0.0/8 explicitly here;
+# fuller host-subnet detection belongs in the operator's judgment, not this
+# wrapper.
+if net.prefixlen == 0:
+    sys.exit(2)
+if net.network_address in ipaddress.ip_network("127.0.0.0/8"):
+    sys.exit(2)
+print(f"{net.network_address}/{net.prefixlen}")
+PY
+then
+    echo "pen-agent-ligolo-route: '$CIDR' is not a valid IPv4 CIDR (or is a disallowed prefix like 0.0.0.0/0 / 127.0.0.0/8)." >&2
+    exit 2
+fi
+
+NORM="$(python3 -c "import ipaddress,sys; n=ipaddress.ip_network(sys.argv[1].strip(), strict=False); print(f'{n.network_address}/{n.prefixlen}')" "$CIDR")"
+
+if ! "$IP" link show "$IFACE" >/dev/null 2>&1; then
+    echo "pen-agent-ligolo-route: $IFACE is not up; run pen-agent-ligolo-up first." >&2
+    exit 2
+fi
+
+# Idempotent: if the exact route already exists, succeed quietly.
+if "$IP" route show "$NORM" dev "$IFACE" 2>/dev/null | grep -q .; then
+    echo "pen-agent-ligolo-route: $NORM dev $IFACE already present." >&2
+    exit 0
+fi
+
+"$IP" route add "$NORM" dev "$IFACE"
+echo "pen-agent-ligolo-route: added $NORM dev $IFACE." >&2
