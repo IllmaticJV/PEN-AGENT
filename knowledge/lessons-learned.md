@@ -96,6 +96,20 @@ the lead's `[setup-pivot]` message supplies. PEN-AGENT's `start_socks_proxy`
 MCP tool enforces this: it requires `target_subnet` unless the caller passes
 `allow_autoadd=True` explicitly.
 
+### MSF restart: handlers can be snapshotted + restored, sessions cannot
+
+Metasploit sessions are stateful Ruby objects holding live TCP sockets; they
+cannot be pickled and will not survive the Framework dying. But the HANDLERS
+can be snapshotted (payload / LHOST / LPORT / ExitOnSession), re-registered
+on a fresh console, and if the implants were built with transport retry
+(default `SessionCommunicationTimeout=600`, `SessionExpirationTimeout=86400`)
+they reconnect to the restored handlers automatically within the comm-timeout
+window. msfrpcd's `list_jobs` doesn't expose a handler's payload/LHOST/LPORT —
+that config has to come from somewhere else; PEN-AGENT reconstructs it from
+the module-call log (`engagement/evidence/msf-modules/`) written by every
+`start_handler` call. Shell-server sessions live in a separate process and
+survive the MSF restart untouched — don't co-kill them on a C2-only restart.
+
 ### Pivot sessions: never kill_job an already-orphaned SOCKS proxy
 
 When a pivot session dies (common on Jenkins/webshell footholds — the nested

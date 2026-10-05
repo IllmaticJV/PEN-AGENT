@@ -10,6 +10,7 @@ TOKEN_FILE="${HOME}/.config/pen-agent/viewer-token"
 
 # Parse run.sh-specific flags, pass the rest to claude
 CLEAN_START=0
+C2_RESTART=0
 claude_args=()
 for arg in "$@"; do
     case "$arg" in
@@ -20,6 +21,7 @@ for arg in "$@"; do
             echo "        (see /fewer-permission-prompts)." >&2
             exit 2 ;;
         --clean-start) CLEAN_START=1 ;;
+        --c2-restart)  C2_RESTART=1 ;;
         *)             claude_args+=("$arg") ;;
     esac
 done
@@ -60,6 +62,51 @@ clean_start() {
 }
 
 [[ "$CLEAN_START" == 1 ]] && clean_start
+
+# --c2-restart: SOFT restart of just the Metasploit C2 while preserving
+# shell-server sessions, skill-router, the operator portal, and the module-
+# call log that handler-snapshot reads from. The MCP's snapshot_handlers()
+# tool is called FIRST (while the dying msfconsole can still answer it) so
+# every live handler's PAYLOAD/LHOST/LPORT is captured, then msfconsole's
+# tmux session is killed, then c2-up.sh --restore brings a fresh console
+# up and re-registers each handler. Meterpreter payloads built by
+# generate_payload have retry attributes baked in by default, so sessions
+# reconnect to the restored handlers automatically within the comm-timeout
+# window. Raw shells and no_retry payloads need re-triggering on target.
+c2_restart() {
+    local tmux_sess="${PEN_AGENT_MSF_TMUX:-pen-msf}"
+    local sse_port="${MSF_SSE_PORT:-8024}"
+    echo "[c2-restart] snapshotting live handlers via MCP before killing msfconsole…"
+    if ! (echo >"/dev/tcp/127.0.0.1/${sse_port}") &>/dev/null; then
+        echo "[c2-restart] WARNING: metasploit-server MCP not listening on ${sse_port};"\
+             "snapshot step skipped (no restore afterwards, but we'll still re-up the C2)." >&2
+    else
+        uv run --directory tools/metasploit-server --quiet python - <<'PY' 2>&1 | sed 's/^/[c2-restart]   /' || true
+import anyio, os
+from mcp.client.sse import sse_client
+from mcp.client.session import ClientSession
+async def _call():
+    port = int(os.environ.get("MSF_SSE_PORT", "8024"))
+    async with sse_client(f"http://127.0.0.1:{port}/sse") as (r, w):
+        async with ClientSession(r, w) as s:
+            await s.initialize()
+            res = await s.call_tool("snapshot_handlers", {})
+            for c in res.content:
+                if hasattr(c, "text"): print(c.text)
+anyio.run(_call)
+PY
+    fi
+    echo "[c2-restart] killing msfconsole tmux session '${tmux_sess}' (shell-server + skill-router untouched)"
+    if command -v tmux &>/dev/null && tmux has-session -t "$tmux_sess" 2>/dev/null; then
+        tmux kill-session -t "$tmux_sess" 2>/dev/null || true
+    fi
+    pkill -f msfrpcd 2>/dev/null || true
+    sleep 1
+    echo "[c2-restart] bringing fresh C2 up and restoring handlers…"
+    bash tools/metasploit-server/c2-up.sh --restore
+}
+
+[[ "$C2_RESTART" == 1 ]] && c2_restart
 
 # Check for existing shell-server with active sessions
 if ss -tln 2>/dev/null | grep -q ":${PORT} "; then

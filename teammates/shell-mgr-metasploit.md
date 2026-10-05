@@ -124,6 +124,45 @@ re-executed payload. Re-deliver the saved payload through any surviving access.
 For shell-server sessions: same recovery as the shell-server appendix —
 start new listener, re-deliver saved payload.
 
+## MSF C2 soft restart (handler snapshot + restore)
+
+Metasploit sessions cannot literally survive a Framework restart (sockets die
+with the process), but the HANDLERS can be snapshotted + re-registered on the
+fresh console, and payloads built by `generate_payload` have transport-retry
+attributes baked in by default (`SessionCommunicationTimeout=600`,
+`SessionExpirationTimeout=86400`). If the restart cycle completes within the
+communication-timeout window, Meterpreter sessions reconnect to the restored
+handlers on their own.
+
+**Preserved across the restart:**
+- shell-server sessions (shell-server is a separate process)
+- skill-router + operator portal + state-mgr (also separate processes)
+- `engagement/evidence/msf-modules/*.jsonl` (the handler-config source of
+  truth for `snapshot_handlers`)
+- PostgreSQL workspace data (hosts, loot, creds — if `msfdb init` was run)
+
+**Not preserved (needs follow-up):**
+- Raw shell sessions (no transport layer; can't reconnect — re-trigger on target)
+- Meterpreter sessions built with `no_retry=True`
+- Any session whose target-side implant died (OS reboot, PTY reaped,
+  anti-virus kill)
+
+**Procedure** (invoke-order matters — snapshot BEFORE killing the console):
+
+```
+1. snapshot_handlers()           # MCP tool: writes engagement/msf-handlers-snapshot.json
+2. kill the msfconsole tmux session (keep shell-server + skill-router alive)
+3. c2-up.sh --restore            # fresh msfconsole + restore_handlers() when RPC up
+4. Watch list_sessions() over the next ~60s — retry-capable sessions reconnect
+   to the new handlers automatically.
+5. For `unresolved_from_snapshot` entries in the restore result and any raw
+   shells / no_retry payloads, re-trigger on target.
+```
+
+The operator-facing form of the whole flow is `run.sh --c2-restart`. Prefer
+that over a `--clean-start` whenever the issue is a wedged / dead MSF C2 and
+the engagement is otherwise healthy.
+
 ## One session per interacting agent
 
 Two teammates driving the **same** session collide — their commands interleave

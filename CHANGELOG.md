@@ -7,6 +7,28 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **MSF C2 soft-restart with handler snapshot + restore (`run.sh --c2-restart`).**
+  Metasploit sessions themselves cannot survive a Framework restart (the
+  sockets die with the process), but the HANDLERS can be snapshotted and
+  re-registered on the fresh console — and payloads built by
+  `generate_payload` now carry transport-retry attributes by default
+  (`SessionCommunicationTimeout=600`, `SessionExpirationTimeout=86400`), so
+  Meterpreter sessions reconnect to the restored handlers automatically
+  within the comm-timeout window. New MCP tools `snapshot_handlers()` and
+  `restore_handlers()`: snapshot walks `list_jobs()` and reconstructs each
+  handler's PAYLOAD/LHOST/LPORT/ExitOnSession from the module-call log
+  (`engagement/evidence/msf-modules/`) — msfrpcd's `list_jobs` only returns
+  `{job_id, name}`, so the module-call log from PR #30 is what makes
+  snapshotting possible at all. New `c2-up.sh --restore` flag and
+  `run.sh --c2-restart` tie them together: snapshot via MCP → kill msfconsole
+  tmux only (shell-server + skill-router + portal + state-mgr untouched) →
+  fresh `c2-up.sh` → auto `restore_handlers()`. Raw shells and `no_retry`
+  payloads can't reconnect — those are listed in the restore result for
+  operator follow-up. `generate_payload` gets `no_retry: bool = False`
+  (operator opt-out per payload); operator-supplied `SessionCommunicationTimeout`
+  or `SessionExpirationTimeout` in `extra_options` always wins. `shell-mgr`
+  now tries this soft restart on an MSF C2 crash BEFORE escalating
+  `[backend-down]` to the operator.
 - **Portal access-chain graph now shows tunnel topology.** The Status page
   graph previously displayed the kill-chain (vulns → access → credentials →
   more access) but left tunnels in a separate table — making it invisible in
