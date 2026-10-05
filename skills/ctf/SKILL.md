@@ -684,8 +684,9 @@ Q3 — Spray intensity: Light ~30 (recommended) | Medium ~10k | Heavy ~100k | Sk
 Q4 — Recovery method: Local (recommended) | Export | Skip | Ask each time
 Q5 — Shell backend:
   if AVAILABLE: Metasploit (recommended — covers sessions, file transfer, and
-    pivoting via scoped MSF route + SOCKS; falls back to shell-server
-    automatically if anything fails) | shell-server | Custom
+    module execution; shell-mgr pivots via out-of-Framework tools from the
+    pivoting-tunneling skill by default and falls back to MSF SOCKS only when
+    those aren't viable) | shell-server | Custom
   if UNAVAILABLE: shell-server (recommended — metasploit-framework not found) |
     Metasploit | Custom
 ```

@@ -10,10 +10,12 @@ nicety:
   Meterpreter session is the one teammates work from.
 - **File transfer** — Meterpreter `upload`/`download`, not manual
   curl/certutil staging.
-- **Pivoting / tunneling / proxying** — scoped MSF route (`autoroute CMD=add`
-  with an explicit subnet) + SOCKS, zero-footprint and in-band through the
-  C2 channel, ahead of chisel/ligolo/sshuttle. **Never un-scoped `autoadd`**
-  — see [setup-pivot] Implementation below.
+- **Pivoting / tunneling / proxying** — **load the `pivoting-tunneling` skill
+  and prefer out-of-Framework tools (chisel / ligolo-ng / sshuttle / SSH
+  `-D`/`-L`) by default.** Metasploit's in-Framework scoped-route + SOCKS is a
+  **fallback only**: the SOCKS has proven unstable in practice (a dead relay
+  wedges the shared RPC until msfconsole restarts). See [setup-pivot]
+  Implementation below for the full ordering.
 - **Post-exploitation** — `run_module` for post/exploit/auxiliary modules.
 
 shell-server is used for exactly two things: catching the initial raw
@@ -164,38 +166,58 @@ For shell-server sessions (fallback or credential-based):
   Use mcp__shell-server__send_command(session_id="<id>", command="...") for interaction.
 ```
 
-## [setup-pivot] Implementation — scoped MSF route + SOCKS
+## [setup-pivot] Implementation — out-of-Framework first, MSF SOCKS as fallback
 
-When the lead sends `[setup-pivot]` (which always carries `target_subnet`) and
-you have a Meterpreter session on the pivot host, use Metasploit's in-band
-routing with an **explicit scoped route** — no extra tools uploaded:
+When the lead sends `[setup-pivot]` (which always carries `target_subnet`),
+default to loading the `pivoting-tunneling` skill and using an **out-of-Framework
+tool** (chisel / ligolo-ng / sshuttle / native SSH `-D`/`-L`). Metasploit's
+in-Framework SOCKS is a **fallback only**.
 
 ```
-1. Find the Meterpreter session on the pivot host: list_sessions()
-2. Start scoped route + SOCKS5:
-     start_socks_proxy(session_id, target_subnet=<cidr-from-lead>, srvport=1080)
-   → Runs autoroute CMD=add with SUBNET+NETMASK (NOT autoadd), then starts
-     auxiliary/server/socks_proxy. Returns endpoint + proxychains line.
+1. ToolSearch("select:mcp__skill-router__get_skill")
+   mcp__skill-router__get_skill(name="pivoting-tunneling")
+2. Walk the skill's decision tree against what you have on the pivot host:
+   SSH access → SSH -D / sshuttle; shell + outbound → chisel; TAP/transparent
+   subnet access → ligolo-ng. Pick the first that fits.
 3. Verify connectivity: proxychains4 nc -zv <target_in_subnet> <port>
-4. Message state-mgr: [add-tunnel] tunnel_type=socks5-msf remote_host=<ip>
+   (sshuttle / ligolo may not need proxychains — see skill)
+4. Message state-mgr: [add-tunnel] tunnel_type=<type> remote_host=<ip>
    remote_network=<cidr> local_port=<port> via_access_id=<N>
-5. Send [pivot-ready] to the lead with endpoint and proxychains_line
+5. Send [pivot-ready] to the lead with endpoint + proxychains_line (if any)
+```
+
+**Why out-of-Framework first.** The `auxiliary/server/socks_proxy` module
+runs inside the shared Metasploit Framework instance; when its underlying
+session dies the relay doesn't automatically tear down, and the shared RPC
+command dispatch wedges on the first subsequent call that touches that job
+(including `list_jobs` / `kill_session`) — forcing a full msfconsole restart
+to recover. A separate-process tunnel (chisel / ligolo-ng / sshuttle) can die
+without taking the C2 with it; recovery is a fresh agent on target, not a
+Framework restart.
+
+**MSF SOCKS fallback.** Use `start_socks_proxy` only when (a) the attackbox
+cannot reach the pivot host inbound (no SSH, no chisel-reachable listener),
+(b) you cannot drop a small binary on target (policy, write-blocked
+filesystem, detection posture), or (c) you specifically need every Metasploit
+module targeting the pivoted subnet to route transparently without
+proxychains:
+
+```
+start_socks_proxy(session_id, target_subnet=<cidr-from-lead>, srvport=1080)
+  → Runs autoroute CMD=add with SUBNET+NETMASK (NOT autoadd), then starts
+    auxiliary/server/socks_proxy. Returns endpoint + proxychains line.
 ```
 
 **NEVER use `autoroute CMD=autoadd` (un-scoped autoroute).** On a multi-homed
 pivot host (dual-NIC jumphost, dockerized target, host with vpn/bridge
 interfaces, or any secondary IPs) `autoadd` enumerates every interface and
 adds a route per subnet — pulling in management, internet, or container
-networks you did not scope. The result: agent traffic routed through
-subnets outside `scope.allow`, flaky connectivity on the subnet you actually
-wanted, and more rows in msfconsole's route table than any teardown can
-reliably clean. `start_socks_proxy` enforces this: it refuses to run
-without `target_subnet` unless you pass `allow_autoadd=True` explicitly,
-and it returns a `warning` field when the fallback is used.
-
-The scoped `CMD=add` form **still tunnels traffic through the Meterpreter C2
-channel** — no extra binary on target, no extra port opened on it. Equivalent
-to a chisel SOCKS proxy but zero-footprint on the pivot host.
+networks you did not scope. The result: agent traffic routed through subnets
+outside `scope.allow`, flaky connectivity on the subnet you actually wanted,
+and more rows in msfconsole's route table than any teardown can reliably
+clean. `start_socks_proxy` enforces this: it refuses to run without
+`target_subnet` unless you pass `allow_autoadd=True` explicitly, and it
+returns a `warning` field when the fallback is used.
 
 Scope note: hosts reached through the pivot are still subject to
 `engagement/scope.allow` when you run modules against them via

