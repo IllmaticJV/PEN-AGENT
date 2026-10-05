@@ -717,6 +717,14 @@ EOF
 Include every authorized target and any internal subnets reachable via pivots
 that are in scope. A target absent from this file is refused at the tool layer.
 Call `init_engagement(name="...")`.
+Immediately after, call `init_objectives()` to parse the `OBJECTIVES:` block
+from `scope.md` into `engagement/objectives.json` so the operator portal's
+Objective Tracker tab lights up. As you chain vulns toward impact, mark
+progress with `update_objective(objective_id=N, status=…, note=…)` — statuses
+are `pending | in_progress | done | blocked | skipped`. Set `in_progress`
+when you assign the task, `done` with the finding_id in the note when the
+objective is proven complete, `blocked` with the reason when stuck. This is
+how the operator tracks progress at a glance; keep it live.
 Copy dump-state script (use Bash `cp`, do NOT read the file):
 `cp operator/templates/dump-state.sh engagement/dump-state.sh && chmod +x engagement/dump-state.sh`
 

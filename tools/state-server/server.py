@@ -33,6 +33,7 @@ from mcp.server.fastmcp import FastMCP
 import access
 import credentials
 import engagement
+import objectives
 import pivots
 import reads
 import targets
@@ -61,6 +62,7 @@ def create_server() -> FastMCP:
     vulns.register(mcp)
     pivots.register(mcp)
     tunnels.register(mcp)
+    objectives.register(mcp)
 
     return mcp
 

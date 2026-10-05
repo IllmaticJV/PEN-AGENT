@@ -7,6 +7,21 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Objective tracker in operator portal.** New `Objective Tracker` tab
+  shows per-objective status (pending / in_progress / done / blocked /
+  skipped), a stacked progress bar, status counts, and an unsynced-scope
+  warning when `scope.md` has objectives the lead hasn't parsed yet.
+  Parses the numbered list under `OBJECTIVES:` in `engagement/scope.md`
+  (handles numbered + bulleted lists and multi-line continuations) via
+  `tools/objectives/parse_scope.py`. State persists in
+  `engagement/objectives.json`. Three new state-server MCP tools:
+  `init_objectives` (re-parse from scope.md; preserves status/note when
+  count matches), `list_objectives`, `update_objective(objective_id,
+  status, note)`. Orchestrator skill (`skills/ctf/SKILL.md`) now calls
+  `init_objectives` right after `init_engagement` and marks progress as
+  it chains vulns toward impact. Portal endpoint `/api/objectives` merges
+  stored state with a live re-parse so the operator sees newly-added
+  objectives even before the lead re-syncs.
 - **connectivity-probe skill — test target→attackbox reachability before
   tunneling back.** When a target C is reached through pivot B
   (A→B→C), agents were assuming C's callbacks and file pulls must also
