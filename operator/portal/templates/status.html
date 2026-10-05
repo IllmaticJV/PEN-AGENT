@@ -17,11 +17,23 @@
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: var(--ui); font-size: 13px; background: var(--bg); color: var(--text);
-  padding: 20px 22px 40px; -webkit-font-smoothing: antialiased;
-  max-width: 1680px; margin: 0 auto; }
-h1 { font-size: 15px; font-weight: 700; letter-spacing: .03em; color: var(--text);
+  -webkit-font-smoothing: antialiased; height: 100vh;
+  display: flex; flex-direction: column; }
+header.chrome { padding: 8px 18px; min-height: 50px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px 14px; flex-shrink: 0; flex-wrap: wrap;
+  background: linear-gradient(180deg,var(--surface-2),var(--bg2)); }
+header.chrome h1 { font-size: 13px; margin: 0; color: var(--text); font-weight: 600;
+  letter-spacing: .03em; display: inline; }
+header.chrome h1 .k { color: var(--accent); }
+.attach { font-size: 11px; color: var(--fg-dim); font-family: var(--ui); }
+.attach code { color: var(--orange); font-family: var(--mono); background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 5px; padding: 2px 6px; margin-left: 4px; }
+main.chrome-body { flex: 1; overflow-y: auto; padding: 18px 22px 32px;
+  max-width: 1680px; width: 100%; margin: 0 auto; }
+/* Legacy h1 selector kept for any dynamic markup that still writes it */
+h1.inline { font-size: 15px; font-weight: 700; letter-spacing: .03em; color: var(--text);
   margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
-h1 .dotgrid { width: 3px; height: 16px; background: var(--accent); border-radius: 2px;
+h1.inline .dotgrid { width: 3px; height: 16px; background: var(--accent); border-radius: 2px;
   box-shadow: 0 0 8px var(--accent-glow); }
 h2 { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
   color: var(--dim); margin: 24px 0 10px; cursor: pointer; user-select: none;
@@ -82,9 +94,9 @@ tbody tr:hover td { background: rgba(255,255,255,.025); }
 .section { margin-bottom: 14px; }
 .section-body { overflow-x: auto; }
 .section-body.hidden { display: none; }
-.conn-status { font-size: 10px; font-weight: 600; letter-spacing: .03em; padding: 3px 10px;
+.conn-status { font-size: 11px; font-weight: 600; letter-spacing: .03em; padding: 3px 10px;
   border-radius: 999px; border: 1px solid var(--border-strong); display: inline-flex;
-  align-items: center; gap: 6px; margin-left: auto; text-transform: none; }
+  align-items: center; gap: 6px; text-transform: none; color: var(--fg-dim); }
 .conn-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--fg-dim); }
 .conn-ok { color: var(--green); border-color: rgba(63,185,80,.5); background: rgba(63,185,80,.08); }
 .conn-ok::before { background: var(--green); box-shadow: 0 0 6px var(--green); }
@@ -131,22 +143,27 @@ tbody tr:hover td { background: rgba(255,255,255,.025); }
   cursor: pointer; vertical-align: middle; transition: color .15s,border-color .15s; }
 .refresh-btn:hover { color: var(--accent); border-color: var(--accent); }
 @media (max-width: 760px) {
-  body { padding: 16px 14px 32px; }
+  main.chrome-body { padding: 14px 14px 28px; }
   .cards { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
   .card .num { font-size: 22px; }
   .filter-bar { flex-wrap: wrap; }
   .filter-bar input { width: 100%; max-width: none; }
   #graph-container { min-height: 180px; }
+  .attach { display: none; }
 }
 @media (max-width: 480px) {
   .cards { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
-  h1 { flex-wrap: wrap; }
-  .conn-status { margin-left: 0; }
 }
 </style>
 </head>
 <body>
-<h1><span class="dotgrid"></span>Engagement Status<span class="conn-status conn-ok" id="conn">connected</span></h1>
+<header class="chrome">
+  <h1><span class="k">STATE</span> &middot; Engagement Status</h1>
+  <span class="conn-status conn-ok" id="conn">connected</span>
+  <span style="flex:1"></span>
+  <span class="attach">live via <code>/api/stream</code> SSE</span>
+</header>
+<main class="chrome-body">
 <div id="banner" class="banner" style="display:none">Waiting for engagement...</div>
 
 <div id="content" style="display:none">
@@ -167,6 +184,7 @@ tbody tr:hover td { background: rgba(255,255,255,.025); }
 
 <div id="tables"></div>
 </div>
+</main>
 
 <script>
 // --- State & SSE ---

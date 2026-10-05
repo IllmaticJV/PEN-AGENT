@@ -5,6 +5,18 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Changed
+
+- **Portal: unified MSF-style chrome across every tab.** The Objective
+  & Scope, Objective Tracker, and Status tabs now share the same
+  compact header strip (short `SCOPE / GOALS / STATE / C2` badge +
+  subtitle + status pill + right-side context hint), full-height flex
+  layout with scrolling body, and MSF's dense section/typography
+  tokens. Each page's data layout stays task-appropriate (scope =
+  cards + markdown pre, goals = progress bar + per-objective list,
+  state = cards + graph + tables), but the frame around them reads as
+  one product instead of three different page templates.
+
 ### Added
 
 - **Objective tracker in operator portal.** New `Objective Tracker` tab
