@@ -91,7 +91,7 @@ This lets the operator work a host in the tmux msfconsole with no contention.
 |------|-------------|
 | `run_module(module_type, module_name, options, payload, as_job)` | Run any exploit/auxiliary/post module. RHOSTS scope-checked |
 | `console_exec(command, read_timeout)` | Run raw msfconsole commands. `set RHOSTS` scope-checked |
-| `start_socks_proxy(session_id, srvport)` | autoroute + `auxiliary/server/socks_proxy` for internal pivoting |
+| `start_socks_proxy(session_id, target_subnet, srvport, allow_autoadd=False)` | Scoped MSF route (`autoroute CMD=add` with explicit SUBNET+NETMASK) + `auxiliary/server/socks_proxy` for internal pivoting. **`target_subnet` is required** — un-scoped `CMD=autoadd` routes agent traffic through every pivot NIC on multi-homed hosts; `allow_autoadd=True` is a last-resort escape hatch |
 
 ## Graceful Degradation
 

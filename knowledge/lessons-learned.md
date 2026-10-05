@@ -68,6 +68,19 @@ and the lock releases.
 
 _Routing, sequencing, and approach improvements._
 
+### Pivots: never un-scoped `autoroute` (`autoadd`) on a multi-homed host
+
+Metasploit's `post/multi/manage/autoroute` with `CMD=autoadd` enumerates every
+interface on the pivot host and adds a route per subnet — on a dual-NIC
+jumphost, a dockerized target, or a host with VPN/bridge interfaces, that
+routes agent traffic through management or internet subnets you did not
+scope. On top of that it makes the pivot's route table flaky and hard to tear
+down. Always add a **specific** route (`run autoroute -s <cidr>` or
+`autoroute CMD=add` with explicit `SUBNET`+`NETMASK`), matched to the subnet
+the lead's `[setup-pivot]` message supplies. PEN-AGENT's `start_socks_proxy`
+MCP tool enforces this: it requires `target_subnet` unless the caller passes
+`allow_autoadd=True` explicitly.
+
 ### Pivot sessions: never kill_job an already-orphaned SOCKS proxy
 
 When a pivot session dies (common on Jenkins/webshell footholds — the nested
