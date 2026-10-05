@@ -208,24 +208,26 @@ from messaging you to redirect or abort.
   the manual path (download/compile a PoC from ExploitDB/GitHub per the skill)
   only when MSF has no matching module, a module fails and is ruled out, or the
   skill has no MSF route. A module shell lands straight in the session table.
-- **Every reverse shell MUST be logged before use — END-TO-END.** The moment
-  you catch a reverse shell on `shell-server` (via `start_listener`), call
-  `mcp__shell-server__record_exploit(session_id, target, label, delivery,
-  hostname, listener_port, notes, references, python_helper)` BEFORE sending
-  anything else. `send_command` refuses to run on an un-logged remote
-  session. `delivery` is a bash body that re-triggers the shell **from
-  scratch** — if the exploit needs a login, log in; if a CSRF token is
-  needed, fetch it; if a cookie carries session state, carry it; THEN fire
-  the payload. Not a one-liner that assumes external state. Reference
-  `${LHOST}` / `${LPORT}` / `${LABEL}` for the callback endpoint
-  (env-overridable at re-trigger). For steps uglier in bash than Python
-  (session cookies, CSRF handling, JSON juggling), pass source as
-  `python_helper=` and the delivery calls it via
-  `python3 "${EXPLOITS_DIR}/python/<...>.py"`. Writes `.sh` + `.md` (+
-  `python/<...>.py` when a helper is supplied) under
-  `engagement/exploits/`. Re-establish with `bash engagement/exploits/
-  <hostname>-<label>.sh` (or `LPORT=5555 bash …`). Local processes
-  (ssh/evil-winrm via `start_process`) are exempt.
+- **Every reverse shell MUST be logged before use — delegate to scribe.**
+  `send_command` refuses to run on an un-logged remote session. The moment
+  you catch a reverse shell on `shell-server` (via `start_listener`), send
+  **scribe** a `[record-exploit]` message with the full delivery chain
+  (session_id, target IP, label, delivery body with every prerequisite:
+  login → CSRF → cookies → intermediate requests → payload, references,
+  optional python_helper). Scribe calls `record_exploit()` and replies
+  `[recorded]` with the paths — then `send_command` is unlocked. Do NOT
+  call `record_exploit()` yourself; the dedicated-role pattern (like
+  state-mgr) is what keeps every shell recorded. The `delivery` body
+  must re-trigger from scratch — if the exploit needs a login, log in;
+  if a CSRF token is needed, fetch it; carry cookies; THEN fire the
+  payload. Reference `${LHOST}` / `${LPORT}` / `${LABEL}` for the
+  callback endpoint (env-overridable at re-trigger); call Python helpers
+  via `python3 "${EXPLOITS_DIR}/python/<...>.py"`. `target` MUST contain
+  a valid IPv4 — scribe/the tool enforce it so filenames always lead
+  with the IP (`<ip>-[<hostname>-]<label>.sh`). Re-establish with
+  `bash engagement/exploits/<ip>-[<host>-]<label>.sh` (or
+  `LPORT=5555 bash …`). Local processes (ssh/evil-winrm via
+  `start_process`) are exempt.
 - **Pivoting: NEVER default to MSF SOCKS / autoroute.** The in-Framework
   `auxiliary/server/socks_proxy` has repeatedly broken engagements (dead
   relay wedges the shared RPC → full msfconsole restart). Load the

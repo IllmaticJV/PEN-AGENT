@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import atexit
 import fcntl
+import ipaddress
 import json
 import os
 import pty
@@ -629,9 +630,15 @@ def create_server() -> FastMCP:
         """Record how a reverse-shell session was triggered. **Mandatory** for
         remote sessions before send_command will accept any input.
 
+        Filename contract: every artifact is prefixed with the target IP
+        (dash-escaped — `10.1.2.3` → `10-1-2-3`) so a `ls engagement/
+        exploits/` sorted dump groups by host. `target` MUST contain a
+        valid IPv4; the tool refuses the call otherwise. Hostname is
+        optional and appears between IP and label when supplied.
+
         Produces up to THREE artifacts in `engagement/exploits/`:
 
-          1. `<hostname>-<label>.sh` — an executable re-trigger script. On a
+          1. `<ip>-[<hostname>-]<label>.sh` — an executable re-trigger script. On a
              later shell-drop, run it (`bash engagement/exploits/<...>.sh`)
              and it:
                (a) starts a fresh shell-server listener via the MCP on the
@@ -652,10 +659,11 @@ def create_server() -> FastMCP:
              bash-substituted at runtime; `${EXPLOITS_DIR}` points at the
              exploits dir so the delivery can `python3 "${EXPLOITS_DIR}"/
              python/<helper>.py` for steps that are ugly in bash.
-          2. `<hostname>-<label>.md` — human-readable sidecar: context,
+          2. `<ip>-[<hostname>-]<label>.md` — human-readable sidecar: context,
              references, operator notes, caveats the .sh can't express.
-          3. `python/<hostname>-<label>.py` — present only if `python_helper`
-             is non-empty. The .sh can invoke it from its delivery body.
+          3. `python/<ip>-[<hostname>-]<label>.py` — present only if
+             `python_helper` is non-empty. The .sh can invoke it from its
+             delivery body.
 
         After this call, `send_command` on `session_id` is unlocked.
 
@@ -708,12 +716,36 @@ def create_server() -> FastMCP:
             return f"ERROR: couldn't create {exploits_dir}: {e}"
 
         label_slug = re.sub(r"[^A-Za-z0-9_-]+", "-", label.strip().lower()).strip("-")[:40] or "exploit"
-        host_source = hostname.strip() or target.strip()
-        host_slug = re.sub(r"[^A-Za-z0-9_-]+", "-", host_source.lower()).strip("-")[:40] or "host"
-        base = exploits_dir / f"{host_slug}-{label_slug}"
+
+        # IP is mandatory and leads the filename so a disk-sorted listing
+        # groups by target. Accept either an IPv4 in `target`, or extract one
+        # from `target` if it carries extra text; reject otherwise so the
+        # file-name contract is enforceable (no "unknown-sqli.sh" surprises).
+        ip_match = re.search(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", target)
+        if not ip_match:
+            return (
+                "ERROR: `target` must contain a valid IPv4 address. "
+                "The exploit filename starts with the IP so re-triggers "
+                "and audits group by host. Pass target='10.1.2.3' (or "
+                "'10.1.2.3:8080' / 'https://10.1.2.3/path')."
+            )
+        ip_str = ip_match.group(0)
+        try:
+            ipaddress.IPv4Address(ip_str)  # raises on garbage like 999.1.1.1
+        except Exception:
+            return f"ERROR: '{ip_str}' is not a valid IPv4 address."
+        ip_slug = ip_str.replace(".", "-")
+
+        host_source = hostname.strip()
+        host_slug = re.sub(r"[^A-Za-z0-9_-]+", "-", host_source.lower()).strip("-")[:40]
+        # Filename pattern: <ip>-<hostname>-<label>  (hostname segment is
+        # dropped when none was supplied, so single hosts don't carry an
+        # empty "--" placeholder).
+        base_name = f"{ip_slug}-{host_slug}-{label_slug}" if host_slug else f"{ip_slug}-{label_slug}"
+        base = exploits_dir / base_name
         sh_path = base.with_suffix(".sh")
         md_path = base.with_suffix(".md")
-        py_path = python_dir / f"{host_slug}-{label_slug}.py"
+        py_path = python_dir / f"{base_name}.py"
 
         # Pin LPORT to the port the original callback landed on so a re-trigger
         # using defaults matches what the delivery baked in. Operator can
