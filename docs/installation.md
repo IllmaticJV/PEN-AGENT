@@ -105,30 +105,27 @@ rather than ship:
 
 This does two things: enables the agent-teams experimental flag the
 orchestrator requires (see [Agent Teams](#agent-teams) below), and
-pre-approves every MCP tool PEN-AGENT uses so **standard permission mode is
-usable without `--yolo`**. If the file already exists, `install.sh` leaves it
-alone and only warns if `enableAllProjectMcpServers` or
-`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` look missing — it won't try to merge
-into a customized file. Extend `allow` with specific tool invocations you
-approve often — see `/fewer-permission-prompts` — to cut prompt friction
-further without resorting to `--dangerously-skip-permissions`.
+pre-approves every MCP tool PEN-AGENT uses so **standard permission mode runs
+smoothly**. If the file already exists, `install.sh` leaves it alone and only
+warns if `enableAllProjectMcpServers` or `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`
+look missing — it won't try to merge into a customized file. Extend `allow`
+with specific tool invocations you approve often — see
+`/fewer-permission-prompts` — to cut prompt friction further.
 
 If agent-teams still reports unavailable after this, make sure you started a
 **fresh** `claude`/`./run.sh` session — the flag is read at process start, so
 `claude --resume` on a session started before the file existed won't pick it
 up.
 
-**Prefer standard mode over `--yolo` for real engagements.** `--yolo` removes
-Claude Code's own permission prompts — and with them, the human approval step
-that would otherwise interrupt a run before it compounds. What's left
-evaluating offensive-tool chains is Claude Code's own safety classifiers
-(separate from PEN-AGENT; this project doesn't configure them), which get
-noticeably stricter the more a session's actions pattern-match sustained
-multi-host compromise. If a session breaks down partway through a multi-host
-engagement, try dropping `--yolo` first. PEN-AGENT already gates every task
-assignment on `AskUserQuestion` operator approval, so standard mode mostly
-adds a few Bash prompts per task, not a second approval for the same
-decision.
+**Standard permission mode only.** PEN-AGENT does not support
+permission-skipping (`--dangerously-skip-permissions` / the old `--yolo`);
+`run.sh` refuses those flags, and nothing in the project turns off Claude
+Code's permission prompts. Those prompts and the orchestrator's
+`AskUserQuestion` operator-approval gate are the human-in-the-loop controls
+the project depends on. Because every task assignment already goes through
+operator approval, standard mode mostly adds a few Bash prompts per task, not
+a second approval for the same decision — and you cut those by extending the
+`allow` list (see `/fewer-permission-prompts`).
 
 ### Agent Teams
 
@@ -220,7 +217,7 @@ pre-answer the orchestrator's config questions via `engagement/config.yaml`.
 ### Flags
 
 ```bash
-./run.sh --yolo         # skip permission prompts
+./run.sh --clean-start  # tear down stale services from a previous run, then start fresh
 ```
 
 If shell-server has active sessions from a previous run, `run.sh` prompts to keep, clear, or restart them.

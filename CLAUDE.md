@@ -253,16 +253,14 @@ engagement/
 
 ## Permission Mode
 
-Agent teams works in standard permission mode — **not** `--yolo`
-(`--dangerously-skip-permissions`). MCP server tools are pre-allowed in
-`.claude/settings.json`, which `install.sh` writes once if missing (see
-docs/installation.md#permissions) — it never overwrites an existing one. The
-orchestrator's approval gates provide human-in-the-loop control; `--yolo`
-removes that step along with the permission prompts, leaving only Claude
-Code's own safety classifiers between a teammate and the next tool call,
-which get stricter the more a session's actions pattern-match sustained
-multi-host compromise. Don't reach for `--yolo` to silence MCP permission
-prompts — extend the `.claude/settings.json` allowlist instead.
+Agent teams runs in **standard permission mode only** — permission-skipping
+(`--dangerously-skip-permissions`) is not supported and `run.sh` refuses it.
+MCP server tools are pre-allowed in `.claude/settings.json`, which
+`install.sh` writes once if missing (see docs/installation.md#permissions) —
+it never overwrites an existing one. The orchestrator's approval gates provide
+human-in-the-loop control. To cut prompt friction, extend the
+`.claude/settings.json` allowlist (see `/fewer-permission-prompts`) rather
+than bypassing permissions.
 
 ## Contributing to this repo
 

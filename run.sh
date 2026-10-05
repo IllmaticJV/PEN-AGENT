@@ -13,7 +13,12 @@ CLEAN_START=0
 claude_args=()
 for arg in "$@"; do
     case "$arg" in
-        --yolo)        claude_args+=("--dangerously-skip-permissions") ;;
+        --yolo|--dangerously-skip-permissions)
+            echo "run.sh: '$arg' is not supported — PEN-AGENT runs in standard" >&2
+            echo "        permission mode only. MCP tools are pre-allowed in" >&2
+            echo "        .claude/settings.json; extend its 'allow' list to cut prompts" >&2
+            echo "        (see /fewer-permission-prompts)." >&2
+            exit 2 ;;
         --clean-start) CLEAN_START=1 ;;
         *)             claude_args+=("$arg") ;;
     esac

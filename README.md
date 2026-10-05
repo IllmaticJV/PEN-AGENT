@@ -29,7 +29,7 @@ your approval before assigning work — answer those as they come up.
 | `./uninstall.sh` | Remove everything install.sh set up |
 | `bash preflight.sh [--install] [--optional]` | Check/install attackbox tools (nmap, ffuf, hashcat, impacket, ...) |
 | `bash config.sh` | Pre-engagement wizard — scan type, proxy, spray tier, cracking, C2 backend |
-| `./run.sh [--yolo] [--clean-start]` | Start shell-server + skill-router (+ Metasploit if installed) + the operator portal (tmux) + Claude Code. `--clean-start` first tears down stale services from a previous run (see below) |
+| `./run.sh [--clean-start]` | Start shell-server + skill-router (+ Metasploit if installed) + the operator portal (tmux) + Claude Code. `--clean-start` first tears down stale services from a previous run (see below) |
 | `uv run --directory tools/reporter python export_report.py --strict` | Export findings → `engagement/findings.json` + `report.md` |
 | `bash operator/portal/start.sh` | Operator portal (scope · status · MSF logs) → `http://127.0.0.1:8099` |
 
@@ -64,14 +64,12 @@ confirm the file has `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` set and that you
 started a **fresh** session after it was written — the flag is read at
 process start, so `claude --resume` on an older session won't pick it up.
 
-**Don't use `--yolo` for real engagements.** It skips Claude Code's own
-permission prompts *and* the human-approval step the orchestrator is built
-around. Without that, Claude Code's own safety classifiers are the only thing
-left between a teammate and its next tool call, and they get stricter the
-more a session's actions pattern-match sustained multi-host compromise —
-sessions breaking mid-engagement usually trace back to this. Extend the
-`allow` list instead (see `/fewer-permission-prompts`) if prompts are the
-annoyance.
+**Standard permission mode only.** PEN-AGENT does not support
+permission-skipping (`--dangerously-skip-permissions` / the old `--yolo`);
+`run.sh` refuses those flags. The orchestrator's human-approval gate and
+Claude Code's own permission prompts are the human-in-the-loop controls the
+project is built around. If prompts are the annoyance, extend the `allow`
+list (see `/fewer-permission-prompts`) rather than bypassing permissions.
 
 **Agent teams** requires a local, interactive Claude Code CLI session —
 hosted/cloud sessions and non-interactive (`-p`) runs don't spawn persistent
