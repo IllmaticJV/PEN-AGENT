@@ -5,6 +5,22 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Added
+
+- **Portal access-chain graph now shows tunnel topology.** The Status page
+  graph previously displayed the kill-chain (vulns → access → credentials →
+  more access) but left tunnels in a separate table — making it invisible in
+  the flow that host B was only reachable because of a tunnel from host A.
+  Each active row in the `tunnels` table now synthesizes an amber **TUNNEL**
+  node (same visual family as action nodes) inserted between the pivot
+  host's most-recent foothold and the earliest access/vuln node on every
+  host whose IP falls inside the tunnel's `target_subnet`. CIDR membership
+  is computed in pure JS (no deps). A tunnel with no observed hosts behind
+  it yet still renders as a stub attached to its pivot — a visible hint
+  that pivoted-subnet enum hasn't happened yet. New "Tunnel" marker added
+  to the graph legend. Data-contract and endpoint change: none — the
+  renderer uses existing `state.tunnels` rows.
+
 ### Changed
 
 - **MSF `start_socks_proxy` now refuses to run without explicit certification
