@@ -208,21 +208,24 @@ from messaging you to redirect or abort.
   the manual path (download/compile a PoC from ExploitDB/GitHub per the skill)
   only when MSF has no matching module, a module fails and is ruled out, or the
   skill has no MSF route. A module shell lands straight in the session table.
-- **Every reverse shell MUST be logged before use.** The moment you catch a
-  reverse shell on `shell-server` (via `start_listener`), call
+- **Every reverse shell MUST be logged before use — END-TO-END.** The moment
+  you catch a reverse shell on `shell-server` (via `start_listener`), call
   `mcp__shell-server__record_exploit(session_id, target, label, delivery,
-  hostname, listener_port, notes, references)` BEFORE sending anything else.
-  `send_command` refuses to run on an un-logged remote session with an
-  error pointing at this tool. `delivery` is the ordered, copy-pasteable
-  bash body that triggers the shell — reference `${LHOST}`/`${LPORT}` where
-  the callback endpoint appears so operators can override at re-trigger
-  time. The call writes TWO files to `engagement/exploits/`:
-  `<hostname>-<label>.sh` (executable one-command re-trigger: starts the
-  same listener via MCP, fires the delivery, polls for the callback) and
-  `<hostname>-<label>.md` (human-readable sidecar with context). A dropped
-  shell re-establishes with `bash engagement/exploits/<hostname>-<label>.sh`
-  (or `LPORT=5555 bash …` to override). Local processes (ssh/evil-winrm via
-  `start_process`) are exempt — their launching command is the recipe.
+  hostname, listener_port, notes, references, python_helper)` BEFORE sending
+  anything else. `send_command` refuses to run on an un-logged remote
+  session. `delivery` is a bash body that re-triggers the shell **from
+  scratch** — if the exploit needs a login, log in; if a CSRF token is
+  needed, fetch it; if a cookie carries session state, carry it; THEN fire
+  the payload. Not a one-liner that assumes external state. Reference
+  `${LHOST}` / `${LPORT}` / `${LABEL}` for the callback endpoint
+  (env-overridable at re-trigger). For steps uglier in bash than Python
+  (session cookies, CSRF handling, JSON juggling), pass source as
+  `python_helper=` and the delivery calls it via
+  `python3 "${EXPLOITS_DIR}/python/<...>.py"`. Writes `.sh` + `.md` (+
+  `python/<...>.py` when a helper is supplied) under
+  `engagement/exploits/`. Re-establish with `bash engagement/exploits/
+  <hostname>-<label>.sh` (or `LPORT=5555 bash …`). Local processes
+  (ssh/evil-winrm via `start_process`) are exempt.
 - **Pivoting: NEVER default to MSF SOCKS / autoroute.** The in-Framework
   `auxiliary/server/socks_proxy` has repeatedly broken engagements (dead
   relay wedges the shared RPC → full msfconsole restart). Load the
@@ -293,7 +296,7 @@ engagement/
   findings/         # One OffSec-style finding JSON per confirmed vuln (see tools/reporter)
   findings.json     # Consolidated, importable report (export_report.py)
   report.md         # Human-readable OffSec-style report (export_report.py)
-  exploits/         # One MD per reverse shell: trigger chain for re-establishment (shell-server record_exploit)
+  exploits/         # Per reverse shell: <hostname>-<label>.sh (end-to-end re-trigger) + .md (context) + python/<name>.py (optional helpers)
   evidence/         # Saved output, responses, dumps
     logs/           # Teammate JSONL transcripts
 ```

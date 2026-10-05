@@ -5,6 +5,28 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Changed
+
+- **Exploit `.sh` must be END-TO-END; `record_exploit` grows a `python_helper`
+  arg.** The previous "one-command re-trigger" captured the final payload but
+  assumed external state (auth cookies, CSRF tokens) was already present —
+  which is never true on re-trigger hours later. The contract tightens:
+  `delivery` is now the full bash chain (login → CSRF fetch → cookie-carrying
+  intermediate requests → payload), re-performed from scratch on every run.
+  New optional `python_helper` arg accepts source for a sibling script
+  written to `engagement/exploits/python/<hostname>-<label>.py` — invoke
+  from the `.sh` via `python3 "${EXPLOITS_DIR}/python/<...>.py"` for steps
+  cleaner in Python than bash+curl (session cookies, CSRF handling, JSON
+  juggling). The helper reads `os.environ["LHOST" | "LPORT" | "LABEL" |
+  "EXPLOITS_DIR"]`. The generated `.sh` now exports those vars so helpers
+  see them, and the failure message mentions "a prerequisite step is now
+  stale" as a possible cause. Gate refusal message updated to spell out
+  the end-to-end requirement. CLAUDE.md § Operational Rules + shell-mgr +
+  README + lessons-learned reflect the fuller contract. Verified with a
+  realistic 4-step delivery (login → CSRF-via-helper → upload → trigger):
+  rendered script parses as valid bash, helper invocation + env export +
+  CSRF carrying + reverse-shell line all present as expected.
+
 ### Added
 
 - **Mandatory exploit log + one-command re-trigger for every reverse shell.**

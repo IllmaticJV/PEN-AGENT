@@ -92,6 +92,7 @@ _EXPLOIT_SH_TEMPLATE = r"""#!/usr/bin/env bash
 # Exploit:      {label}
 # Original SID: {session_id}
 # Context:     see {md_name} next to this script.
+# Python helper: {helper_hint}
 #
 # Re-establish the reverse shell for this host:
 #   bash <this script>
@@ -99,8 +100,11 @@ _EXPLOIT_SH_TEMPLATE = r"""#!/usr/bin/env bash
 #
 # What it does:
 #   1. Start a fresh shell-server listener via the MCP (same label + port by default)
-#   2. Fire the delivery body below (${{LHOST}} / ${{LPORT}} / ${{LABEL}} substituted)
-#   3. Poll list_sessions for ~30s and announce the new session_id
+#   2. Fire the delivery body below — INCLUDING every prerequisite step (auth,
+#      CSRF, cookie flow, intermediate requests). ${{LHOST}} / ${{LPORT}} /
+#      ${{LABEL}} are substituted at runtime. If a step is cleaner in Python,
+#      the delivery can call a helper at ${{EXPLOITS_DIR}}/python/<name>.py.
+#   3. Poll list_sessions for ~30s and announce the new session_id.
 #
 # NOTE: the new session's send_command is still gated on record_exploit —
 # call it again on the new session_id to unlock it.
@@ -112,12 +116,15 @@ LPORT="${{LPORT:-{default_lport}}}"
 LABEL="${{LABEL:-{label_env}}}"
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+EXPLOITS_DIR="$REPO_ROOT/engagement/exploits"
 MCP_CALL="$REPO_ROOT/tools/shell-server/mcp-call.sh"
+# Expose to any Python helper invoked below (os.environ.get("LHOST") etc.)
+export LHOST LPORT LABEL REPO_ROOT EXPLOITS_DIR
 
 echo "[*] Starting shell-server listener on ${{LPORT}} (label=${{LABEL}})…"
 "$MCP_CALL" start_listener "$(printf '{{"port": %s, "label": "%s"}}' "$LPORT" "$LABEL")" >/dev/null
 
-echo "[*] Firing delivery…"
+echo "[*] Firing delivery (full chain: auth → prerequisites → trigger)…"
 # ─── delivery body (operator-supplied, {label}) ───────────────────────────
 {delivery_block}
 # ─── end delivery body ────────────────────────────────────────────────────
@@ -136,6 +143,8 @@ for i in $(seq 1 30); do
 done
 echo "[-] No callback within 30s. Possible causes:"
 echo "    - Target can't reach ${{LHOST}}:${{LPORT}} (route/firewall/transport retry window elapsed)"
+echo "    - A prerequisite step (login/CSRF/token) is now stale — the delivery"
+echo "      body MUST re-perform them from scratch; see {md_name} to adjust"
 echo "    - Delivery didn't execute as expected (check sidecar notes in {md_name})"
 echo "    - Target-side implant / process died (needs vuln re-trigger)"
 exit 2
@@ -559,25 +568,31 @@ def create_server() -> FastMCP:
         listener_port: int = 0,
         notes: str = "",
         references: str = "",
+        python_helper: str = "",
     ) -> str:
         """Record how a reverse-shell session was triggered. **Mandatory** for
         remote sessions before send_command will accept any input.
 
-        Produces TWO files in `engagement/exploits/`:
+        Produces up to THREE artifacts in `engagement/exploits/`:
 
           1. `<hostname>-<label>.sh` — an executable re-trigger script. On a
-             later shell-drop, run it (bash engagement/exploits/<...>.sh) and
-             it:
+             later shell-drop, run it (`bash engagement/exploits/<...>.sh`)
+             and it:
                (a) starts a fresh shell-server listener via the MCP on the
-                   same port + label, (b) fires the delivery string, (c)
-                   polls list_sessions until the callback lands.
+                   same port + label,
+               (b) fires the delivery body IN FULL — including every
+                   prerequisite step (login, CSRF, cookie flow, intermediate
+                   requests): the body MUST be end-to-end self-sufficient,
+                   not a one-liner that assumes external auth state,
+               (c) polls list_sessions until the callback lands.
              `${LHOST}` / `${LPORT}` / `${LABEL}` inside the delivery are
-             bash-substituted at runtime from env vars; defaults are baked
-             in from the original. So `LPORT=5555 bash <...>.sh` is a valid
-             override if the original port is already in use.
+             bash-substituted at runtime; `${EXPLOITS_DIR}` points at the
+             exploits dir so the delivery can `python3 "${EXPLOITS_DIR}"/
+             python/<helper>.py` for steps that are ugly in bash.
           2. `<hostname>-<label>.md` — human-readable sidecar: context,
-             references, operator notes, caveats the .sh can't express
-             (multi-step exploits, human-in-the-loop steps, etc).
+             references, operator notes, caveats the .sh can't express.
+          3. `python/<hostname>-<label>.py` — present only if `python_helper`
+             is non-empty. The .sh can invoke it from its delivery body.
 
         After this call, `send_command` on `session_id` is unlocked.
 
@@ -586,11 +601,15 @@ def create_server() -> FastMCP:
             target: Target IP or hostname the exploit was aimed at.
             label: Short slug for the exploit (e.g. "sqli-webshell",
                    "log4shell-callback", "jenkins-groovy-rce").
-            delivery: The ordered, copy-pasteable commands / HTTP requests /
-                     payloads that trigger the shell. Written verbatim into
-                     the .sh script body — use bash syntax, and reference
-                     `${LHOST}` / `${LPORT}` / `${LABEL}` where the callback
-                     endpoint appears so operators can override on re-trigger.
+            delivery: The ordered, copy-pasteable bash body that triggers
+                     the shell **end-to-end from scratch**. If auth is
+                     required, log in in the delivery; if a CSRF token is
+                     needed, fetch it; if a cookie is required for the next
+                     request, carry it. Do NOT assume any state that isn't
+                     set up here. Reference `${LHOST}` / `${LPORT}` /
+                     `${LABEL}` where the callback endpoint appears so
+                     operators can override at re-trigger. Reference
+                     `${EXPLOITS_DIR}/python/<name>.py` to call a helper.
             hostname: Short hostname for the file name (e.g. "web01"). Falls
                      back to `target` when empty.
             listener_port: The port the ORIGINAL callback landed on. If 0,
@@ -599,6 +618,15 @@ def create_server() -> FastMCP:
             notes: Free-form notes — stability caveats, parent PID on target,
                    detach instructions, anything odd. Goes in the sidecar MD.
             references: CVE ids / state.db vuln_id / finding_id / URLs.
+            python_helper: Optional Python source for a sibling helper
+                     written to `engagement/exploits/python/<hostname>-<
+                     label>.py`. Use for anything that's cleaner in Python
+                     than bash+curl: session cookies, CSRF-token handling,
+                     JSON juggling, binary protocol crafting. The helper
+                     can read `os.environ["LHOST" | "LPORT" | "LABEL" |
+                     "EXPLOITS_DIR"]`. Invoke it from the delivery with
+                     `python3 "${EXPLOITS_DIR}/python/<...>.py" [args]`.
+                     Leave empty if you don't need one.
         """
         if session_id not in sessions:
             available = ", ".join(sessions.keys()) if sessions else "none"
@@ -608,8 +636,11 @@ def create_server() -> FastMCP:
 
         session = sessions[session_id]
         exploits_dir = _PROJECT_ROOT / "engagement" / "exploits"
+        python_dir = exploits_dir / "python"
         try:
             exploits_dir.mkdir(parents=True, exist_ok=True)
+            if python_helper.strip():
+                python_dir.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             return f"ERROR: couldn't create {exploits_dir}: {e}"
 
@@ -619,6 +650,7 @@ def create_server() -> FastMCP:
         base = exploits_dir / f"{host_slug}-{label_slug}"
         sh_path = base.with_suffix(".sh")
         md_path = base.with_suffix(".md")
+        py_path = python_dir / f"{host_slug}-{label_slug}.py"
 
         # Pin LPORT to the port the original callback landed on so a re-trigger
         # using defaults matches what the delivery baked in. Operator can
@@ -626,6 +658,16 @@ def create_server() -> FastMCP:
         default_port = int(listener_port) if listener_port else int(session.port or 4444)
         default_lhost = _resolve_callback_ip() or "127.0.0.1"
         ts = datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
+
+        # Optional Python helper — write first so the sh header can reference it.
+        helper_hint = "(none)"
+        if python_helper.strip():
+            try:
+                py_path.write_text(python_helper.strip() + "\n")
+                py_path.chmod(0o755)
+                helper_hint = f'python/{py_path.name} (invoke as: python3 "$EXPLOITS_DIR/python/{py_path.name}")'
+            except OSError as e:
+                return f"ERROR: couldn't write {py_path}: {e}"
 
         # Build the .sh. The delivery goes in verbatim via a heredoc-free
         # pattern so the operator's quoting isn't broken by the script
@@ -641,6 +683,7 @@ def create_server() -> FastMCP:
             default_lport=default_port,
             label_env=label.strip(),
             delivery_block=delivery.strip(),
+            helper_hint=helper_hint,
         )
         try:
             sh_path.write_text(sh_body)
@@ -649,6 +692,10 @@ def create_server() -> FastMCP:
             return f"ERROR: couldn't write {sh_path}: {e}"
 
         notes_block = notes.strip() or "(none)"
+        helper_md_line = (
+            f"- **python_helper**: `{py_path.relative_to(_PROJECT_ROOT)}`\n"
+            if python_helper.strip() else "- **python_helper**: (none)\n"
+        )
         md_body = (
             f"# Exploit — {label}\n\n"
             f"- **session_id**: `{session_id}`\n"
@@ -660,6 +707,7 @@ def create_server() -> FastMCP:
             f"- **remote_addr**: {session.remote_addr}\n"
             f"- **platform**: {session.platform or '(unknown)'}\n"
             f"- **listener_port**: {default_port}\n"
+            + helper_md_line +
             f"- **references**: {references or '(none)'}\n"
             f"\n## Re-establish\n\n"
             f"```bash\n"
@@ -667,6 +715,10 @@ def create_server() -> FastMCP:
             f"# or override port / callback host:\n"
             f"LPORT=5555 LHOST=10.10.14.9 bash {sh_path.relative_to(_PROJECT_ROOT)}\n"
             f"```\n"
+            f"\nThe `.sh` fires the full delivery chain (auth → prerequisites → "
+            f"trigger). It assumes **no external state** — login steps, CSRF "
+            f"handshakes, cookie flows are all re-performed from scratch on "
+            f"every run. If a step is cleaner in Python, see the helper above.\n"
             f"\n## Operator notes\n\n{notes_block}\n"
         )
         try:
@@ -675,7 +727,7 @@ def create_server() -> FastMCP:
             return f"ERROR: couldn't write {md_path}: {e}"
 
         session.exploit_recorded = True
-        return json.dumps({
+        result = {
             "status": "recorded",
             "session_id": session_id,
             "sh": str(sh_path),
@@ -686,7 +738,10 @@ def create_server() -> FastMCP:
                 f"send_command on this session is now unlocked. "
                 f"Re-trigger later with: bash {sh_path.relative_to(_PROJECT_ROOT)}"
             ),
-        })
+        }
+        if python_helper.strip():
+            result["python_helper"] = str(py_path)
+        return json.dumps(result)
 
     @mcp.tool()
     def send_command(
@@ -728,13 +783,16 @@ def create_server() -> FastMCP:
         if session.session_type == "remote" and not session.exploit_recorded:
             return (
                 f"ERROR: session '{session_id}' has no recorded exploit yet. "
-                f"PEN-AGENT requires every reverse shell be traceable. Call "
-                f"record_exploit(session_id='{session_id}', target='<ip>', "
-                f"label='<short-slug>', commands='<the ordered commands / "
-                f"HTTP requests / payloads that triggered this shell>', "
-                f"delivery='<final payload line>') first. This writes "
-                f"engagement/exploits/<...>.md so a dropped shell can be "
-                f"re-established without digging through transcripts."
+                f"PEN-AGENT requires every reverse shell be re-triggerable "
+                f"end-to-end from one script. Call record_exploit(session_id="
+                f"'{session_id}', target='<ip>', label='<slug>', delivery="
+                f"'<full bash body: EVERY prerequisite step from scratch — "
+                f"login, CSRF, cookies, intermediate requests, THEN the "
+                f"payload. Reference ${{LHOST}}/${{LPORT}}/${{LABEL}}. Call "
+                f"python3 ${{EXPLOITS_DIR}}/python/<...>.py for anything "
+                f"ugly in bash — pass that source as python_helper=.>') "
+                f"first. This writes engagement/exploits/<hostname>-<label>"
+                f".sh (one-command re-establish) + .md (context)."
             )
 
         # Real-time command log for operator visibility
