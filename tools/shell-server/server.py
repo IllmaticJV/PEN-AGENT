@@ -433,6 +433,11 @@ def create_server() -> FastMCP:
             privileged=privileged,
             container_name=container_name,
             pty=True,
+            # Local processes don't need an exploit record — the launching
+            # `command` IS the recipe, and any credentials used are already
+            # tracked in state.db. The reverse-shell gate below applies only
+            # to remote (reverse-shell) sessions.
+            exploit_recorded=True,
         )
 
         # Set up live log for dashboard tailing
@@ -482,6 +487,93 @@ def create_server() -> FastMCP:
         )
 
     @mcp.tool()
+    def record_exploit(
+        session_id: str,
+        target: str,
+        label: str,
+        commands: str,
+        delivery: str = "",
+        notes: str = "",
+        references: str = "",
+    ) -> str:
+        """Record how a reverse-shell session was triggered. **Mandatory** for
+        remote sessions before send_command will accept any input.
+
+        Writes a human-readable markdown file to
+        `engagement/exploits/<session_id>-<label-slug>.md` capturing the
+        complete trigger chain so the shell can be re-established later (shell
+        drops, msfconsole restart, implant dies, operator takes over). The gate
+        exists because engagements kept losing the "how did we get this shell?"
+        detail by the time the shell became wonky and needed re-triggering.
+
+        Args:
+            session_id: Session ID this exploit produced (from start_listener).
+            target: Target host — IP or hostname the exploit was aimed at.
+            label: Short slug for the exploit (e.g. "sqli-webshell",
+                   "log4shell-callback", "jenkins-groovy-rce").
+            commands: Ordered, copy-pasteable commands / HTTP requests / URLs
+                      used to trigger the shell. Use multi-line markdown — code
+                      fences fine; include every parameter name, cookie, header,
+                      file path that matters for a re-trigger.
+            delivery: The final payload line the target actually executed (the
+                      reverse-shell one-liner, upload path, etc.) — pulled out
+                      separately because this is the one bit most often reused
+                      verbatim on re-trigger.
+            notes: Free-form notes — stability caveats, PID of the parent
+                   process on target, how to detach the implant, anything odd.
+            references: CVE ids / state.db vuln_id / finding_id / external URLs.
+        """
+        if session_id not in sessions:
+            available = ", ".join(sessions.keys()) if sessions else "none"
+            return f"ERROR: Session '{session_id}' not found. Available: {available}"
+        if not target.strip() or not label.strip() or not commands.strip():
+            return "ERROR: target, label, and commands are all required."
+
+        session = sessions[session_id]
+        exploits_dir = _PROJECT_ROOT / "engagement" / "exploits"
+        try:
+            exploits_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            return f"ERROR: couldn't create {exploits_dir}: {e}"
+
+        slug = re.sub(r"[^A-Za-z0-9_-]+", "-", label.strip().lower()).strip("-")[:40] or "exploit"
+        safe_sid = re.sub(r"[^A-Za-z0-9_-]+", "_", str(session_id))
+        path = exploits_dir / f"{safe_sid}-{slug}.md"
+
+        ts = datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
+        delivery_block = (
+            "```\n" + delivery.strip() + "\n```"
+            if delivery.strip() else "(none recorded — see Trigger above)"
+        )
+        notes_block = notes.strip() or "(none)"
+        body = (
+            f"# Exploit log — {label}\n\n"
+            f"- **session_id**: `{session_id}`\n"
+            f"- **target**: {target}\n"
+            f"- **label**: {label}\n"
+            f"- **captured_at**: {ts}\n"
+            f"- **session_label**: {session.label or '(none)'}\n"
+            f"- **remote_addr**: {session.remote_addr}\n"
+            f"- **platform**: {session.platform or '(unknown)'}\n"
+            f"- **references**: {references or '(none)'}\n"
+            f"\n## Trigger (ordered commands / requests)\n\n{commands.strip()}\n"
+            f"\n## Final delivery payload\n\n{delivery_block}\n"
+            f"\n## Operator notes\n\n{notes_block}\n"
+        )
+        try:
+            path.write_text(body)
+        except OSError as e:
+            return f"ERROR: couldn't write {path}: {e}"
+
+        session.exploit_recorded = True
+        return json.dumps({
+            "status": "recorded",
+            "session_id": session_id,
+            "path": str(path),
+            "message": "send_command on this session is now unlocked.",
+        })
+
+    @mcp.tool()
     def send_command(
         session_id: str,
         command: str,
@@ -513,6 +605,22 @@ def create_server() -> FastMCP:
         if session.session_type == "local" and session.process.poll() is not None:
             session.status = "closed"
             return f"ERROR: Process exited with code {session.process.returncode}."
+
+        # Mandatory-exploit-log gate: a reverse-shell session must have an
+        # engagement/exploits/*.md file written before anyone drives it.
+        # Local processes are exempt (they're started with explicit `command=`
+        # and credentials are already in state.db — see Session construction).
+        if session.session_type == "remote" and not session.exploit_recorded:
+            return (
+                f"ERROR: session '{session_id}' has no recorded exploit yet. "
+                f"PEN-AGENT requires every reverse shell be traceable. Call "
+                f"record_exploit(session_id='{session_id}', target='<ip>', "
+                f"label='<short-slug>', commands='<the ordered commands / "
+                f"HTTP requests / payloads that triggered this shell>', "
+                f"delivery='<final payload line>') first. This writes "
+                f"engagement/exploits/<...>.md so a dropped shell can be "
+                f"re-established without digging through transcripts."
+            )
 
         # Real-time command log for operator visibility
         _log_command(session, command)

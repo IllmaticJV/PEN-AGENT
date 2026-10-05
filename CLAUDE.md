@@ -208,6 +208,18 @@ from messaging you to redirect or abort.
   the manual path (download/compile a PoC from ExploitDB/GitHub per the skill)
   only when MSF has no matching module, a module fails and is ruled out, or the
   skill has no MSF route. A module shell lands straight in the session table.
+- **Every reverse shell MUST be logged before use.** The moment you catch a
+  reverse shell on `shell-server` (via `start_listener`), call
+  `mcp__shell-server__record_exploit(session_id, target, label, commands,
+  delivery, notes, references)` BEFORE sending anything else. `send_command`
+  refuses to run on an un-logged remote session with an error pointing at
+  this tool. `commands` must be the ordered, copy-pasteable trigger chain
+  (every URL, payload, parameter, cookie, header, file path needed to
+  re-trigger) — not a summary. The log lands at
+  `engagement/exploits/<session_id>-<label>.md` so a dropped shell can be
+  re-established without digging through transcripts. Local processes
+  (ssh/evil-winrm via `start_process`) are exempt — their launching command
+  is the recipe.
 - **Pivoting: NEVER default to MSF SOCKS / autoroute.** The in-Framework
   `auxiliary/server/socks_proxy` has repeatedly broken engagements (dead
   relay wedges the shared RPC → full msfconsole restart). Load the
@@ -278,6 +290,7 @@ engagement/
   findings/         # One OffSec-style finding JSON per confirmed vuln (see tools/reporter)
   findings.json     # Consolidated, importable report (export_report.py)
   report.md         # Human-readable OffSec-style report (export_report.py)
+  exploits/         # One MD per reverse shell: trigger chain for re-establishment (shell-server record_exploit)
   evidence/         # Saved output, responses, dumps
     logs/           # Teammate JSONL transcripts
 ```

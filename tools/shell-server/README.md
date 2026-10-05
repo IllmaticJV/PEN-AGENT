@@ -76,7 +76,8 @@ Works with any interactive CLI tool: `evil-winrm`, `psexec.py`, `ssh`,
 |------|-----------|-------------|
 | `start_listener` | `port` (required), `host` (default `0.0.0.0`), `timeout` (default 300s), `label` (optional) | Start TCP listener, wait for reverse shell. Auto-detects Windows/Linux from shell prompt. |
 | `start_process` | `command` (required), `label` (optional), `timeout` (default 30s), `privileged` (default false) | Spawn a local interactive process in a persistent PTY |
-| `send_command` | `session_id` (required), `command` (required), `timeout` (default 10s), `expect` (optional regex) | Send command and return output |
+| `record_exploit` | `session_id`, `target`, `label`, `commands` (all required), `delivery`, `notes`, `references` | **Mandatory** on reverse shells before `send_command` will run. Writes `engagement/exploits/<id>-<label>.md` with the ordered trigger chain so the shell can be re-established later. |
+| `send_command` | `session_id` (required), `command` (required), `timeout` (default 10s), `expect` (optional regex) | Send command and return output. **Refuses** on reverse-shell sessions without a prior `record_exploit()` call. |
 | `read_output` | `session_id` (required), `timeout` (default 2s) | Read buffered output without sending a command |
 | `stabilize_shell` | `session_id` (required), `method` (default `auto`) | Upgrade raw shell to PTY (python3/python2/script). Skips on Windows (not applicable). |
 | `list_sessions` | (none) | List all listeners and sessions with status |

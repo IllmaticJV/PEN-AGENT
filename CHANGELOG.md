@@ -7,6 +7,23 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Mandatory exploit-log for every reverse shell.** Engagements kept losing
+  the "how did we trigger this shell?" detail by the time the shell went
+  wonky and needed re-establishing. New `shell-server.record_exploit(
+  session_id, target, label, commands, delivery, notes, references)` tool
+  writes `engagement/exploits/<session_id>-<label>.md` capturing the ordered
+  trigger chain (URLs, payloads, parameters, cookies, headers) in
+  human-readable markdown. Enforced in code: `send_command` refuses to run
+  on a remote (reverse-shell) session that has no exploit record, with an
+  error pointing straight at `record_exploit()`. Local processes started
+  via `start_process` (ssh/evil-winrm) are exempt — their launching
+  command is already the recipe. The teammate that established the shell is
+  the one that must call `record_exploit()` (it holds the exploitation
+  context); `shell-mgr` won't do it on their behalf. Also added as a rule
+  in CLAUDE.md § Operational Rules so every teammate turn carries the
+  requirement, and documented in the shell-server README. See
+  `engagement/exploits/` in the engagement-directory layout.
+
 - **MSF C2 soft-restart with handler snapshot + restore (`run.sh --c2-restart`).**
   Metasploit sessions themselves cannot survive a Framework restart (the
   sockets die with the process), but the HANDLERS can be snapshotted and

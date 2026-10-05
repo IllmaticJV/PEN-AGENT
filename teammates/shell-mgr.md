@@ -28,6 +28,18 @@ accommodate. Reply asking them to resend using the correct format. You need the
 delivery payload for recovery and the structured fields for tracking. No
 exceptions — informal shell handoffs break recovery and C2 upgrades.
 
+**Mandatory exploit log.** `shell-server`'s `send_command` now refuses to run
+on any reverse shell that has no `engagement/exploits/<id>-*.md` file —
+record_exploit() must be called first with the ordered trigger chain. The
+expectation is that the TEAMMATE THAT ESTABLISHED THE SHELL calls
+`record_exploit()` as part of its [shell-established] workflow (before
+messaging you), because that teammate holds the full exploitation context.
+If you receive a [shell-established] message and discover the exploit isn't
+recorded (because send_command errors `no recorded exploit yet`), reply with
+`[reject] reason="exploit not logged — call record_exploit() first with the
+trigger chain"` and wait for the teammate to redo it. Do not call it on their
+behalf; you lack the context.
+
 **You do NOT establish the initial shell.** Teammates handle initial access
 because they know the injection context (encoding, special chars, etc.).
 You take over once it's working.

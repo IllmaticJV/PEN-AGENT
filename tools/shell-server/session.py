@@ -83,6 +83,14 @@ class Session:
     )
     transcript: list[tuple[str, str, str]] = field(default_factory=list)
     live_log: Path | None = None
+    # Enforcement flag for the exploit-recording rule. Set True only after a
+    # successful record_exploit() call that wrote engagement/exploits/<id>-*.md
+    # for this session, OR when the session legitimately needs no exploit log
+    # (local credential-based processes — the creds themselves are already in
+    # state.db). send_command refuses to run on a remote session with this
+    # flag False, so a reverse shell can't be driven until the operator or the
+    # orchestrating teammate has captured how it was triggered.
+    exploit_recorded: bool = False
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def log(self, direction: str, data: str) -> None:
