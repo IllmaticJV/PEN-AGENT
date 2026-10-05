@@ -265,6 +265,16 @@ stale resources:
 
 If a backend goes down mid-engagement, send `[backend-down]` to the lead.
 
+**Metasploit auto-recovery first.** If the backend that went down is
+Metasploit AND it looks like a C2 crash (RPC unreachable; `tmux has-session
+-t pen-msf` says the console died) rather than a config problem, before you
+escalate try one soft restart: snapshot the handlers via the MCP, kill just
+msfconsole, and bring it back with handler restore. The operator-facing
+form is `run.sh --c2-restart` (see appendix for the backend-specific
+procedure). It preserves shell-server sessions, re-registers every live
+handler, and lets Meterpreter payloads (built with the retry defaults)
+reconnect on their own. Only after this fails do you send `[backend-down]`.
+
 ## Operational Notes
 
 - MCP names use hyphens for servers, underscores for tools.

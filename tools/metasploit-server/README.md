@@ -58,8 +58,10 @@ enforcement is off (all targets allowed) and a warning is logged. See
 | Tool | Description |
 |------|-------------|
 | `start_handler(payload, lhost, lport, exit_on_session)` | Start `exploit/multi/handler` to catch a callback |
-| `generate_payload(payload, lhost, lport, format, name, extra_options)` | Build a payload with msfvenom into `engagement/evidence/` |
+| `generate_payload(payload, lhost, lport, format, name, extra_options, no_retry=False)` | Build a payload with msfvenom into `engagement/evidence/`. **Bakes in transport-retry attributes by default** (`SessionCommunicationTimeout=600`, `SessionExpirationTimeout=86400`) so Meterpreter sessions reconnect to restored handlers after an MSF restart; pass `no_retry=True` or set those keys in `extra_options` to override |
 | `list_jobs()` | List active jobs (handlers, servers, aux) |
+| `snapshot_handlers()` | Snapshot every live handler (payload/LHOST/LPORT, reconstructed from the module-call log) to `engagement/msf-handlers-snapshot.json`. Call BEFORE killing msfconsole for a soft-restart |
+| `restore_handlers()` | Read the snapshot and re-register each handler on the current MSF. Idempotent. Called automatically by `c2-up.sh --restore` and `run.sh --c2-restart` |
 | `kill_job(job_id)` | Stop a job |
 
 ### Session Operations

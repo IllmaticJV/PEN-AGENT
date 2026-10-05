@@ -44,6 +44,18 @@ ENGAGEMENT_DIR="${ENGAGEMENT_DIR:-engagement}"
 CFG="${ENGAGEMENT_DIR}/msfrpc.yaml"
 PORT="${MSF_RPC_PORT:-55553}"
 TMUX_SESSION="${PEN_AGENT_MSF_TMUX:-pen-msf}"
+RESTORE_HANDLERS=0
+
+# --restore: after the C2 is up (fresh or already running), call the MCP's
+# restore_handlers() tool which re-registers every handler recorded in
+# engagement/msf-handlers-snapshot.json. See snapshot_handlers() docstring
+# in server.py for the full flow; also run.sh --c2-restart.
+for arg in "$@"; do
+    case "$arg" in
+        --restore) RESTORE_HANDLERS=1 ;;
+        *) echo "[c2] unknown flag: $arg (supported: --restore)" >&2; exit 2 ;;
+    esac
+done
 
 command -v msfconsole &>/dev/null || { echo "[c2] msfconsole not found on PATH"; exit 2; }
 mkdir -p "${ENGAGEMENT_DIR}/evidence/msf-sessions"
@@ -51,6 +63,60 @@ mkdir -p "${ENGAGEMENT_DIR}/evidence/msf-sessions"
 _gen_pass() { head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 24; }
 _port_up()  { (echo >"/dev/tcp/127.0.0.1/${PORT}") &>/dev/null; }
 _wait_rpc() { local n="${1:-60}"; while ((n-- > 0)); do _port_up && return 0; sleep 1; done; return 1; }
+
+# --restore: ask the metasploit-server MCP to re-register handlers from the
+# snapshot file written by snapshot_handlers() before the restart. Payloads
+# built by generate_payload have retry attributes baked in by default, so
+# their meterpreter sessions reconnect to the new handlers on their own.
+# The MCP's SSE server (default 8024) is up once start.sh / run.sh brought
+# it in; the call is best-effort and never fails the C2 bring-up.
+_maybe_restore() {
+    [[ "$RESTORE_HANDLERS" == 1 ]] || return 0
+    local snap="${ENGAGEMENT_DIR}/msf-handlers-snapshot.json"
+    if [[ ! -s "$snap" ]]; then
+        echo "[c2] --restore: no snapshot at $snap, nothing to do"
+        return 0
+    fi
+    local sse_port="${MSF_SSE_PORT:-8024}"
+    local n=30
+    while ((n-- > 0)); do
+        (echo >"/dev/tcp/127.0.0.1/${sse_port}") &>/dev/null && break
+        sleep 1
+    done
+    if ! (echo >"/dev/tcp/127.0.0.1/${sse_port}") &>/dev/null; then
+        echo "[c2] --restore: metasploit-server MCP not listening on ${sse_port}; "\
+             "snapshot kept at $snap — rerun 'bash tools/metasploit-server/start.sh' then "\
+             "ask the lead to call restore_handlers() via the MCP" >&2
+        return 0
+    fi
+    echo "[c2] --restore: asking MCP to re-register handlers from $snap"
+    # The MCP's /mcp SSE endpoint speaks JSON-RPC 2.0 over SSE; the simplest
+    # cross-platform invocation is python with the mcp client. Fall back to a
+    # one-liner hint if that stack isn't installed in this shell's PATH.
+    if command -v uv &>/dev/null; then
+        uv run --directory tools/metasploit-server --quiet python - <<'PY' 2>&1 | sed 's/^/[c2]   /' || true
+import anyio, json, os, sys
+from mcp.client.sse import sse_client
+from mcp.client.session import ClientSession
+async def _call():
+    port = int(os.environ.get("MSF_SSE_PORT", "8024"))
+    url = f"http://127.0.0.1:{port}/sse"
+    async with sse_client(url) as (r, w):
+        async with ClientSession(r, w) as s:
+            await s.initialize()
+            res = await s.call_tool("restore_handlers", {})
+            for c in res.content:
+                if hasattr(c, "text"): print(c.text)
+try:
+    anyio.run(_call)
+except Exception as e:
+    print(f"restore_handlers RPC failed: {e}", file=sys.stderr)
+    sys.exit(1)
+PY
+    else
+        echo "[c2]   uv not on PATH; snapshot preserved — ask the lead to invoke restore_handlers() via the MCP."
+    fi
+}
 
 _write_cfg() {
     cat > "$CFG" <<YAML
@@ -86,6 +152,7 @@ if command -v tmux &>/dev/null; then
     fi
     if tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
         echo "[c2] msf console already running in tmux '${TMUX_SESSION}' (attach: tmux attach -t ${TMUX_SESSION})"
+        _maybe_restore
         exit 0
     fi
     _resolve_creds
@@ -114,6 +181,7 @@ RC
     else
         echo "[c2] WARNING: RPC not listening after 90s — msfconsole may still be loading; check: tmux attach -t ${TMUX_SESSION}"
     fi
+    _maybe_restore
     exit 0
 fi
 
@@ -134,6 +202,7 @@ if command -v msfrpcd &>/dev/null; then
     _write_cfg "$PASS"
     echo "[c2] msfrpcd started on 127.0.0.1:${PORT}"
     _wait_rpc 30 || true
+    _maybe_restore
     exit 0
 fi
 
