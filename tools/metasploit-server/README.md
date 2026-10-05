@@ -91,7 +91,7 @@ This lets the operator work a host in the tmux msfconsole with no contention.
 |------|-------------|
 | `run_module(module_type, module_name, options, payload, as_job)` | Run any exploit/auxiliary/post module. RHOSTS scope-checked |
 | `console_exec(command, read_timeout)` | Run raw msfconsole commands. `set RHOSTS` scope-checked |
-| `start_socks_proxy(session_id, target_subnet, srvport, allow_autoadd=False)` | **Fallback pivot** — scoped MSF route (`autoroute CMD=add` with explicit SUBNET+NETMASK) + `auxiliary/server/socks_proxy`. Prefer the `pivoting-tunneling` skill (chisel / ligolo-ng / sshuttle / SSH) first; the in-Framework SOCKS wedges the shared RPC if its session dies while the job still points at it. **`target_subnet` is required** — un-scoped `CMD=autoadd` routes agent traffic through every pivot NIC on multi-homed hosts; `allow_autoadd=True` is a last-resort escape hatch |
+| `start_socks_proxy(session_id, target_subnet, srvport, allow_autoadd=False, confirm_no_alternative=False, alternative_rejection_reason="")` | **Fallback pivot — refuses to run** without `confirm_no_alternative=True` and a specific `alternative_rejection_reason` (>= 20 chars). Prefer the `pivoting-tunneling` skill (chisel / ligolo-ng / sshuttle / SSH `-D`) first; the in-Framework SOCKS wedges the shared RPC when the session dies. When permitted, runs a scoped MSF route (`autoroute CMD=add` with explicit SUBNET+NETMASK) + `auxiliary/server/socks_proxy`. The rejection reason is logged to the module-call log for operator audit. `target_subnet` is required (`allow_autoadd=True` is a last-resort escape hatch) |
 
 ## Graceful Degradation
 

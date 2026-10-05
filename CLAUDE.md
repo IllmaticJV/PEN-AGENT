@@ -208,6 +208,17 @@ from messaging you to redirect or abort.
   the manual path (download/compile a PoC from ExploitDB/GitHub per the skill)
   only when MSF has no matching module, a module fails and is ruled out, or the
   skill has no MSF route. A module shell lands straight in the session table.
+- **Pivoting: NEVER default to MSF SOCKS / autoroute.** The in-Framework
+  `auxiliary/server/socks_proxy` has repeatedly broken engagements (dead
+  relay wedges the shared RPC → full msfconsole restart). Load the
+  `pivoting-tunneling` skill and use chisel / ligolo-ng (with the
+  operator-free `pen-agent-ligolo-*` helpers if installed) / sshuttle /
+  native SSH `-D`/`-L`. The MCP `start_socks_proxy` tool refuses to run
+  unless you pass `confirm_no_alternative=True` with a specific
+  `alternative_rejection_reason` — do not reach for that flag unless every
+  alternative really is ruled out for this specific pivot (no attackbox
+  inbound to pivot; can't drop a binary on target; or MSF modules must route
+  transparently without proxychains).
 - MCP names: hyphens for servers (`mcp__shell-server__`), underscores for
   tools (`add_vuln`)
 
