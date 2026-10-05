@@ -7,22 +7,31 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
-- **Mandatory exploit-log for every reverse shell.** Engagements kept losing
-  the "how did we trigger this shell?" detail by the time the shell went
-  wonky and needed re-establishing. New `shell-server.record_exploit(
-  session_id, target, label, commands, delivery, notes, references)` tool
-  writes `engagement/exploits/<session_id>-<label>.md` capturing the ordered
-  trigger chain (URLs, payloads, parameters, cookies, headers) in
-  human-readable markdown. Enforced in code: `send_command` refuses to run
-  on a remote (reverse-shell) session that has no exploit record, with an
-  error pointing straight at `record_exploit()`. Local processes started
-  via `start_process` (ssh/evil-winrm) are exempt — their launching
-  command is already the recipe. The teammate that established the shell is
-  the one that must call `record_exploit()` (it holds the exploitation
-  context); `shell-mgr` won't do it on their behalf. Also added as a rule
-  in CLAUDE.md § Operational Rules so every teammate turn carries the
-  requirement, and documented in the shell-server README. See
-  `engagement/exploits/` in the engagement-directory layout.
+- **Mandatory exploit log + one-command re-trigger for every reverse shell.**
+  Engagements kept losing the "how did we trigger this shell?" detail by the
+  time the shell went wonky and needed re-establishing. New
+  `shell-server.record_exploit(session_id, target, label, delivery, hostname,
+  listener_port, notes, references)` tool writes TWO files to
+  `engagement/exploits/`:
+  (1) `<hostname>-<label>.sh` — an executable re-trigger script that starts
+  the same shell-server listener via the MCP (through the new thin
+  `tools/shell-server/mcp-call.sh` wrapper), fires the delivery with
+  `${LHOST}` / `${LPORT}` / `${LABEL}` substituted at runtime (defaults baked
+  in from the original callback; env-overridable at `bash` time), and polls
+  `list_sessions` for the new callback.
+  (2) `<hostname>-<label>.md` — human-readable sidecar with context,
+  references, operator notes, and the exact `bash …` invocation.
+  Enforced in code: `send_command` refuses to run on a remote
+  (reverse-shell) session that has no exploit record, with an error pointing
+  straight at `record_exploit()`. Local processes started via `start_process`
+  (ssh/evil-winrm) are exempt — their launching command is already the
+  recipe. The teammate that established the shell is the one that must call
+  `record_exploit()` (it holds the exploitation context); `shell-mgr` won't
+  do it on their behalf. CLAUDE.md § Operational Rules carries the
+  requirement so every teammate turn sees it; shell-server README documents
+  the tool. Verified: generated `.sh` parses as valid bash, operator-supplied
+  delivery (with embedded quotes, pipes, URL encoding) preserved verbatim,
+  `LPORT=5555 bash …` runtime override works.
 
 - **MSF C2 soft-restart with handler snapshot + restore (`run.sh --c2-restart`).**
   Metasploit sessions themselves cannot survive a Framework restart (the

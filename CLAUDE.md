@@ -210,16 +210,19 @@ from messaging you to redirect or abort.
   skill has no MSF route. A module shell lands straight in the session table.
 - **Every reverse shell MUST be logged before use.** The moment you catch a
   reverse shell on `shell-server` (via `start_listener`), call
-  `mcp__shell-server__record_exploit(session_id, target, label, commands,
-  delivery, notes, references)` BEFORE sending anything else. `send_command`
-  refuses to run on an un-logged remote session with an error pointing at
-  this tool. `commands` must be the ordered, copy-pasteable trigger chain
-  (every URL, payload, parameter, cookie, header, file path needed to
-  re-trigger) — not a summary. The log lands at
-  `engagement/exploits/<session_id>-<label>.md` so a dropped shell can be
-  re-established without digging through transcripts. Local processes
-  (ssh/evil-winrm via `start_process`) are exempt — their launching command
-  is the recipe.
+  `mcp__shell-server__record_exploit(session_id, target, label, delivery,
+  hostname, listener_port, notes, references)` BEFORE sending anything else.
+  `send_command` refuses to run on an un-logged remote session with an
+  error pointing at this tool. `delivery` is the ordered, copy-pasteable
+  bash body that triggers the shell — reference `${LHOST}`/`${LPORT}` where
+  the callback endpoint appears so operators can override at re-trigger
+  time. The call writes TWO files to `engagement/exploits/`:
+  `<hostname>-<label>.sh` (executable one-command re-trigger: starts the
+  same listener via MCP, fires the delivery, polls for the callback) and
+  `<hostname>-<label>.md` (human-readable sidecar with context). A dropped
+  shell re-establishes with `bash engagement/exploits/<hostname>-<label>.sh`
+  (or `LPORT=5555 bash …` to override). Local processes (ssh/evil-winrm via
+  `start_process`) are exempt — their launching command is the recipe.
 - **Pivoting: NEVER default to MSF SOCKS / autoroute.** The in-Framework
   `auxiliary/server/socks_proxy` has repeatedly broken engagements (dead
   relay wedges the shared RPC → full msfconsole restart). Load the
