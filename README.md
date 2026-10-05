@@ -101,6 +101,12 @@ default; `bash operator/portal/generate-token.sh` writes a token to
 `~/.config/pen-agent/viewer-token` that makes it bind `0.0.0.0` and require
 login (`/login` cookie, or `Authorization: Bearer <token>`).
 
+`run.sh` ends by `exec`ing Claude Code's full-screen TUI, which hides the
+startup scrollback (portal URL + token). So just before launching Claude it
+writes the portal URL, token, and tmux attach commands to
+`~/.config/pen-agent/portal-access.txt` (mode `600`). Lost the details once
+Claude is up? `cat ~/.config/pen-agent/portal-access.txt` (or ask Claude to).
+
 ## C2 backend
 
 Metasploit is the default — `run.sh` auto-detects `metasploit-framework` and
