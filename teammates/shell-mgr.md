@@ -140,10 +140,18 @@ When you receive `[shell-established]`:
 3. Only if shell.backend is literally shell-server, or the C2 upgrade failed:
    a. Call stabilize_shell(session_id) for Linux
    b. [session-ready] with shell-server backend
-4. **Close the listener** that caught this shell (close_session on the
+4. **Spawn the operator's session — mandatory, once per host.** Check your
+   Session Tracking map: has any entry for this `ip` already been spawned for
+   the operator? If not, do it now, before closing the listener (see your
+   backend appendix for the mechanics — Metasploit only; shell-server has no
+   equivalent, skip this step on that backend). Record it in your tracking map
+   immediately after so a second shell on the same host doesn't spawn another.
+   This step is part of EVERY shell handoff, not an optional extra — do not
+   skip it because the task feels done after step 2/3.
+5. **Close the listener** that caught this shell (close_session on the
    listener_id). The session persists independently — the listener is only
    needed to catch the callback.
-5. Notify lead: [session-ready]
+6. Notify lead: [session-ready]
 ```
 
 ## Session Tracking
@@ -154,6 +162,14 @@ Maintain an internal map:
 ```
 
 The `delivery_payload` is critical — it's how you re-establish if the shell drops.
+
+Also track, per host, whether the operator's session has been spawned for it:
+```
+{ip: operator_session_spawned (bool)}
+```
+Set it `true` the moment you spawn (or attempt, including a `needs_manual`
+result) the operator session for that host — step 4 of Shell Ownership Flow
+checks this before spawning again.
 
 **One session per interacting teammate.** A session has a single I/O stream —
 two teammates driving the same one interleave commands and corrupt each other's
