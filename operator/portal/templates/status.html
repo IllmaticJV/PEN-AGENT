@@ -6,96 +6,133 @@
 <title>PEN-AGENT state viewer</title>
 <style>
 :root {
-  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
-  --text: #c9d1d9; --dim: #8b949e; --accent: #58a6ff;
-  --red: #f85149; --orange: #d29922; --yellow: #e3b341;
-  --green: #3fb950; --purple: #bc8cff; --blue: #58a6ff; --gray: #8b949e;
+  --bg:#0a0c10; --bg2:#11151b; --bg3:#1c222b;
+  --surface-2:#161b22; --border:#222935; --border-strong:#2f3744;
+  --text:#e6edf3; --dim:#9aa5b1; --fg-dim:#6b7682;
+  --accent:#4f8cff; --accent-2:#7aa7ff; --accent-glow:rgba(79,140,255,.16);
+  --red:#f85149; --orange:#d6a533; --yellow:#d6a533;
+  --green:#3fb950; --purple:#a371f7; --blue:#4f8cff; --gray:#6b7682;
+  --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-  font-size: 13px; background: var(--bg); color: var(--text); padding: 16px; }
-h1 { font-size: 18px; color: var(--accent); margin-bottom: 4px; }
-h2 { font-size: 14px; color: var(--dim); margin: 16px 0 8px; cursor: pointer; user-select: none; }
-h2::before { content: '\25BE '; font-size: 10px; }
-h2.collapsed::before { content: '\25B8 '; }
-.banner { background: var(--bg2); border: 1px solid var(--border);
-  border-radius: 6px; padding: 24px; text-align: center; color: var(--dim); margin: 24px 0; }
-.cards { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
-.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
-  padding: 12px 16px; min-width: 120px; }
-.card .num { font-size: 24px; font-weight: bold; }
-.card .label { color: var(--dim); font-size: 11px; text-transform: uppercase; }
-table { width: 100%; border-collapse: collapse; margin: 4px 0 16px; }
-th { text-align: left; color: var(--dim); font-size: 11px; text-transform: uppercase;
-  padding: 6px 8px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }
+body { font-family: var(--ui); font-size: 13px; background: var(--bg); color: var(--text);
+  padding: 20px 22px 40px; -webkit-font-smoothing: antialiased; }
+h1 { font-size: 15px; font-weight: 700; letter-spacing: .03em; color: var(--text);
+  margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+h1 .dotgrid { width: 3px; height: 16px; background: var(--accent); border-radius: 2px;
+  box-shadow: 0 0 8px var(--accent-glow); }
+h2 { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--dim); margin: 24px 0 10px; cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 8px; }
+h2::before { content: '\25BE'; font-size: 9px; color: var(--accent); transition: transform .15s; }
+h2.collapsed::before { content: '\25B8'; }
+.banner { background: linear-gradient(180deg,var(--surface-2),var(--bg2));
+  border: 1px solid var(--border); border-radius: 14px; padding: 40px 24px; text-align: center;
+  color: var(--dim); margin: 24px 0; font-size: 13px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill,minmax(148px,1fr));
+  gap: 12px; margin: 14px 0 4px; }
+.card { background: linear-gradient(180deg,var(--surface-2),var(--bg2));
+  border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; position: relative;
+  overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.35); }
+.card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg,var(--accent),transparent); opacity: .7; }
+.card .num { font-size: 26px; font-weight: 700; font-family: var(--mono);
+  font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -.01em; }
+.card .label { color: var(--dim); font-size: 10px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; margin-top: 3px; }
+.card .label + .label { color: var(--fg-dim); font-weight: 500; text-transform: none;
+  letter-spacing: 0; margin-top: 4px; }
+.tablewrap { background: linear-gradient(180deg,var(--surface-2),var(--bg2));
+  border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0,0,0,.35); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; color: var(--dim); font-size: 10px; font-weight: 600; letter-spacing: .07em;
+  text-transform: uppercase; padding: 9px 12px; background: rgba(255,255,255,.015);
+  border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; white-space: nowrap;
+  position: sticky; top: 0; }
 th:hover { color: var(--accent); }
-td { padding: 6px 8px; border-bottom: 1px solid var(--bg3); max-width: 400px;
-  word-break: break-word; cursor: default; vertical-align: top; }
+td { padding: 8px 12px; border-bottom: 1px solid var(--border); max-width: 420px;
+  word-break: break-word; cursor: default; vertical-align: top; font-size: 12.5px;
+  font-family: var(--mono); color: var(--dim); }
+tr:last-child td { border-bottom: none; }
 td .cell { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
   overflow: hidden; }
-tr:hover td { background: var(--bg2); }
-.badge { display: inline-block; padding: 1px 6px; border-radius: 3px;
-  font-size: 11px; font-weight: 600; }
-.sev-critical { background: var(--purple); color: #000; }
-.sev-high { background: var(--red); color: #000; }
-.sev-medium { background: var(--yellow); color: #000; }
-.sev-low { background: var(--blue); color: #000; }
-.sev-info { background: var(--gray); color: #000; }
-.status-active { color: var(--green); }
-.status-revoked, .status-down, .status-closed { color: var(--dim); text-decoration: line-through; }
-.status-actioned { color: var(--green); }
+tbody tr:hover td { background: rgba(255,255,255,.025); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+  border: 1px solid transparent; }
+.sev-critical { background: rgba(163,113,247,.15); color: #c9a9ff; border-color: rgba(163,113,247,.45); }
+.sev-high { background: rgba(248,81,73,.14); color: #ff8984; border-color: rgba(248,81,73,.45); }
+.sev-medium { background: rgba(214,165,51,.14); color: #e3bd63; border-color: rgba(214,165,51,.45); }
+.sev-low { background: rgba(79,140,255,.14); color: var(--accent-2); border-color: rgba(79,140,255,.45); }
+.sev-info { background: rgba(107,118,130,.16); color: var(--dim); border-color: rgba(107,118,130,.4); }
+.status-active { color: var(--green); font-weight: 600; }
+.status-revoked, .status-down, .status-closed { color: var(--fg-dim); text-decoration: line-through; }
+.status-actioned { color: var(--green); font-weight: 600; }
 .status-identified { color: var(--yellow); }
 .status-blocked { color: var(--red); }
-.filter-bar { margin: 12px 0; }
-.filter-bar input { background: var(--bg2); border: 1px solid var(--border);
-  border-radius: 4px; padding: 6px 10px; color: var(--text); width: 300px; font-family: inherit; }
-.section { margin-bottom: 8px; }
+.filter-bar { margin: 18px 0 14px; display: flex; align-items: center; gap: 10px; }
+.filter-bar input { background: var(--bg2); border: 1px solid var(--border-strong);
+  border-radius: 9px; padding: 9px 13px; color: var(--text); width: 340px; max-width: 60vw;
+  font-family: var(--ui); font-size: 13px; outline: none; transition: border-color .15s,box-shadow .15s; }
+.filter-bar input::placeholder { color: var(--fg-dim); }
+.filter-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.section { margin-bottom: 14px; }
 .section-body { overflow-x: auto; }
 .section-body.hidden { display: none; }
-.conn-status { font-size: 11px; padding: 2px 8px; border-radius: 3px; float: right; }
-.conn-ok { background: var(--green); color: #000; }
-.conn-err { background: var(--red); color: #fff; }
+.conn-status { font-size: 10px; font-weight: 600; letter-spacing: .03em; padding: 3px 10px;
+  border-radius: 999px; border: 1px solid var(--border-strong); display: inline-flex;
+  align-items: center; gap: 6px; margin-left: auto; text-transform: none; }
+.conn-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--fg-dim); }
+.conn-ok { color: var(--green); border-color: rgba(63,185,80,.5); background: rgba(63,185,80,.08); }
+.conn-ok::before { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.conn-err { color: var(--red); border-color: rgba(248,81,73,.5); background: rgba(248,81,73,.08); }
+.conn-err::before { background: var(--red); box-shadow: 0 0 6px var(--red); }
 /* Access chain graph — Host Card Topology */
-#graph-container { background: var(--bg2); border: 1px solid var(--border);
-  border-radius: 6px; overflow: hidden; min-height: 200px; margin: 12px 0; position: relative;
-  cursor: grab; }
+#graph-container { background: radial-gradient(1000px 500px at 30% -20%,rgba(79,140,255,.05),transparent 70%), var(--bg2);
+  border: 1px solid var(--border); border-radius: 12px; overflow: hidden; min-height: 220px;
+  margin: 4px 0; position: relative; cursor: grab; box-shadow: 0 1px 2px rgba(0,0,0,.35); }
 #graph-container.fullscreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0;
   z-index: 100; margin: 0; border-radius: 0; border: none; min-height: unset; }
 #graph-container.fullscreen svg { height: 100% !important; }
-.graph-expand-btn { position: absolute; top: 6px; right: 6px; z-index: 6;
-  background: var(--bg3); color: var(--dim); border: 1px solid var(--border);
-  border-radius: 4px; padding: 3px 8px; font-family: inherit; font-size: 11px;
-  cursor: pointer; }
+.graph-expand-btn { position: absolute; top: 8px; right: 8px; z-index: 6;
+  background: var(--surface-2); color: var(--dim); border: 1px solid var(--border-strong);
+  border-radius: 8px; padding: 5px 9px; font-family: var(--ui); font-size: 12px;
+  cursor: pointer; transition: color .15s,border-color .15s; }
 .graph-expand-btn:hover { color: var(--accent); border-color: var(--accent); }
 #graph-container.panning { cursor: grabbing; }
 #graph-container svg { display: block; user-select: none; -webkit-user-select: none; }
 .flow-node { cursor: default; }
-.flow-action { rx: 8; ry: 8; stroke-width: 2; }
+.flow-action { rx: 9; ry: 9; stroke-width: 2; }
 .flow-asset { rx: 14; ry: 14; stroke-width: 1.5; }
-.flow-action-header { font-size: 10px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+.flow-action-header { font-size: 10px; text-transform: uppercase; font-weight: 700;
+  letter-spacing: 0.5px; font-family: var(--ui); }
 .flow-node-title { font-size: 11px; font-weight: 600; }
 .flow-node-detail { font-size: 10px; }
 .flow-edge { fill: none; stroke-width: 2; marker-end: url(#flow-arrow); }
 .flow-edge-active { stroke: #3fb950; }
-.flow-edge-pending { stroke: #e3b341; stroke-dasharray: 6 3; }
+.flow-edge-pending { stroke: #d6a533; stroke-dasharray: 6 3; }
 .flow-edge-blocked { stroke: #f85149; stroke-dasharray: 6 3; }
-.graph-legend { position: absolute; bottom: 6px; left: 6px; right: 6px;
-  background: var(--bg2); border-top: 1px solid var(--border); padding: 4px 8px;
-  font-size: 10px; color: var(--text); display: flex; gap: 8px; align-items: center;
-  flex-wrap: wrap; z-index: 5; pointer-events: none; }
-.graph-legend .legend-dim { color: var(--dim); font-weight: 600; }
-.graph-legend .legend-item { display: inline-flex; align-items: center; gap: 4px; }
-.tooltip { position: fixed; background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 4px; padding: 6px 10px; font-size: 11px; pointer-events: none;
-  display: none; z-index: 10; max-width: 300px; white-space: pre-wrap; }
-.refresh-btn { background: var(--bg3); color: var(--dim); border: 1px solid var(--border);
-  border-radius: 4px; padding: 3px 10px; font-family: inherit; font-size: 11px;
-  cursor: pointer; vertical-align: middle; }
+.graph-legend { position: absolute; bottom: 8px; left: 8px; right: 8px;
+  background: rgba(17,21,27,.82); backdrop-filter: blur(6px); border: 1px solid var(--border);
+  border-radius: 9px; padding: 6px 10px; font-size: 10px; color: var(--text); display: flex;
+  gap: 12px; align-items: center; flex-wrap: wrap; z-index: 5; pointer-events: none; }
+.graph-legend .legend-dim { color: var(--fg-dim); font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; font-family: var(--ui); }
+.graph-legend .legend-item { display: inline-flex; align-items: center; gap: 5px; font-family: var(--ui); }
+.tooltip { position: fixed; background: var(--surface-2); border: 1px solid var(--border-strong);
+  border-radius: 9px; padding: 8px 11px; font-size: 11px; pointer-events: none; font-family: var(--mono);
+  display: none; z-index: 10; max-width: 320px; white-space: pre-wrap; color: var(--text);
+  box-shadow: 0 8px 28px rgba(0,0,0,.5); }
+.refresh-btn { background: var(--surface-2); color: var(--dim); border: 1px solid var(--border-strong);
+  border-radius: 8px; padding: 4px 11px; font-family: var(--ui); font-size: 11px; font-weight: 500;
+  cursor: pointer; vertical-align: middle; transition: color .15s,border-color .15s; }
 .refresh-btn:hover { color: var(--accent); border-color: var(--accent); }
 </style>
 </head>
 <body>
-<h1>PEN-AGENT state viewer <span class="conn-status conn-ok" id="conn">connected</span></h1>
+<h1><span class="dotgrid"></span>Engagement Status<span class="conn-status conn-ok" id="conn">connected</span></h1>
 <div id="banner" class="banner" style="display:none">Waiting for engagement...</div>
 
 <div id="content" style="display:none">
@@ -255,7 +292,7 @@ function renderTables() {
     html += `<div class="section" id="section-${def.id}">`;
     html += `<h2 onclick="toggleSection('${def.id}')" class="${collapsed?'collapsed':''}">${def.title} (${rows.length})</h2>`;
     html += `<div class="section-body${collapsed?' hidden':''}">`;
-    html += '<table><thead><tr>';
+    html += '<div class="tablewrap"><table><thead><tr>';
     for (const col of def.cols) {
       const arrow = ss && ss.col === col ? (ss.asc ? ' \u25B4' : ' \u25BE') : '';
       html += `<th onclick="sortTable('${def.id}','${col}')">${col}${arrow}</th>`;
@@ -272,8 +309,8 @@ function renderTables() {
       }
       html += '</tr>';
     }
-    if (!rows.length) html += `<tr><td colspan="${def.cols.length}" style="color:var(--dim);text-align:center">No data</td></tr>`;
-    html += '</tbody></table></div></div>';
+    if (!rows.length) html += `<tr><td colspan="${def.cols.length}" style="color:var(--fg-dim);text-align:center">No data</td></tr>`;
+    html += '</tbody></table></div></div></div>';
   }
   container.innerHTML = html;
 }
@@ -341,7 +378,7 @@ function renderFlowGraph() {
   const svg = document.getElementById('graph');
   const container = document.getElementById('graph-container');
   if (!state || (!state.access.length && !state.credentials.length && !state.vulns.length)) {
-    svg.innerHTML = '<text x="50%" y="50" text-anchor="middle" fill="#8b949e" font-size="13">No chain data — provenance links (via_credential_id, via_access_id) needed</text>';
+    svg.innerHTML = '<text x="50%" y="50" text-anchor="middle" fill="#6b7682" font-size="13">No chain data — provenance links (via_credential_id, via_access_id) needed</text>';
     svg.setAttribute('width', container.clientWidth);
     svg.setAttribute('height', 100);
     return;
@@ -368,7 +405,7 @@ function renderFlowGraph() {
       hostLabel: host,
       detail: `${a.username}@${host} [${a.access_type}, ${a.privilege}]\n${a.method}`,
       borderColor: a.active ? '#3fb950' : '#f85149',
-      headerColor: '#1f6feb',
+      headerColor: '#2f6fe3',
       headerText: a.access_type.toUpperCase(),
       chain_order: a.chain_order || 0,
     };
@@ -417,7 +454,7 @@ function renderFlowGraph() {
   // Found vulns render as asset-style (finding). Exploited vulns render as
   // action-style (the vuln IS the technique). Both use the same `vuln:N` id,
   // so provenance edges (via_vuln_id) connect without special routing.
-  const sevColors = { critical: '#bc8cff', high: '#f85149', medium: '#d29922', low: '#8b949e' };
+  const sevColors = { critical: '#a371f7', high: '#f85149', medium: '#d6a533', low: '#8b949e' };
   // Collect flag vulns to render as badges on the node that produced them.
   // via_vuln_id → attach to the vuln that captured the flag (end of chain).
   // via_access_id → attach to the access node (fallback).
@@ -444,8 +481,8 @@ function renderFlowGraph() {
         sublabel: v.vuln_type || '',
         hostLabel: v.ip || '',
         detail: `Actioned: ${v.title}\n${v.severity}${v.vuln_type ? '\ntype: ' + v.vuln_type : ''}${v.details ? '\n' + v.details : ''}`,
-        borderColor: '#58a6ff',
-        headerColor: '#1f6feb',
+        borderColor: '#4f8cff',
+        headerColor: '#2f6fe3',
         headerText: 'ACTIONED',
         chain_order: v.chain_order || 0,
       };
@@ -481,7 +518,7 @@ function renderFlowGraph() {
       label: actionLabel, sublabel: '', hostLabel: '',
       detail: actionLabel,
       borderColor: color,
-      headerColor: color === '#3fb950' ? '#238636' : color === '#58a6ff' ? '#1f6feb' : '#d29922',
+      headerColor: color === '#3fb950' ? '#238636' : color === '#4f8cff' ? '#2f6fe3' : '#d6a533',
       headerText: 'ACTION',
       chain_order: dstCol,  // same column as the asset it produces
     };
@@ -553,12 +590,12 @@ function renderFlowGraph() {
       credEdgeSeen.add(edgeKey);
       if (ivuln && nodeById[ivuln]) {
         // Actioned vuln is already an action node — direct edge to credential
-        edges.push({ from: sourceId, to: credDst, color: '#58a6ff' });
+        edges.push({ from: sourceId, to: credDst, color: '#4f8cff' });
       } else {
         // No intermediate vuln — insert synthetic action between access and credential
         const srcNode = nodeById[sourceId];
         const dstNode = nodeById[credDst];
-        insertAction(sourceId, credDst, actionLabel, '#58a6ff',
+        insertAction(sourceId, credDst, actionLabel, '#4f8cff',
           srcNode.chain_order, dstNode.chain_order);
       }
     }
@@ -571,7 +608,7 @@ function renderFlowGraph() {
       const srcVuln = state.vulns.find(v => v.id === c.via_vuln_id);
       if (srcVuln && srcVuln.status === 'actioned') {
         // Actioned vuln is already an action node — direct edge to credential
-        edges.push({ from: vulnSrc, to: credDst, color: '#58a6ff' });
+        edges.push({ from: vulnSrc, to: credDst, color: '#4f8cff' });
       } else {
         // Found vuln (asset) still needs a synthetic action between vuln and credential
         const src = (c.source || '').toLowerCase();
@@ -583,7 +620,7 @@ function renderFlowGraph() {
         else if (/config|env|backup/.test(src)) vulnActionLabel = 'Credential Discovery';
         const srcNode = nodeById[vulnSrc];
         const dstNode = nodeById[credDst];
-        insertAction(vulnSrc, credDst, vulnActionLabel, '#58a6ff',
+        insertAction(vulnSrc, credDst, vulnActionLabel, '#4f8cff',
           srcNode.chain_order, dstNode.chain_order);
       }
     }
@@ -797,7 +834,7 @@ function renderFlowGraph() {
   for (const n of nodes) {
     svgHtml += `<g class="flow-node">`;
     // Background rect
-    const bgFill = '#0d1117';
+    const bgFill = '#161b22';
     const nh = n.h || NODE_H;
     svgHtml += `<rect class="${n.type === 'action' ? 'flow-action' : 'flow-asset'}" x="${n.x}" y="${n.y}" width="${NODE_W}" height="${nh}" fill="${bgFill}" stroke="${n.borderColor}"/>`;
     // Header bar
@@ -809,8 +846,8 @@ function renderFlowGraph() {
     const detailAttr = escAttr(n.detail);
     svgHtml += `<foreignObject x="${n.x + 6}" y="${n.y + 20}" width="${NODE_W - 12}" height="${nh - 24}" data-detail="${detailAttr}" onmouseenter="showTip(event)" onmouseleave="hideTip()">`;
     svgHtml += `<div xmlns="http://www.w3.org/1999/xhtml" style="font-family:inherit;">`;
-    svgHtml += `<div style="font-size:11px;font-weight:600;color:#c9d1d9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(n.label)}</div>`;
-    svgHtml += `<div style="font-size:10px;color:#8b949e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(n.sublabel)}</div>`;
+    svgHtml += `<div style="font-size:11px;font-weight:600;color:#e6edf3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(n.label)}</div>`;
+    svgHtml += `<div style="font-size:10px;color:#9aa5b1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(n.sublabel)}</div>`;
     if (n.flags) {
       for (const f of n.flags) {
         const ft = f.title.replace(/^FLAG:\s*/i, '');
@@ -828,7 +865,7 @@ function renderFlowGraph() {
   legend.innerHTML = [
     '<span class="legend-dim">NODES</span>',
     '<span class="legend-item"><svg width="12" height="12"><rect width="12" height="12" rx="3" fill="none" stroke="#3fb950" stroke-width="2"/></svg>Access</span>',
-    '<span class="legend-item"><svg width="12" height="12"><rect width="12" height="12" rx="3" fill="none" stroke="#1f6feb" stroke-width="2"/></svg>Action</span>',
+    '<span class="legend-item"><svg width="12" height="12"><rect width="12" height="12" rx="3" fill="none" stroke="#2f6fe3" stroke-width="2"/></svg>Action</span>',
     '<span class="legend-item"><svg width="12" height="12"><rect width="12" height="12" rx="6" fill="none" stroke="#8b949e" stroke-width="1.5"/></svg>Credential</span>',
     '<span class="legend-item"><svg width="12" height="12"><rect width="12" height="12" rx="8" fill="#1a5c28" stroke="#3fb950" stroke-width="1"/></svg>Flag</span>',
   ].join('');

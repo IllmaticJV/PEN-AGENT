@@ -3,28 +3,45 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Objective &amp; Scope</title>
 <style>
-:root{--bg:#0b0d10;--panel:#14181d;--border:#2a2f37;--fg:#c9d1d9;--dim:#6e7681;
-      --accent:#8ab4f8;--green:#3fb950;--amber:#d29922}
+:root{
+  --bg:#0a0c10;--surface:#11151b;--surface-2:#161b22;--surface-3:#1c222b;
+  --border:#222935;--border-strong:#2f3744;
+  --fg:#e6edf3;--fg-muted:#9aa5b1;--fg-dim:#6b7682;
+  --accent:#4f8cff;--accent-2:#7aa7ff;--accent-glow:rgba(79,140,255,.16);
+  --green:#3fb950;--amber:#d6a533;
+  --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);
-     font-family:ui-monospace,Menlo,Consolas,monospace;padding:18px;line-height:1.5}
-h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);
-   margin:22px 0 8px;border-bottom:1px solid var(--border);padding-bottom:4px}
-.meta{display:flex;flex-wrap:wrap;gap:10px 22px;font-size:13px}
-.meta b{color:var(--accent);font-weight:600}
-.pill{display:inline-block;font-size:12px;padding:2px 9px;margin:3px 5px 0 0;border-radius:10px;
-      border:1px solid var(--border);color:var(--fg)}
-.status-active{color:var(--green);border-color:var(--green)}
-.status-closed{color:var(--amber);border-color:var(--amber)}
-#allow .pill{border-color:var(--green);color:var(--green)}
-pre{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;
-    white-space:pre-wrap;word-break:break-word;font-size:13px;margin:0}
-.empty{color:var(--dim);font-size:13px}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--ui);
+     padding:24px 26px 40px;line-height:1.55;-webkit-font-smoothing:antialiased;
+     max-width:1100px}
+h2{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-dim);font-weight:600;
+   margin:28px 0 12px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:3px;height:13px;background:var(--accent);border-radius:2px;
+   box-shadow:0 0 8px var(--accent-glow)}
+.card{background:linear-gradient(180deg,var(--surface-2),var(--surface));
+   border:1px solid var(--border);border-radius:14px;padding:18px 20px;
+   box-shadow:0 1px 2px rgba(0,0,0,.35)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px 24px}
+.meta .kv{display:flex;flex-direction:column;gap:3px}
+.meta .k{font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--fg-dim)}
+.meta .v{font-size:15px;font-weight:600;color:var(--fg);font-family:var(--mono)}
+.pill{display:inline-flex;align-items:center;font-size:12px;font-weight:600;padding:4px 11px;
+      margin:4px 6px 0 0;border-radius:999px;border:1px solid var(--border-strong);color:var(--fg-muted);
+      font-family:var(--mono);background:var(--surface-3)}
+.status-active{color:var(--green);border-color:rgba(63,185,80,.5);background:rgba(63,185,80,.1)}
+.status-closed{color:var(--amber);border-color:rgba(214,165,51,.5);background:rgba(214,165,51,.1)}
+#allow .pill{border-color:rgba(63,185,80,.45);color:var(--green);background:rgba(63,185,80,.08)}
+pre{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;
+    white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.6;margin:0;
+    font-family:var(--mono);color:var(--fg-muted);box-shadow:0 1px 2px rgba(0,0,0,.35)}
+.empty{color:var(--fg-dim);font-size:12px;font-weight:400;text-transform:none;letter-spacing:0}
 </style></head>
 <body>
-<div class="meta" id="meta"></div>
+<div class="card"><div class="meta" id="meta"></div></div>
 
-<h2>In-scope allowlist <span class="empty" id="allow-note"></span></h2>
+<h2>In&#8209;scope allowlist <span class="empty" id="allow-note"></span></h2>
 <div id="allow"></div>
 
 <h2>Objective &amp; rules of engagement <span class="empty">(engagement/scope.md)</span></h2>
@@ -38,10 +55,10 @@ function render(d){
   if (e) {
     const st = (e.status||'').toLowerCase();
     meta.innerHTML =
-      `<span><b>Engagement</b> ${esc(e.name)||'(unnamed)'}</span>`
-      + `<span><b>Mode</b> ${esc(e.mode)}</span>`
-      + `<span><b>Status</b> <span class="pill status-${esc(st)}">${esc(e.status)}</span></span>`
-      + `<span><b>Started</b> ${esc(e.created_at)}</span>`;
+      `<div class="kv"><span class="k">Engagement</span><span class="v">${esc(e.name)||'(unnamed)'}</span></div>`
+      + `<div class="kv"><span class="k">Mode</span><span class="v">${esc(e.mode)}</span></div>`
+      + `<div class="kv"><span class="k">Status</span><span><span class="pill status-${esc(st)}">${esc(e.status)}</span></span></div>`
+      + `<div class="kv"><span class="k">Started</span><span class="v">${esc(e.created_at)}</span></div>`;
   } else {
     meta.innerHTML = '<span class="empty">No engagement initialized yet.</span>';
   }

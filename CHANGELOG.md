@@ -3,6 +3,25 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-05
+
+### Changed
+
+- **Operator portal redesign — commercial-grade UI.** All five portal
+  templates (`operator/portal/templates/{portal,login,scope,status,msf}.html`)
+  were restyled into one cohesive design system: a branded header with a shield
+  logo mark, wordmark and underline nav; a refined dark palette with elevation
+  layers, soft shadows and a single accent; UI sans-serif for chrome with
+  monospace reserved for data/IPs/logs; stat tiles with accent bars and
+  tabular-nums figures; rounded card-wrapped tables with sticky headers and
+  pill-style severity badges; a frosted-glass legend and elevated nodes on the
+  access-chain graph; and polished login/token, status, and C2/MSF-log pages.
+  The design is fully self-contained (no external font/CDN dependencies, so it
+  works on isolated operator networks). No behavioral change — every API/SSE
+  endpoint, the iframe-tab architecture, token auth, and all JS data contracts
+  are preserved; the graph's hardcoded node/edge colors were aligned to the new
+  palette.
+
 ## 2026-10-04
 
 ### Changed

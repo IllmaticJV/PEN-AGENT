@@ -2,38 +2,70 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>PEN-AGENT state viewer - login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PEN-AGENT &middot; Sign in</title>
 <style>
-:root { --bg: #0d1117; --bg2: #161b22; --border: #30363d; --text: #c9d1d9;
-  --dim: #8b949e; --accent: #58a6ff; --red: #f85149; }
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-  font-size: 13px; background: var(--bg); color: var(--text);
-  display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-.login-box { background: var(--bg2); border: 1px solid var(--border);
-  border-radius: 8px; padding: 32px; width: 400px; }
-h1 { font-size: 16px; color: var(--accent); margin-bottom: 16px; }
-label { display: block; color: var(--dim); font-size: 11px;
-  text-transform: uppercase; margin-bottom: 6px; }
-input[type="password"] { width: 100%; background: var(--bg); border: 1px solid var(--border);
-  border-radius: 4px; padding: 8px 10px; color: var(--text); font-family: inherit;
-  font-size: 13px; margin-bottom: 16px; }
-button { background: var(--accent); color: #000; border: none; border-radius: 4px;
-  padding: 8px 20px; font-family: inherit; font-size: 13px; cursor: pointer;
-  font-weight: 600; }
-button:hover { opacity: 0.9; }
-.error { color: var(--red); font-size: 12px; margin-bottom: 12px; display: none; }
+:root{
+  --bg:#0a0c10;--surface:#11151b;--surface-2:#161b22;--surface-3:#1c222b;
+  --border:#222935;--border-strong:#2f3744;
+  --fg:#e6edf3;--fg-muted:#9aa5b1;--fg-dim:#6b7682;
+  --accent:#4f8cff;--accent-2:#7aa7ff;--accent-glow:rgba(79,140,255,.16);
+  --red:#f85149;
+  --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--ui);background:var(--bg);color:var(--fg);min-height:100vh;
+     display:flex;justify-content:center;align-items:center;padding:20px;
+     -webkit-font-smoothing:antialiased;
+     background-image:radial-gradient(1200px 600px at 50% -10%,rgba(79,140,255,.07),transparent 70%)}
+.login-box{background:linear-gradient(180deg,var(--surface-2),var(--surface));
+  border:1px solid var(--border);border-radius:16px;padding:34px 32px 30px;width:100%;max-width:400px;
+  box-shadow:0 1px 2px rgba(0,0,0,.5),0 24px 60px rgba(0,0,0,.45)}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.brand .mark{width:38px;height:38px;flex-shrink:0;filter:drop-shadow(0 0 10px var(--accent-glow))}
+.brand .name{font-size:17px;font-weight:700;letter-spacing:.03em}
+.brand .name b{color:var(--accent)}
+.brand .sub{font-size:10px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--fg-dim);margin-top:2px}
+label{display:block;color:var(--fg-muted);font-size:11px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+input[type="password"]{width:100%;background:var(--bg);border:1px solid var(--border-strong);
+  border-radius:9px;padding:11px 13px;color:var(--fg);font-family:var(--mono);
+  font-size:13px;margin-bottom:18px;transition:border-color .15s,box-shadow .15s;outline:none}
+input[type="password"]:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+button{width:100%;background:var(--accent);color:#061021;border:none;border-radius:9px;
+  padding:11px 20px;font-family:var(--ui);font-size:13px;cursor:pointer;font-weight:700;
+  letter-spacing:.02em;transition:filter .15s,transform .05s}
+button:hover{filter:brightness(1.08)}
+button:active{transform:translateY(1px)}
+.error{color:var(--red);font-size:12px;font-weight:500;margin-bottom:14px;display:none;
+  background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);
+  border-radius:8px;padding:8px 11px}
+.foot{margin-top:18px;font-size:11px;color:var(--fg-dim);text-align:center;letter-spacing:.03em}
 </style>
 </head>
 <body>
 <div class="login-box">
-  <h1>PEN-AGENT state viewer</h1>
-  <div class="error" id="error">Invalid token</div>
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M16 2.5 27 7v9.2c0 7-4.7 11.6-11 13.3C9.7 27.8 5 23.2 5 16.2V7l11-4.5Z"
+            fill="var(--accent-glow)" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M12 13.3 15.6 16 12 18.7M17 19h4" stroke="var(--accent-2)" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div>
+      <div class="name">PEN&#8209;<b>AGENT</b></div>
+      <div class="sub">Operator Console</div>
+    </div>
+  </div>
+  <div class="error" id="error">Invalid token &mdash; please try again</div>
   <form method="POST" action="/login">
     <label for="token">Authentication Token</label>
-    <input type="password" id="token" name="token" placeholder="Paste token here..." autofocus>
-    <button type="submit">Authenticate</button>
+    <input type="password" id="token" name="token" placeholder="Paste operator token&hellip;" autofocus>
+    <button type="submit">Sign in</button>
   </form>
+  <div class="foot">Read&#8209;only engagement portal</div>
 </div>
 <script>
 if (location.search.includes('fail=1')) document.getElementById('error').style.display='block';
