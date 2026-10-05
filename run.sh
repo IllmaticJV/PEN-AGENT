@@ -5,6 +5,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 PORT="${SHELL_SSE_PORT:-8022}"
+# Where generate-token.sh writes the portal token (must match server.py's path).
+TOKEN_FILE="${HOME}/.config/pen-agent/viewer-token"
 
 # Parse run.sh-specific flags, pass the rest to claude
 CLEAN_START=0
@@ -162,6 +164,50 @@ start_portal() {
     echo "[portal] started in tmux '${sess}' → http://127.0.0.1:${pport}  (attach: tmux attach -t ${sess})"
 }
 start_portal
+
+# `exec claude` launches a full-screen TUI that hides this startup scrollback —
+# including the portal URL and operator token. Persist the access details to a
+# file the operator can read at any time (e.g. from a second terminal, or by
+# asking Claude to `cat` it), and print them as the LAST thing before Claude so
+# they reappear the moment the TUI exits.
+write_access_summary() {
+    local pport="${PORTAL_PORT:-8099}"
+    local out_dir="${HOME}/.config/pen-agent"
+    local out="${out_dir}/portal-access.txt"
+    mkdir -p "$out_dir" 2>/dev/null || true
+    {
+        echo "PEN-AGENT — operator portal access"
+        echo "generated: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo
+        if [[ -s "$TOKEN_FILE" ]]; then
+            local host_ip; host_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+            echo "Portal (token required):"
+            echo "  local:   http://127.0.0.1:${pport}"
+            [[ -n "$host_ip" ]] && echo "  remote:  http://${host_ip}:${pport}"
+            echo "  token:   $(cat "$TOKEN_FILE")"
+        else
+            echo "Portal (localhost-only, no auth):"
+            echo "  http://127.0.0.1:${pport}"
+            echo "  (run 'bash operator/portal/generate-token.sh' for remote access + a token)"
+        fi
+        echo
+        echo "Attach to the live consoles:"
+        echo "  portal → tmux attach -t ${PEN_AGENT_PORTAL_TMUX:-pen-portal}"
+        command -v msfconsole &>/dev/null \
+            && echo "  msf    → tmux attach -t ${PEN_AGENT_MSF_TMUX:-pen-msf}"
+    } > "$out" 2>/dev/null || true
+    chmod 600 "$out" 2>/dev/null || true
+
+    echo
+    echo "────────────────────────────────────────────────────────────"
+    cat "$out" 2>/dev/null || true
+    echo
+    echo "  Saved to ${out}"
+    echo "  Lost it after Claude starts?  cat ${out}"
+    echo "────────────────────────────────────────────────────────────"
+    echo
+}
+write_access_summary
 
 exec claude "${claude_args[@]}" \
     --append-system-prompt "On activation, immediately invoke the skill: ${skill}"

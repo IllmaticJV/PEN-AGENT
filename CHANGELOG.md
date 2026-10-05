@@ -5,6 +5,16 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Added
+
+- **`run.sh` persists portal access details past the Claude TUI.** `run.sh`
+  ends with `exec claude`, whose full-screen TUI hides the startup scrollback —
+  including the operator portal URL and token. Before launching Claude it now
+  writes the portal URL, token (when one exists), and tmux attach commands to
+  `~/.config/pen-agent/portal-access.txt` (mode `600`, same as the token file)
+  and prints the same block as the last output before the TUI. Recover it any
+  time with `cat ~/.config/pen-agent/portal-access.txt`.
+
 ### Changed
 
 - **Operator portal redesign — commercial-grade UI.** All five portal
