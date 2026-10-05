@@ -49,6 +49,7 @@ _SESSION_LOG_DIR = _PROJECT_ROOT / "engagement" / "evidence" / "msf-sessions"
 _MODULE_LOG_DIR = _PROJECT_ROOT / "engagement" / "evidence" / "msf-modules"
 _CONSOLE_SPOOL = _PROJECT_ROOT / "engagement" / "evidence" / "msf-console.log"
 _OPERATOR_SESSIONS = _PROJECT_ROOT / "engagement" / "operator-sessions.json"
+_OBJECTIVES_JSON = _PROJECT_ROOT / "engagement" / "objectives.json"
 _TOKEN_FILE = Path.home() / ".config" / "pen-agent" / "viewer-token"
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 _SESSION_MAX_AGE = 86400  # 24h
@@ -145,6 +146,83 @@ def _build_scope() -> dict:
         finally:
             conn.close()
     return {"scope_md": scope_md, "scope_allow": allow, "engagement": engagement}
+
+
+def _build_objectives() -> dict:
+    """Return objectives.json merged with a live re-parse of scope.md so the
+    portal can show NEW objectives the operator just added before the lead
+    has re-run init_objectives. Status/note come from objectives.json;
+    anything only in scope.md shows up as status=pending with a flag."""
+    import sys as _sys
+    _parser_dir = _PROJECT_ROOT / "tools" / "objectives"
+    if str(_parser_dir) not in _sys.path:
+        _sys.path.insert(0, str(_parser_dir))
+    try:
+        import parse_scope  # type: ignore
+    except Exception:
+        parse_scope = None
+
+    stored = {"objectives": [], "parsed_at": None}
+    try:
+        if _OBJECTIVES_JSON.exists():
+            data = json.loads(_OBJECTIVES_JSON.read_text(errors="replace"))
+            if isinstance(data, dict) and isinstance(data.get("objectives"), list):
+                stored = data
+    except (OSError, json.JSONDecodeError):
+        pass
+
+    live = []
+    if parse_scope is not None and _SCOPE_MD.exists():
+        try:
+            live = parse_scope.parse_file(_SCOPE_MD)
+        except Exception:
+            live = []
+
+    stored_by_id = {int(o.get("id", -1)): o for o in stored["objectives"]}
+    merged = []
+    unsynced = False
+    if live:
+        for item in live:
+            s = stored_by_id.get(int(item["id"]))
+            if s:
+                merged.append({
+                    "id": item["id"],
+                    "text": item["text"],
+                    "status": s.get("status", "pending"),
+                    "note": s.get("note", ""),
+                    "updated_at": s.get("updated_at", ""),
+                    "unsynced": s.get("text") != item["text"],
+                })
+                if s.get("text") != item["text"]:
+                    unsynced = True
+            else:
+                merged.append({
+                    "id": item["id"], "text": item["text"],
+                    "status": "pending", "note": "", "updated_at": "",
+                    "unsynced": True,
+                })
+                unsynced = True
+        if len(stored["objectives"]) > len(live):
+            unsynced = True
+    else:
+        merged = stored["objectives"]
+
+    counts = {"pending": 0, "in_progress": 0, "done": 0,
+              "blocked": 0, "skipped": 0}
+    for o in merged:
+        counts[o.get("status", "pending")] = counts.get(o.get("status", "pending"), 0) + 1
+    total = len(merged)
+    completed = counts["done"]
+    percent = int(round(100 * completed / total)) if total else 0
+    return {
+        "objectives": merged,
+        "counts": counts,
+        "total": total,
+        "completed": completed,
+        "percent": percent,
+        "parsed_at": stored.get("parsed_at"),
+        "unsynced": unsynced,
+    }
 
 
 # ── State (state.db, read-only) ──────────────────────────────────────────────
@@ -461,8 +539,10 @@ PORTAL_HTML = _load_template("portal.html")
 SCOPE_HTML = _load_template("scope.html")
 STATUS_HTML = _load_template("status.html")
 MSF_HTML = _load_template("msf.html")
+OBJECTIVES_HTML = _load_template("objectives.html")
 
-_PAGES = {"/": PORTAL_HTML, "/scope": SCOPE_HTML, "/status": STATUS_HTML, "/msf": MSF_HTML}
+_PAGES = {"/": PORTAL_HTML, "/scope": SCOPE_HTML, "/status": STATUS_HTML,
+          "/msf": MSF_HTML, "/objectives": OBJECTIVES_HTML}
 
 
 # ── HTTP handler ─────────────────────────────────────────────────────────────
@@ -536,6 +616,8 @@ class Handler(BaseHTTPRequestHandler):
             self._html(_PAGES[path])
         elif path == "/api/scope":
             self._json(_build_scope())
+        elif path == "/api/objectives":
+            self._json(_build_objectives())
         elif path == "/api/state":
             self._json(_build_state(self.db_path))
         elif path == "/api/events":

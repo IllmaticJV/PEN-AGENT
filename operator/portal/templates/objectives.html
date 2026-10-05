@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Objective Tracker</title>
+<style>
+:root{
+  --bg:#0a0c10;--surface:#11151b;--surface-2:#161b22;--surface-3:#1c222b;
+  --border:#222935;--border-strong:#2f3744;
+  --fg:#e6edf3;--fg-muted:#9aa5b1;--fg-dim:#6b7682;
+  --accent:#4f8cff;--accent-2:#7aa7ff;--accent-glow:rgba(79,140,255,.16);
+  --green:#3fb950;--red:#f85149;--amber:#d6a533;--purple:#a371f7;
+  --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--ui);
+     padding:24px 26px 40px;line-height:1.5;-webkit-font-smoothing:antialiased;
+     max-width:1200px}
+h2{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-dim);font-weight:600;
+   margin:28px 0 12px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:3px;height:13px;background:var(--accent);border-radius:2px;
+   box-shadow:0 0 8px var(--accent-glow)}
+
+.summary{background:linear-gradient(180deg,var(--surface-2),var(--surface));
+   border:1px solid var(--border);border-radius:14px;padding:20px 22px;
+   box-shadow:0 1px 2px rgba(0,0,0,.35)}
+.summary .row{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.pct{font-family:var(--mono);font-size:28px;font-weight:700;color:var(--fg);line-height:1}
+.pct small{display:block;font-size:11px;font-weight:500;color:var(--fg-dim);letter-spacing:.09em;
+   text-transform:uppercase;margin-top:4px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
+   padding:4px 10px;border-radius:999px;background:var(--surface-3);
+   border:1px solid var(--border-strong);color:var(--fg-muted);font-family:var(--mono)}
+.chip .n{font-variant-numeric:tabular-nums}
+.chip.done{color:var(--green);border-color:rgba(63,185,80,.5);background:rgba(63,185,80,.1)}
+.chip.in_progress{color:var(--accent);border-color:rgba(79,140,255,.5);background:rgba(79,140,255,.1)}
+.chip.blocked{color:var(--red);border-color:rgba(248,81,73,.5);background:rgba(248,81,73,.1)}
+.chip.skipped{color:var(--purple);border-color:rgba(163,113,247,.5);background:rgba(163,113,247,.1)}
+.chip.pending{color:var(--fg-muted)}
+.bar{margin-top:14px;height:8px;background:var(--surface-3);border:1px solid var(--border);
+   border-radius:6px;overflow:hidden;display:flex}
+.bar span{display:block;height:100%}
+.bar .done{background:var(--green)}
+.bar .in_progress{background:var(--accent)}
+.bar .blocked{background:var(--red)}
+.bar .skipped{background:var(--purple)}
+.synchint{margin-top:12px;font-size:11px;color:var(--amber);font-family:var(--mono)}
+
+.list{display:flex;flex-direction:column;gap:10px}
+.item{display:grid;grid-template-columns:40px 1fr auto;gap:14px;align-items:start;
+   background:linear-gradient(180deg,var(--surface-2),var(--surface));
+   border:1px solid var(--border);border-radius:12px;padding:14px 16px;
+   box-shadow:0 1px 2px rgba(0,0,0,.35);transition:border-color .12s}
+.item:hover{border-color:var(--border-strong)}
+.item.done{border-left:3px solid var(--green)}
+.item.in_progress{border-left:3px solid var(--accent)}
+.item.blocked{border-left:3px solid var(--red)}
+.item.skipped{border-left:3px solid var(--purple)}
+.item.pending{border-left:3px solid var(--border-strong)}
+.idx{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--fg-muted);
+   padding-top:1px;text-align:center}
+.body{min-width:0}
+.text{font-size:14px;color:var(--fg);line-height:1.5;word-wrap:break-word;overflow-wrap:anywhere}
+.item.done .text{color:var(--fg-muted);text-decoration:line-through;text-decoration-color:rgba(63,185,80,.5)}
+.item.skipped .text{color:var(--fg-dim)}
+.note{margin-top:6px;font-size:12px;color:var(--fg-muted);font-family:var(--mono);
+   padding:6px 10px;background:var(--surface-3);border-radius:6px;
+   border-left:2px solid var(--border-strong);word-wrap:break-word;overflow-wrap:anywhere}
+.right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:100px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+   padding:4px 10px;border-radius:6px;font-family:var(--mono);letter-spacing:.03em;
+   text-transform:uppercase;white-space:nowrap}
+.badge.done{color:var(--green);background:rgba(63,185,80,.14);border:1px solid rgba(63,185,80,.4)}
+.badge.in_progress{color:var(--accent);background:rgba(79,140,255,.14);border:1px solid rgba(79,140,255,.4)}
+.badge.blocked{color:var(--red);background:rgba(248,81,73,.14);border:1px solid rgba(248,81,73,.4)}
+.badge.skipped{color:var(--purple);background:rgba(163,113,247,.14);border:1px solid rgba(163,113,247,.4)}
+.badge.pending{color:var(--fg-dim);background:var(--surface-3);border:1px solid var(--border)}
+.ts{font-size:10px;color:var(--fg-dim);font-family:var(--mono)}
+.unsynced{font-size:10px;color:var(--amber);font-family:var(--mono);letter-spacing:.03em;
+   text-transform:uppercase;font-weight:600}
+
+.empty{color:var(--fg-dim);font-size:13px;font-family:var(--mono);padding:16px 0}
+.help{margin-top:18px;font-size:11px;color:var(--fg-dim);font-family:var(--mono);line-height:1.6}
+.help code{background:var(--surface-3);border:1px solid var(--border);border-radius:4px;
+   padding:1px 6px;color:var(--fg-muted)}
+
+@media (max-width:620px){
+  body{padding:16px 14px 32px}
+  .summary{padding:14px 15px}
+  .item{grid-template-columns:30px 1fr;gap:10px;padding:12px 13px}
+  .right{grid-column:2;flex-direction:row;align-items:center;align-self:flex-start;gap:8px}
+  .idx{font-size:14px}
+}
+</style></head>
+<body>
+<div class="summary">
+  <div class="row">
+    <div class="pct"><span id="pct">—</span>%<small>complete</small></div>
+    <div class="chips" id="chips"></div>
+  </div>
+  <div class="bar" id="bar"></div>
+  <div class="synchint" id="synchint" style="display:none"></div>
+</div>
+
+<h2>Objectives <span id="count" class="empty" style="color:var(--fg-dim);font-size:10px"></span></h2>
+<div class="list" id="list"></div>
+
+<div class="help">
+  Progress is updated by the lead orchestrator via
+  <code>mcp__state__update_objective(objective_id=N, status=…, note=…)</code>.
+  Statuses: <code>pending</code> · <code>in_progress</code> · <code>done</code> ·
+  <code>blocked</code> · <code>skipped</code>. The list is re-parsed from
+  <code>engagement/scope.md</code>; status + note persist in
+  <code>engagement/objectives.json</code>.
+</div>
+
+<script>
+const STATUSES = ["done","in_progress","blocked","skipped","pending"];
+function esc(s){return (s??'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+function render(d){
+  const total = d.total || 0;
+  document.getElementById('pct').textContent = total ? d.percent : 0;
+
+  // Chips: one per non-zero status, plus a total.
+  const chips = document.getElementById('chips');
+  const parts = [`<span class="chip"><span class="n">${total}</span>&nbsp;total</span>`];
+  for (const s of STATUSES) {
+    const n = (d.counts && d.counts[s]) || 0;
+    if (n > 0) parts.push(`<span class="chip ${s}"><span class="n">${n}</span>&nbsp;${s.replace('_',' ')}</span>`);
+  }
+  chips.innerHTML = parts.join('');
+
+  // Stacked progress bar.
+  const bar = document.getElementById('bar');
+  if (total > 0) {
+    const seg = (s) => {
+      const n = (d.counts && d.counts[s]) || 0;
+      if (!n) return '';
+      const w = (100 * n / total).toFixed(2);
+      return `<span class="${s}" style="width:${w}%" title="${s}: ${n}"></span>`;
+    };
+    bar.innerHTML = seg('done') + seg('in_progress') + seg('blocked') + seg('skipped');
+    bar.style.display = 'flex';
+  } else {
+    bar.style.display = 'none';
+  }
+
+  // Scope-sync hint.
+  const hint = document.getElementById('synchint');
+  if (d.unsynced) {
+    hint.style.display = 'block';
+    hint.textContent = '⚠ scope.md has objectives not yet synced to objectives.json. Lead: run mcp__state__init_objectives to re-parse.';
+  } else {
+    hint.style.display = 'none';
+  }
+
+  const count = document.getElementById('count');
+  count.textContent = total ? `(${total} total)` : '';
+
+  const list = document.getElementById('list');
+  if (!total) {
+    list.innerHTML = '<div class="empty">No objectives parsed yet. Add an OBJECTIVES: block to engagement/scope.md and have the lead run <code style="font-family:inherit">mcp__state__init_objectives</code>.</div>';
+    return;
+  }
+  list.innerHTML = d.objectives.map(o => {
+    const s = o.status || 'pending';
+    const ts = o.updated_at ? ` <span class="ts">${esc(o.updated_at)}</span>` : '';
+    const unsynced = o.unsynced ? ` <span class="unsynced">unsynced</span>` : '';
+    const note = o.note ? `<div class="note">${esc(o.note)}</div>` : '';
+    return `<div class="item ${s}">
+      <div class="idx">${esc(o.id)}</div>
+      <div class="body"><div class="text">${esc(o.text)}</div>${note}</div>
+      <div class="right"><span class="badge ${s}">${esc(s.replace('_',' '))}</span>${ts}${unsynced}</div>
+    </div>`;
+  }).join('');
+}
+function load(){ fetch('/api/objectives').then(r=>r.json()).then(render).catch(()=>{}); }
+load();
+setInterval(load, 5000);
+</script>
+</body></html>
