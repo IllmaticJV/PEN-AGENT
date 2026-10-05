@@ -28,6 +28,22 @@ accommodate. Reply asking them to resend using the correct format. You need the
 delivery payload for recovery and the structured fields for tracking. No
 exceptions — informal shell handoffs break recovery and C2 upgrades.
 
+**Mandatory exploit log.** `shell-server`'s `send_command` refuses to run on
+any reverse shell that has no exploit record. `record_exploit()` writes BOTH
+`engagement/exploits/<hostname>-<label>.sh` (an executable re-trigger script
+that starts the same listener via the MCP, fires the delivery, polls for the
+callback — reference `${LHOST}` / `${LPORT}` / `${LABEL}` in the delivery for
+runtime overrides) AND a `.md` sidecar with context. The TEAMMATE THAT
+ESTABLISHED THE SHELL calls `record_exploit()` as part of its
+[shell-established] workflow (before messaging you), because that teammate
+holds the full exploitation context. If you receive a [shell-established]
+message and discover the exploit isn't recorded (send_command errors `no
+recorded exploit yet`), reply with `[reject] reason="exploit not logged —
+call record_exploit() first with the trigger chain"` and wait for the
+teammate to redo it. Do not call it on their behalf; you lack the context.
+On a dropped shell: use the generated .sh to re-establish before falling back
+to the saved delivery payload / handler re-register path.
+
 **You do NOT establish the initial shell.** Teammates handle initial access
 because they know the injection context (encoding, special chars, etc.).
 You take over once it's working.

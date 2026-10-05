@@ -96,6 +96,24 @@ the lead's `[setup-pivot]` message supplies. PEN-AGENT's `start_socks_proxy`
 MCP tool enforces this: it requires `target_subnet` unless the caller passes
 `allow_autoadd=True` explicitly.
 
+### Every reverse shell needs an executable re-trigger — enforce in code, not just methodology
+
+The "how did we trigger this shell?" detail evaporates fast in a long
+engagement — gets buried in teammate transcripts, lost when a teammate ends,
+rediscovered only when the shell drops and nobody can re-establish it.
+Guidance-only ("remember to record the exploit") doesn't survive multi-hour
+work. Markdown-only ("write a doc describing the exploit") still leaves
+re-triggering as a copy-paste chore. The best shape is both: a code gate
+that refuses `send_command` on an un-logged reverse shell, PLUS the "log"
+being an executable `.sh` that re-triggers in one command (listener via
+MCP + delivery with env-overridable `${LHOST}` / `${LPORT}`) with a `.md`
+sidecar for context the script can't express. PEN-AGENT's `shell-server`
+`record_exploit()` writes both to `engagement/exploits/`. Local processes
+(ssh/evil-winrm via `start_process`) are exempt — their launching command
+is already the recipe. The teammate that established the shell is the one
+that must call `record_exploit()`; infrastructure teammates (shell-mgr)
+lack the context.
+
 ### MSF restart: handlers can be snapshotted + restored, sessions cannot
 
 Metasploit sessions are stateful Ruby objects holding live TCP sockets; they
