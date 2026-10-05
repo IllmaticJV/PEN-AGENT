@@ -5,6 +5,29 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Fixed
+
+- **MSF RPC resilience: transparent re-auth after an msfconsole restart; wedged
+  RPC calls fail fast.** Two root causes of the "full MSF restart dance"
+  (described in the post-mortem logged to `knowledge/lessons-learned.md`):
+  (1) pymetasploit3 does NOT raise on auth failure — it silently returns
+  `{"error": True, "error_message": "Invalid request parameters"}`, so
+  `metasploit-server/server.py`'s probe (`client.core.version` wrapped in
+  try/except) never fired and the stale client got reused forever after an
+  msfconsole restart issued fresh tokens. The probe in `_get_client` now
+  inspects the response and treats an auth-error dict as "re-login needed," and
+  `_serialized` performs a one-shot retry if a tool handler surfaces the same
+  signature (defense in depth for the probe→call race). Non-auth errors (scope,
+  module-not-found, unreachable host) do NOT trigger retry. (2) pymetasploit3's
+  `post_request` had no socket timeout, so a wedged msgrpc (orphaned
+  `auxiliary/server/socks_proxy` relay pointing at a dead session, serialized
+  Framework dispatch) could hang the shared RPC lock for ~300s and starve
+  every other agent tool call. A bounded `(connect=5s, read=25s)` timeout is
+  now installed on every new client via `_install_rpc_timeout`, so a wedge
+  fails fast and the lock releases. Unit-tested the detector (7 cases incl.
+  the real error-dict shape, success, scope-error non-match), the timeout
+  injection, and the retry flow end-to-end.
+
 ### Added
 
 - **Portal: clickable Jobs + Module Calls setup logs.** Previously, when an

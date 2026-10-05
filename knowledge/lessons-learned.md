@@ -40,9 +40,66 @@ duplicating.
 
 _Flags, versions, and quirks of tools on the attackbox._
 
+### pymetasploit3 returns error-dicts on auth failure, doesn't raise
+
+pymetasploit3's `MsfRpcClient.call()` does NOT raise on an auth failure. When
+the stored token is stale (e.g. msfconsole restarted and the client cached the
+old token), the call silently returns
+`{"error": True, "error_message": "Invalid request parameters"}` as a normal
+response dict. Any probe that only wraps `client.core.version` in a try/except
+will think the stale client is healthy. **A liveness probe must inspect the
+RESPONSE, not just exceptions**, and treat an auth-error dict as "re-login
+required." PEN-AGENT's `tools/metasploit-server/server.py` handles this in
+`_get_client` + a `_serialized` one-shot retry so an msfconsole restart is
+transparent to the MCP (no server.py restart, no `/mcp` reconnect needed).
+
+### pymetasploit3 has no RPC-level timeout — a wedged msgrpc can hang indefinitely
+
+pymetasploit3's `post_request` uses `requests.post` with no `timeout=`, and is
+decorated with `@retry(tries=3, backoff=2)` — so a single wedged msgrpc call
+(classic: an orphaned `auxiliary/server/socks_proxy` relay pointing at a dead
+session) blocks forever and, because our MCP serializes RPC calls behind one
+lock, starves every other agent tool call behind it. Fix in PEN-AGENT: install
+a bounded `(connect, read)` socket timeout on the client's `post_request` (via
+`_install_rpc_timeout` in `metasploit-server/server.py`) so a wedge fails fast
+and the lock releases.
+
 ## Methodology
 
 _Routing, sequencing, and approach improvements._
+
+### Pivot sessions: never kill_job an already-orphaned SOCKS proxy
+
+When a pivot session dies (common on Jenkins/webshell footholds — the nested
+`bash → python PTY → …` chain is reaped when the originating request thread
+ends), the `auxiliary/server/socks_proxy` job running through it is left
+pointing at a dead relay. Calling `kill_job` on that orphaned job hangs
+msfrpcd's command dispatch indefinitely (shared Framework instance, serialized
+dispatch) and every subsequent RPC call hangs the ~300s socket default behind
+it — the only reliable recovery is killing the msfconsole process. **Order of
+operations matters**: when a pivot session starts to look degraded, drop the
+SOCKS job FIRST, then handle the session. Once a SOCKS job is already orphaned
+(its session is confirmed dead), do NOT `kill_job` it — restart the console.
+
+### Pivot footholds: daemonize properly, don't just background
+
+A pivot foothold that stays parented under its originating process (JVM
+script-console thread, PHP request handler, SSH session) gets reaped when that
+parent dies. `nohup &` is not enough. The reliable pattern is **double-fork +
+setsid + close/redirect all three fds** so the implant ends up orphaned under
+PID 1, severed from the originating request/thread lineage. Kills the main
+"pivot session mysteriously dies after a few minutes" class of failures at the
+source — if the sessions don't die, the SOCKS jobs don't orphan, and the
+cascade this lessons section describes doesn't start.
+
+### Long-lived pivots: prefer out-of-Framework agents (ligolo-ng, chisel)
+
+For multi-hour engagements, Metasploit's in-Framework `socks_proxy` is a
+single point of failure: a dead relay wedges the shared RPC. A separate agent
+on the pivot host (ligolo-ng, chisel) decouples the tunnel from the MSF RPC —
+when the agent dies the MSF console stays healthy, and recovery is a fresh
+agent, not a Framework restart. Costs an extra binary on target; worth it for
+anything beyond a quick in-and-out.
 
 ## Environment
 
