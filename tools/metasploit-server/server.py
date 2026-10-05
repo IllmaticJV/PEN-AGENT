@@ -312,9 +312,11 @@ def create_server() -> FastMCP:
             "list_sessions to see active sessions, execute to run commands, "
             "upgrade_to_meterpreter to turn a shell into Meterpreter, run_module "
             "to run any exploit/auxiliary/post module (RHOSTS scope-checked), and "
-            "start_socks_proxy(session_id, target_subnet) to pivot into an "
-            "internal subnet via a scoped MSF route + SOCKS5 (never autoadd on "
-            "multi-homed hosts)."
+            "start_socks_proxy(session_id, target_subnet) is a FALLBACK pivot "
+            "via scoped MSF route + SOCKS5 (never autoadd on multi-homed hosts); "
+            "prefer the pivoting-tunneling skill's chisel / ligolo-ng / sshuttle "
+            "/ SSH route first — the in-Framework SOCKS wedges the shared RPC "
+            "if its session dies while the job still points at it."
         ),
     )
 
@@ -1221,6 +1223,18 @@ def create_server() -> FastMCP:
         allow_autoadd: bool = False,
     ) -> str:
         """Pivot into a SPECIFIC internal subnet via a Meterpreter session + SOCKS5.
+
+        FALLBACK PIVOT — prefer the `pivoting-tunneling` skill (chisel /
+        ligolo-ng / sshuttle / SSH `-D`/`-L`) first. The in-Framework
+        `auxiliary/server/socks_proxy` runs inside the shared Framework
+        instance; when its underlying session dies the relay doesn't
+        auto-tear-down and the next RPC call touching the orphaned job wedges
+        the shared command dispatch, forcing a full msfconsole restart to
+        recover. Use this ONLY when the attackbox cannot reach the pivot
+        inbound (no SSH / no chisel-reachable listener), you cannot drop a
+        small binary on target, or you specifically need every Metasploit
+        module targeting the pivoted subnet to route transparently without
+        proxychains.
 
         Adds a route for ONLY `target_subnet` through the session (via
         `post/multi/manage/autoroute` with `CMD=add` + explicit `SUBNET` /

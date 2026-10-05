@@ -120,14 +120,19 @@ PID 1, severed from the originating request/thread lineage. Kills the main
 source — if the sessions don't die, the SOCKS jobs don't orphan, and the
 cascade this lessons section describes doesn't start.
 
-### Long-lived pivots: prefer out-of-Framework agents (ligolo-ng, chisel)
+### Pivots: default to out-of-Framework tools (chisel / ligolo-ng / sshuttle / SSH)
 
-For multi-hour engagements, Metasploit's in-Framework `socks_proxy` is a
-single point of failure: a dead relay wedges the shared RPC. A separate agent
-on the pivot host (ligolo-ng, chisel) decouples the tunnel from the MSF RPC —
-when the agent dies the MSF console stays healthy, and recovery is a fresh
-agent, not a Framework restart. Costs an extra binary on target; worth it for
-anything beyond a quick in-and-out.
+Metasploit's in-Framework `auxiliary/server/socks_proxy` has proven unstable
+across engagements as a general pivot method, not just for long-lived ones. A
+dead relay wedges the shared RPC and forces a full msfconsole restart. A
+separate-process tunnel on the pivot host decouples the tunnel from the MSF
+RPC — when the tunnel dies the MSF console stays healthy, and recovery is a
+fresh agent, not a Framework restart. PEN-AGENT now defaults to loading the
+`pivoting-tunneling` skill (chisel / ligolo-ng / sshuttle / native SSH `-D`
+or `-L`) for every pivot. `start_socks_proxy` is kept as a labeled FALLBACK
+for the narrow cases where the alternatives aren't viable (no attackbox
+inbound to pivot, can't drop a binary on target, or need every Metasploit
+module to route transparently without proxychains).
 
 ## Environment
 

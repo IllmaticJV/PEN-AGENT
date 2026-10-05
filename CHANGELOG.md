@@ -5,6 +5,26 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Changed
+
+- **Pivots now default to out-of-Framework tools; MSF SOCKS is a labeled
+  fallback.** Across engagements the in-Framework
+  `auxiliary/server/socks_proxy` has proven unstable: when its underlying
+  session dies the relay doesn't auto-tear-down and the next RPC touching the
+  orphaned job wedges the shared command dispatch (full msfconsole restart
+  required to recover). Methodology updated so **shell-mgr loads the
+  `pivoting-tunneling` skill first** (chisel / ligolo-ng / sshuttle / native
+  SSH `-D`/`-L`) regardless of backend, and uses `start_socks_proxy` only when
+  (a) the attackbox cannot reach the pivot inbound, (b) you cannot drop a
+  binary on target, or (c) you specifically need every Metasploit module to
+  route transparently without proxychains. The MCP tool stays fully
+  functional — its docstring and the FastMCP tool-roster hint now explicitly
+  label it a fallback. Updates across `teammates/shell-mgr.md`,
+  `teammates/shell-mgr-metasploit.md`,
+  `skills/network/pivoting-tunneling/SKILL.md`, `skills/ctf/SKILL.md`,
+  `tools/metasploit-server/README.md`, `tools/metasploit-server/server.py`.
+  Lesson entry updated.
+
 ### Added
 
 - **Lead-side proactive stall sweep + `[status-check]` probe.** Teammates

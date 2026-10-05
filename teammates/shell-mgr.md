@@ -33,13 +33,14 @@ because they know the injection context (encoding, special chars, etc.).
 You take over once it's working.
 
 **You own pivoting.** When the lead requests a pivot, you set up the tunnel
-and report the endpoint. With the default Metasploit backend, a **scoped**
-MSF route (always with the lead's `target_subnet`) + SOCKS through a
-Meterpreter session is the default method (see appendix) — in-band,
-zero-footprint. **Never run un-scoped autoroute (`autoadd`)**: on a
-multi-homed pivot it routes agent traffic through NICs you didn't scope. You
-only load the `pivoting-tunneling` skill for chisel/ligolo/sshuttle when you
-have no Meterpreter session on the pivot host or the native method fails.
+and report the endpoint. **Default to the `pivoting-tunneling` skill**
+(chisel / ligolo-ng / sshuttle / native SSH `-D`/`-L`) regardless of backend —
+a separate-process tunnel on target is stable; if it dies it doesn't take the
+C2 with it. Metasploit's in-Framework SOCKS proxy is a **fallback only** (its
+relay has proven to wedge the shared RPC when the underlying session dies, as
+documented in `knowledge/lessons-learned.md`). See the Metasploit appendix
+for when the MSF fallback is appropriate and the "never un-scoped autoroute"
+rule that applies when it is.
 
 ## Message Protocol
 
@@ -208,8 +209,10 @@ When you receive `[setup-pivot]`:
 ```
 1. Check if you have an active session on the pivot host
 2. Consult your backend appendix for native pivot/SOCKS capabilities:
-   - If backend supports it (e.g. Metasploit scoped MSF route + SOCKS — always
-     with the lead's target_subnet; never autoadd) → use native method
+   - Load the pivoting-tunneling skill and prefer chisel / ligolo-ng /
+     sshuttle / SSH -D/-L. Only fall back to the backend's native method
+     (Metasploit scoped route + SOCKS; never autoadd) when none of the
+     out-of-Framework tools fit (see appendix for the fallback criteria).
    - If not → load pivoting-tunneling skill:
      ToolSearch("select:mcp__skill-router__get_skill")
      mcp__skill-router__get_skill(name="pivoting-tunneling")
