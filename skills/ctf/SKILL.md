@@ -177,6 +177,7 @@ Read spawn templates from `teammates/` at runtime via the Read tool.
 |----------|------|--------|-------|------|
 | `teammates/state-mgr.md` | state-mgr | State management | sonnet | Sole writer to state.db. All teammates message state-mgr for writes. Handles dedup, graph coherence, provenance linking. |
 | `teammates/shell-mgr.md` | shell-mgr | Shell lifecycle | sonnet | Sole manager of shell sessions. Teammates message shell-mgr for listener setup, process spawn, shell upgrade. Hands off session details for direct MCP interaction. |
+| `teammates/scribe.md` | scribe | Exploit recording | sonnet | Sole writer to engagement/exploits/. Exploiting teammate sends `[record-exploit]` with the full delivery chain; scribe calls record_exploit() and confirms. Lead nudges when a shell lands without a record. |
 
 **Enumeration teammates** (one per target surface — spawn multiple from same template):
 
@@ -749,6 +750,31 @@ All subsequent state writes from the lead and teammates go through state-mgr
 via structured messages. The lead still calls `init_engagement()` and
 `close_engagement()` directly (one-time setup, not a write pattern). The lead
 still calls all state read tools directly.
+
+### Spawn scribe
+
+Right after state-mgr, spawn **scribe** — the sole writer to
+`engagement/exploits/`. The teammate that catches a reverse shell sends
+scribe a `[record-exploit]` message with the full delivery chain; scribe
+calls `record_exploit()` so every shell has a reproducible recovery
+artifact on disk. Making this a dedicated role (like state-mgr) means
+the step gets done even when the exploiting teammate immediately pivots
+into post-exploitation.
+
+```
+1. Read teammates/scribe.md via Read tool
+2. Agent(prompt=<template content>, description="Exploit recording",
+         name="scribe", model="sonnet")
+3. scribe goes idle after activation — this is normal.
+```
+
+**Lead's scribe duty**: on every orchestrator loop iteration, after
+`poll_events()`, call `mcp__shell-server__list_sessions` and look for
+any **remote** session with `exploit_recorded: false`. For each one,
+send scribe `[nudge] session_id=<id>` so scribe chases the exploiting
+teammate for the delivery context. Don't call `record_exploit` yourself
+— you don't have the auth chain / CSRF / payload context; the
+exploiting teammate does, and scribe is the one who talks to them.
 
 After initialization, remind the operator to start the portal:
 ```

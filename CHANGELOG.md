@@ -7,6 +7,33 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **New `scribe` teammate — sole writer to `engagement/exploits/`.** The
+  record-the-shell step was being skipped when the exploiting teammate
+  got pulled into post-exploitation (and shell-mgr wasn't always
+  involved to pick up the slack). Made it a dedicated role, matching
+  the state-mgr pattern:
+  - Exploiting teammate catches the shell, sends scribe a
+    `[record-exploit]` message with the full delivery chain (auth →
+    CSRF → cookies → payload, target IP, hostname, label, references,
+    optional python_helper source).
+  - Scribe calls `mcp__shell-server__record_exploit`, replies with
+    `[recorded] sh=<path> md=<path>` (which unlocks `send_command`),
+    and notifies the lead with `[exploit-recorded]`.
+  - Lead has a new scribe duty: every orchestrator loop, call
+    `list_sessions`; for any remote session with
+    `exploit_recorded: false`, send scribe `[nudge]` to chase the
+    exploiting teammate for context. Lead doesn't write records
+    themselves — they lack the auth-chain / payload context.
+  - Template: `teammates/scribe.md`; orchestrator spawns it right
+    after state-mgr; CLAUDE.md reverse-shell rule rewritten around
+    the delegation.
+- **Exploit filenames now lead with the target IP.** `record_exploit`
+  rejects any call whose `target` doesn't contain a valid IPv4;
+  filenames become `<ip>-[<hostname>-]<label>.{sh,md}` (and
+  `python/<ip>-[<hostname>-]<label>.py` for helpers), with IP octets
+  dash-escaped (`10.80.121.50 → 10-80-121-50`). `ls engagement/
+  exploits/` now groups by host, and `grep` by IP finds every
+  recovery artifact for a target.
 - **Portal: shell-server session visibility in the C2 tab.** Exploits
   that run via shell-server (reverse shells, local processes) were
   invisible to the operator — only MSF had a live log view. The C2

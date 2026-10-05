@@ -189,6 +189,19 @@ audit. The route helpers validate IPv4 CIDRs themselves (reject IPv6,
 companion uninstaller. Same approach generalizes to any other
 root-on-attackbox tool.
 
+### Shared responsibilities get skipped — make one teammate accountable
+
+"Every reverse shell MUST be logged" was a documented rule but got
+skipped whenever the exploiting teammate immediately pivoted into
+post-exploitation; shell-mgr wasn't always involved to pick it up.
+Fix: make it ONE teammate's job (named `scribe`), like state-mgr owns
+state writes. The exploiting teammate still provides the context (they
+have the auth chain, CSRF, payload — the lead doesn't), but a dedicated
+role writes the artifact and the lead can diff `list_sessions` against
+`engagement/exploits/` to catch gaps. Generalizes: for any "must happen
+but keeps getting skipped" workflow step, promote it to a dedicated
+teammate rather than piling it onto whoever happens to be near.
+
 ### Pivot reach ≠ callback reach — test C→A directly before tunneling back
 
 When A→B→C is how we REACH C, agents reflexively assume C's egress to
