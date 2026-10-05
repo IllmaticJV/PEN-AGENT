@@ -120,6 +120,22 @@ PID 1, severed from the originating request/thread lineage. Kills the main
 source — if the sessions don't die, the SOCKS jobs don't orphan, and the
 cascade this lessons section describes doesn't start.
 
+### Ligolo-ng attackbox-root friction: use pinned-path sudoers helpers, not wildcard `ip`
+
+Ligolo-ng is the most reliable pivot method in practice but needs root on the
+attackbox for TUN setup + routes. The naive "whitelist `ip` in sudoers"
+approach is a bad trade — any `ip` command becomes passwordless, and that's
+far more than ligolo actually needs. Better pattern (PEN-AGENT's
+`tools/ligolo/`): ship a handful of narrow helper scripts
+(`pen-agent-ligolo-{up,down,route,unroute}`) that each do ONE thing with
+their own argument validation, pin them to `/usr/local/bin`, and grant
+NOPASSWD on just those absolute paths. The sudoers file contains no `ip`
+wildcard, so the attack surface is exactly "what those scripts do" — easy to
+audit. The route helpers validate IPv4 CIDRs themselves (reject IPv6,
+`0.0.0.0/0`, `127.0.0.0/8`). Opt-in per attackbox, revocable with a
+companion uninstaller. Same approach generalizes to any other
+root-on-attackbox tool.
+
 ### Pivots: default to out-of-Framework tools (chisel / ligolo-ng / sshuttle / SSH)
 
 Metasploit's in-Framework `auxiliary/server/socks_proxy` has proven unstable

@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# pen-agent-ligolo-up — bring up the ligolo TUN interface for the configured
+# user. Installed to /usr/local/bin and NOPASSWD-granted via sudoers so the
+# PEN-AGENT pivoting-tunneling skill can create the TUN without an operator
+# password prompt on each engagement.
+#
+# Scope: this helper is deliberately narrow — it manages ONLY the ligolo TUN
+# interface, no other devices, no arbitrary ip-command arguments. The sudoers
+# policy grants NOPASSWD to this script's absolute path only; any widening of
+# behavior must happen here in a reviewable change (not in a sudoers wildcard).
+
+set -euo pipefail
+
+IFACE="ligolo"
+# The owning user is baked in at install time by install-sudoers.sh so the
+# TUN interface opens with the operator's uid, not root. Falls back to SUDO_USER
+# (if invoked via `sudo` directly) for an uninstalled dev run.
+: "${PEN_AGENT_LIGOLO_USER:=${SUDO_USER:-}}"
+if [[ -z "$PEN_AGENT_LIGOLO_USER" ]]; then
+    echo "pen-agent-ligolo-up: no owning user configured (set PEN_AGENT_LIGOLO_USER or run via sudo)." >&2
+    exit 2
+fi
+
+if [[ ! -x /usr/sbin/ip && ! -x /sbin/ip ]]; then
+    echo "pen-agent-ligolo-up: iproute2 (ip) not found." >&2
+    exit 2
+fi
+IP="$(command -v ip)"
+
+# Idempotent: if the interface already exists, just make sure it's up.
+if "$IP" link show "$IFACE" >/dev/null 2>&1; then
+    "$IP" link set "$IFACE" up
+    echo "pen-agent-ligolo-up: $IFACE already present; set up." >&2
+    exit 0
+fi
+
+"$IP" tuntap add dev "$IFACE" mode tun user "$PEN_AGENT_LIGOLO_USER"
+"$IP" link set "$IFACE" up
+echo "pen-agent-ligolo-up: $IFACE created (owner=$PEN_AGENT_LIGOLO_USER) and up." >&2

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# pen-agent-ligolo-unroute <CIDR> — remove a ligolo-TUN route added by
+# pen-agent-ligolo-route. Same validation; same narrow scope.
+
+set -euo pipefail
+
+IFACE="ligolo"
+
+if [[ $# -ne 1 ]]; then
+    echo "usage: pen-agent-ligolo-unroute <IPv4-CIDR>" >&2
+    exit 2
+fi
+
+CIDR="$1"
+
+IP="$(command -v ip || true)"
+if [[ -z "$IP" ]]; then
+    echo "pen-agent-ligolo-unroute: iproute2 (ip) not found on PATH." >&2
+    exit 2
+fi
+if ! NORM=$(python3 - "$CIDR" <<'PY' 2>/dev/null
+import ipaddress, sys
+try:
+    net = ipaddress.ip_network(sys.argv[1].strip(), strict=False)
+except ValueError:
+    sys.exit(1)
+if net.version != 4 or net.prefixlen == 0:
+    sys.exit(1)
+if net.network_address in ipaddress.ip_network("127.0.0.0/8"):
+    sys.exit(1)
+print(f"{net.network_address}/{net.prefixlen}")
+PY
+); then
+    echo "pen-agent-ligolo-unroute: '$CIDR' is not a valid IPv4 CIDR." >&2
+    exit 2
+fi
+
+if ! "$IP" route show "$NORM" dev "$IFACE" 2>/dev/null | grep -q .; then
+    echo "pen-agent-ligolo-unroute: no $NORM dev $IFACE route to remove." >&2
+    exit 0
+fi
+
+"$IP" route del "$NORM" dev "$IFACE"
+echo "pen-agent-ligolo-unroute: removed $NORM dev $IFACE." >&2

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# pen-agent-ligolo-down — tear down the ligolo TUN interface. Companion to
+# pen-agent-ligolo-up; same narrow-scope policy applies.
+
+set -euo pipefail
+
+IFACE="ligolo"
+
+IP="$(command -v ip || true)"
+if [[ -z "$IP" ]]; then
+    echo "pen-agent-ligolo-down: iproute2 (ip) not found on PATH." >&2
+    exit 2
+fi
+
+if ! "$IP" link show "$IFACE" >/dev/null 2>&1; then
+    echo "pen-agent-ligolo-down: $IFACE not present; nothing to do." >&2
+    exit 0
+fi
+
+"$IP" link set "$IFACE" down || true
+"$IP" tuntap del dev "$IFACE" mode tun
+echo "pen-agent-ligolo-down: $IFACE removed." >&2
