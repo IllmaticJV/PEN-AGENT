@@ -26,8 +26,10 @@ header{display:flex;align-items:center;gap:20px;padding:0 18px;height:54px;flex-
 .brand .name{font-size:14px;font-weight:700;letter-spacing:.04em;color:var(--fg)}
 .brand .name b{color:var(--accent);font-weight:700}
 .brand .sub{font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-dim)}
-nav{display:flex;align-items:center;gap:2px;height:100%}
-.tab{appearance:none;background:transparent;border:none;position:relative;
+nav{display:flex;align-items:center;gap:2px;height:100%;min-width:0;
+    overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none}
+nav::-webkit-scrollbar{display:none}
+.tab{appearance:none;background:transparent;border:none;position:relative;white-space:nowrap;
      color:var(--fg-dim);font-family:var(--ui);font-size:13px;font-weight:500;
      padding:0 16px;height:100%;cursor:pointer;transition:color .15s}
 .tab:hover{color:var(--fg)}
@@ -41,6 +43,18 @@ nav{display:flex;align-items:center;gap:2px;height:100%}
 .ribbon .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);
         box-shadow:0 0 6px var(--amber)}
 #frame{flex:1;border:none;width:100%;background:var(--bg)}
+@media (max-width:760px){
+  header{gap:12px;padding:0 12px}
+  .brand .sub{display:none}
+  .ribbon,.spacer{display:none}
+  nav{flex:1 1 auto}
+  .tab{padding:0 12px;font-size:12.5px}
+  .tab.active::after{left:8px;right:8px}
+}
+@media (max-width:420px){
+  .brand .name{font-size:13px}
+  .brand .mark{width:22px;height:22px}
+}
 </style></head>
 <body>
 <header>

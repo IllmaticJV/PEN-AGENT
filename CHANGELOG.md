@@ -28,6 +28,16 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Operator portal scales across resolutions.** Follow-up to the redesign:
+  the Status page now caps its content at a centered 1680px max-width so it no
+  longer stretches edge-to-edge on ultrawide/4K displays, and reflows on
+  narrow widths (stat tiles drop to 2 columns, the filter input goes
+  full-width, tables scroll within their cards). The MSF/C2 page stacks its
+  session sidebar above the log below ~860px, and the portal header collapses
+  its tagline/ribbon and lets the tab bar scroll horizontally on small
+  screens so every tab stays reachable. Breakpoints added to
+  `operator/portal/templates/{portal,status,msf,scope}.html`; no behavioral or
+  data-contract change.
 - **Exploit selection defaults to Metasploit first.** When Metasploit is the
   C2 (the default) and the vector is a named CVE or a versioned service with a
   public exploit, ops teammates now try a matching MSF module first
