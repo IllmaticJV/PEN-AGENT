@@ -5,6 +5,25 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Added
+
+- **Portal: clickable Jobs + Module Calls setup logs.** Previously, when an
+  agent set up a listener/exploit via `start_handler` / `run_module` /
+  `start_socks_proxy` / `upgrade_to_meterpreter` / `generate_payload`, the
+  Jobs/Listeners row on the portal was unclickable and the setup details
+  (module path, options, LHOST/LPORT/PAYLOAD, result) were lost the moment
+  the MCP tool returned. Now the metasploit-server MCP writes one JSONL
+  record per call to `engagement/evidence/msf-modules/<call_id>-<slug>.jsonl`
+  (via a new `_log_module_call`, mirroring `_log_session_io`). The portal
+  adds a **Module Calls** sidebar section (newest-first) and makes Jobs rows
+  clickable when a matching module-call log exists (cross-referenced by
+  `job_id` so even killed jobs don't need the row to persist). The right
+  pane renders the full setup record using the existing sticky-scroll log
+  component. Rows for jobs that predate this feature (or come from an older
+  server) stay in the list but are dimmed and non-clickable, honestly
+  signalling "no log available." New portal endpoints: `/api/modules`,
+  `/api/module/log?id=`; new SSE payload type: `modules`.
+
 ### Fixed
 
 - **Portal MSF-logs auto-scroll no longer yanks the operator away from history.**

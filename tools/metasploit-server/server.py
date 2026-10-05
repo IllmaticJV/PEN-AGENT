@@ -127,6 +127,77 @@ def _log_session_io(session_id: str, command: str, output: str) -> None:
         pass
 
 
+# ── Module-call log (per-call setup record) ──────────────────────────────────
+# Every MSF tool that creates a job or runs a module writes one JSONL file to
+# engagement/evidence/msf-modules/<call_id>-<slug>.jsonl, capturing exactly how
+# the call was set up: tool, module name/type, requested options, raw result,
+# and (when the result produced one) the msfrpcd job_id. The operator portal
+# reads these so each row in the Listeners/Jobs table and the historical
+# "Module Calls" list is clickable → full setup log. Call IDs are a strictly
+# monotonic in-process counter; the actual filename is seeded with the current
+# time once at startup so IDs across restarts don't collide on disk.
+_MODULE_LOG_DIR = _PROJECT_ROOT / "engagement" / "evidence" / "msf-modules"
+_module_call_lock = threading.Lock()
+_module_call_seq = [int(time.time())]
+
+
+def _next_call_id() -> int:
+    with _module_call_lock:
+        _module_call_seq[0] += 1
+        return _module_call_seq[0]
+
+
+def _slugify(s: str, max_len: int = 60) -> str:
+    """Short filesystem-safe slug for a module path or label."""
+    s = re.sub(r"[^A-Za-z0-9]+", "-", str(s)).strip("-").lower()
+    return (s[:max_len] or "call")
+
+
+def _log_module_call(
+    tool: str,
+    module: str,
+    module_type: str = "",
+    options: dict | None = None,
+    result: object = None,
+    job_id: str | int | None = None,
+    extra: dict | None = None,
+) -> int | None:
+    """Record one MSF tool call to msf-modules/<id>-<slug>.jsonl. Returns the
+    call_id, or None if logging was skipped (no engagement dir / write failure).
+
+    Best-effort: never breaks a tool call over logging. The first line of the
+    file is a header record (tool, module, options, job_id); subsequent lines
+    are reserved for follow-up events (none today, but the format leaves room
+    for `kill_job`, `session-opened`, etc. to append later).
+    """
+    try:
+        eng = _PROJECT_ROOT / "engagement"
+        if not eng.exists():
+            return None
+        _MODULE_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        call_id = _next_call_id()
+        slug = _slugify(module or tool)
+        path = _MODULE_LOG_DIR / f"{call_id}-{slug}.jsonl"
+        rec = {
+            "ts": datetime.now(tz=timezone.utc).isoformat(timespec="seconds"),
+            "kind": "call",
+            "call_id": call_id,
+            "tool": tool,
+            "module_type": module_type or "",
+            "module": module or "",
+            "options": options or {},
+            "job_id": str(job_id) if job_id is not None else None,
+            "result": result,
+        }
+        if extra:
+            rec["extra"] = extra
+        with path.open("a") as f:
+            f.write(json.dumps(rec, default=str) + "\n")
+        return call_id
+    except Exception:
+        return None
+
+
 # ── Operator-reserved sessions ───────────────────────────────────────────────
 # Sessions tagged here belong to the human operator (interacted with in the
 # tmux msfconsole). Agent-facing session tools refuse to touch them, so the
@@ -309,7 +380,24 @@ def create_server() -> FastMCP:
             result = handler.execute(payload=pay)
             err_msg = _execute_error(result, expect_job=True)
             if err_msg:
+                _log_module_call(
+                    tool="start_handler",
+                    module="exploit/multi/handler",
+                    module_type="exploit",
+                    options={"PAYLOAD": payload, "LHOST": lhost, "LPORT": int(lport),
+                             "ExitOnSession": bool(exit_on_session)},
+                    result={"error": err_msg},
+                )
                 return f"ERROR: Failed to start handler: {err_msg}"
+            _log_module_call(
+                tool="start_handler",
+                module="exploit/multi/handler",
+                module_type="exploit",
+                options={"PAYLOAD": payload, "LHOST": lhost, "LPORT": int(lport),
+                         "ExitOnSession": bool(exit_on_session)},
+                result=result,
+                job_id=result.get("job_id"),
+            )
             return json.dumps(
                 {
                     "status": "listening",
@@ -418,6 +506,13 @@ def create_server() -> FastMCP:
                 filepath.chmod(0o755)
             except OSError:
                 pass
+            _log_module_call(
+                tool="generate_payload", module=payload, module_type="payload",
+                options={"LHOST": lhost, "LPORT": int(lport), "format": format,
+                         "name": filename, "extra_options": extra_options},
+                result={"status": "generated", "path": str(filepath), "size": size,
+                        "stderr_tail": (proc.stderr or "")[-400:]},
+            )
             return json.dumps(
                 {
                     "status": "generated",
@@ -547,6 +642,14 @@ def create_server() -> FastMCP:
             # shell_to_meterpreter spins up its own handler job — a null
             # job_id / error dict means the upgrade never actually launched.
             err_msg = _execute_error(result, expect_job=True)
+            _log_module_call(
+                tool="upgrade_to_meterpreter",
+                module="post/multi/manage/shell_to_meterpreter",
+                module_type="post",
+                options={"SESSION": int(session_id), "LHOST": lhost, "LPORT": int(lport)},
+                result={"error": err_msg} if err_msg else result,
+                job_id=result.get("job_id") if isinstance(result, dict) and not err_msg else None,
+            )
             if err_msg:
                 return f"ERROR: Upgrade failed: {err_msg}"
             return json.dumps(
@@ -761,6 +864,14 @@ def create_server() -> FastMCP:
                 mod["LPORT"] = int(lport)
                 result = mod.execute()
                 err_msg = _execute_error(result, expect_job=True)
+                _log_module_call(
+                    tool=f"spawn_sibling({label})",
+                    module="post/multi/manage/shell_to_meterpreter",
+                    module_type="post",
+                    options={"SESSION": int(session_id), "LHOST": lhost, "LPORT": int(lport)},
+                    result={"error": err_msg} if err_msg else result,
+                    job_id=result.get("job_id") if isinstance(result, dict) and not err_msg else None,
+                )
                 if err_msg:
                     return {"error": f"{label} spawn failed: {err_msg}"}
             except Exception as e:
@@ -939,7 +1050,18 @@ def create_server() -> FastMCP:
             # handlers and the SOCKS proxy.)
             err_msg = _execute_error(result)
             if err_msg:
+                _log_module_call(
+                    tool="run_module", module=module_name, module_type=module_type,
+                    options={**opts, **({"PAYLOAD": payload} if payload else {})},
+                    result={"error": err_msg},
+                )
                 return f"ERROR: Module execution failed: {err_msg}"
+            _log_module_call(
+                tool="run_module", module=module_name, module_type=module_type,
+                options={**opts, **({"PAYLOAD": payload} if payload else {})},
+                result=result,
+                job_id=result.get("job_id") if isinstance(result, dict) else None,
+            )
             return json.dumps({"status": "executed", "module": module_name, "result": result})
         except ValidationError as e:
             return f"ERROR: {e}"
@@ -1028,6 +1150,12 @@ def create_server() -> FastMCP:
             auto["CMD"] = "autoadd"
             auto_result = auto.execute()
             auto_err = _execute_error(auto_result)
+            _log_module_call(
+                tool="start_socks_proxy", module="post/multi/manage/autoroute",
+                module_type="post",
+                options={"SESSION": int(session_id), "CMD": "autoadd"},
+                result={"error": auto_err} if auto_err else auto_result,
+            )
             if auto_err:
                 return f"ERROR: autoroute failed, no routes added: {auto_err}"
 
@@ -1040,6 +1168,13 @@ def create_server() -> FastMCP:
             # error dict means it never bound, so don't report a usable
             # endpoint the caller would then try (and fail) to proxy through.
             err_msg = _execute_error(result, expect_job=True)
+            _log_module_call(
+                tool="start_socks_proxy", module="auxiliary/server/socks_proxy",
+                module_type="auxiliary",
+                options={"SRVHOST": "127.0.0.1", "SRVPORT": int(srvport), "VERSION": "5"},
+                result={"error": err_msg} if err_msg else result,
+                job_id=result.get("job_id") if isinstance(result, dict) and not err_msg else None,
+            )
             if err_msg:
                 return f"ERROR: Failed to start SOCKS proxy: {err_msg}"
             return json.dumps(

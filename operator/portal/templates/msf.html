@@ -93,10 +93,15 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <table id="jobs"><tbody></tbody></table>
       <div class="empty" id="jobs-empty">none yet</div>
     </section>
+    <section>
+      <h2>Module Calls</h2>
+      <table id="modules"><tbody></tbody></table>
+      <div class="empty" id="modules-empty">none yet</div>
+    </section>
   </div>
   <div id="logwrap">
     <div id="loghead">
-      <span id="logtitle">Select a session to view its command log</span>
+      <span id="logtitle">Select a session, job, or module call to view its log</span>
       <span style="flex:1"></span>
       <span class="pill" id="pill-console" onclick="showConsole()">console spool</span>
     </div>
@@ -107,9 +112,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
 const statusEl = document.getElementById('status');
 const logEl = document.getElementById('log');
 const logTitle = document.getElementById('logtitle');
-let selectedSid = null;   // viewing a session log
-let viewConsole = false;  // viewing the console spool instead
+
+// Single view-state object. Kinds: 'session' | 'console' | 'module'.
+// `id` is the session_id, module filename stem, or `job:<job_id>` lookup.
+let view = { kind: null, id: null };
 let sessionsCache = [];
+let modulesCache = [];
 
 function setStatus(connected, msg) {
   statusEl.textContent = msg || (connected ? 'connected' : 'disconnected');
@@ -118,40 +126,88 @@ function setStatus(connected, msg) {
 
 function esc(s) { return (s ?? '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 
-function renderTable(id, emptyId, rows, cols, onClick) {
+// Rendering ----------------------------------------------------------------
+function isSelectedRow(id, row) {
+  if (id === 'sessions') return view.kind === 'session' && String(row.session_id) === String(view.id);
+  if (id === 'modules')  return view.kind === 'module'  && String(row.id) === String(view.id);
+  if (id === 'jobs')     return view.kind === 'module'  && String(view.id) === 'job:' + row.job_id;
+  return false;
+}
+
+function renderTable(id, emptyId, rows, cols, onClick, fmt) {
   const tbody = document.querySelector('#' + id + ' tbody');
   tbody.innerHTML = '';
   document.getElementById(emptyId).style.display = rows.length ? 'none' : 'block';
   for (const row of rows) {
     const tr = document.createElement('tr');
-    if (id === 'sessions' && String(row.session_id) === String(selectedSid)) tr.className = 'sel';
+    if (isSelectedRow(id, row)) tr.className = 'sel';
     const badge = (id === 'sessions' && row.operator_reserved)
       ? '<span class="opbadge">operator</span>' : '';
-    tr.innerHTML = cols.map((c, i) =>
-      `<td class="${i === 0 ? 'id' : ''}">${esc(row[c])}${i === 0 ? badge : ''}</td>`).join('');
+    tr.innerHTML = cols.map((c, i) => {
+      const val = fmt && fmt[c] ? fmt[c](row) : esc(row[c]);
+      return `<td class="${i === 0 ? 'id' : ''}">${val}${i === 0 ? badge : ''}</td>`;
+    }).join('');
     if (onClick) tr.querySelector('td.id').onclick = () => onClick(row);
     tbody.appendChild(tr);
   }
 }
 
-function selectSession(sid) {
-  selectedSid = String(sid);
-  viewConsole = false;
-  document.getElementById('pill-console').classList.remove('active');
-  logTitle.textContent = 'session ' + selectedSid + ' — command log';
+function renderSessions() {
   renderTable('sessions', 'sessions-empty', sessionsCache,
     ['session_id', 'type', 'info'], r => selectSession(r.session_id));
-  // Explicit user action — jump to latest, overriding sticky-scroll state.
+}
+function renderModules() {
+  // Compact label for sidebar — module path can be long, slice sensibly.
+  renderTable('modules', 'modules-empty', modulesCache,
+    ['call_id', 'tool', 'module'],
+    r => selectModule(r.id),
+    {
+      module: r => esc((r.module || '').length > 32 ? '…' + r.module.slice(-31) : (r.module || '')),
+    });
+}
+function renderJobs(rows) {
+  // Jobs are clickable only if we have a matching module-call log recorded
+  // (by job_id). Older jobs predating the module-log change show as plain rows.
+  const haveLog = new Set(modulesCache.map(c => String(c.job_id)).filter(Boolean));
+  renderTable('jobs', 'jobs-empty', rows, ['job_id', 'name'],
+    row => haveLog.has(String(row.job_id)) ? selectModule('job:' + row.job_id) : null,
+    null);
+  // Dim un-clickable rows so the UI tells the truth about what has a log.
+  const tbody = document.querySelector('#jobs tbody');
+  for (const tr of tbody.children) {
+    const jid = tr.querySelector('td.id')?.textContent.trim();
+    if (jid && !haveLog.has(jid)) tr.style.opacity = '0.55';
+  }
+}
+
+// Selection ----------------------------------------------------------------
+function selectSession(sid) {
+  view = { kind: 'session', id: String(sid) };
+  document.getElementById('pill-console').classList.remove('active');
+  logTitle.textContent = 'session ' + sid + ' — command log';
+  renderSessions();
+  renderModules();
+  renderJobs(window._jobsCache || []);
   refreshLog(true);
 }
 
 function showConsole() {
-  viewConsole = true;
-  selectedSid = null;
+  view = { kind: 'console', id: null };
   document.getElementById('pill-console').classList.add('active');
   logTitle.textContent = 'shared msfconsole spool';
-  renderTable('sessions', 'sessions-empty', sessionsCache,
-    ['session_id', 'type', 'info'], r => selectSession(r.session_id));
+  renderSessions();
+  renderModules();
+  renderJobs(window._jobsCache || []);
+  refreshLog(true);
+}
+
+function selectModule(callFileId) {
+  view = { kind: 'module', id: String(callFileId) };
+  document.getElementById('pill-console').classList.remove('active');
+  logTitle.textContent = 'module call — setup log';
+  renderSessions();
+  renderModules();
+  renderJobs(window._jobsCache || []);
   refreshLog(true);
 }
 
@@ -159,15 +215,12 @@ function showConsole() {
 // pinned there (within SCROLL_STICKY_PX). If they've scrolled up to read
 // earlier output, leave their position alone — the 2s refresh was yanking
 // them back to the bottom on every tick, making reading history impossible.
-// `force=true` from an explicit user action (session/view switch) bypasses
-// the stickiness and always jumps to the latest.
+// `force=true` from an explicit user action (view switch) bypasses that.
 const SCROLL_STICKY_PX = 24;
 function isAtBottom() {
   return (logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight) <= SCROLL_STICKY_PX;
 }
 function setContent(html, mode) {
-  // Only touch the DOM when the text actually changed — avoids clobbering a
-  // user's text selection every 2s on an unchanged log.
   if (mode === 'text') {
     if (logEl.textContent !== html) logEl.textContent = html;
   } else {
@@ -175,8 +228,19 @@ function setContent(html, mode) {
   }
 }
 
+function renderModuleRecord(r) {
+  // One module-call JSONL record → readable block (opts + result).
+  const header = `[${esc(r.ts || '')}] ${esc(r.tool || '')} — ${esc(r.module || '')}`
+                + (r.job_id ? ` → job ${esc(r.job_id)}` : '');
+  const opts = r.options ? JSON.stringify(r.options, null, 2) : '{}';
+  const result = r.result == null ? ''
+                 : (typeof r.result === 'string' ? r.result : JSON.stringify(r.result, null, 2));
+  return `<div class="rec"><div class="cmd">${header}</div>`
+       + `<div class="out"><b>options</b>\n${esc(opts)}\n\n<b>result</b>\n${esc(result)}</div></div>`;
+}
+
 function refreshLog(force) {
-  if (viewConsole) {
+  if (view.kind === 'console') {
     fetch('/api/console/log').then(r => r.json()).then(j => {
       const stick = force || isAtBottom();
       setContent(j.data || (j.error ? '[error] ' + j.error : '(console spool empty — enable spool in tmux, or no activity yet)'), 'text');
@@ -184,16 +248,30 @@ function refreshLog(force) {
     });
     return;
   }
-  if (selectedSid === null) return;
-  fetch('/api/session/log?id=' + encodeURIComponent(selectedSid)).then(r => r.json()).then(j => {
-    const recs = j.records || [];
-    const stick = force || isAtBottom();
-    if (!recs.length) { setContent('<div class="empty">no commands recorded for this session yet</div>', 'html'); return; }
-    setContent(recs.map(r =>
-      `<div class="rec"><div class="cmd">${esc(r.command)}<span class="ts">${esc(r.ts)}</span></div>`
-      + `<div class="out">${esc(r.output)}</div></div>`).join(''), 'html');
-    if (stick) logEl.scrollTop = logEl.scrollHeight;
-  }).catch(e => { logEl.textContent = '[error] ' + e; });
+  if (view.kind === 'session' && view.id) {
+    fetch('/api/session/log?id=' + encodeURIComponent(view.id)).then(r => r.json()).then(j => {
+      const recs = j.records || [];
+      const stick = force || isAtBottom();
+      if (!recs.length) { setContent('<div class="empty">no commands recorded for this session yet</div>', 'html'); return; }
+      setContent(recs.map(r =>
+        `<div class="rec"><div class="cmd">${esc(r.command)}<span class="ts">${esc(r.ts)}</span></div>`
+        + `<div class="out">${esc(r.output)}</div></div>`).join(''), 'html');
+      if (stick) logEl.scrollTop = logEl.scrollHeight;
+    }).catch(e => { logEl.textContent = '[error] ' + e; });
+    return;
+  }
+  if (view.kind === 'module' && view.id) {
+    fetch('/api/module/log?id=' + encodeURIComponent(view.id)).then(r => r.json()).then(j => {
+      const recs = j.records || [];
+      const stick = force || isAtBottom();
+      if (!recs.length) {
+        setContent('<div class="empty">no setup log recorded for this call (older than this feature, or no engagement dir at the time)</div>', 'html');
+        return;
+      }
+      setContent(recs.map(renderModuleRecord).join(''), 'html');
+      if (stick) logEl.scrollTop = logEl.scrollHeight;
+    }).catch(e => { logEl.textContent = '[error] ' + e; });
+  }
 }
 
 setInterval(refreshLog, 2000);
@@ -203,10 +281,15 @@ es.onmessage = (ev) => {
   const msg = JSON.parse(ev.data);
   if (msg.type === 'sessions') {
     sessionsCache = msg.payload;
-    renderTable('sessions', 'sessions-empty', msg.payload,
-      ['session_id', 'type', 'info'], r => selectSession(r.session_id));
+    renderSessions();
   } else if (msg.type === 'jobs') {
-    renderTable('jobs', 'jobs-empty', msg.payload, ['job_id', 'name'], null);
+    window._jobsCache = msg.payload;
+    renderJobs(msg.payload);
+  } else if (msg.type === 'modules') {
+    modulesCache = msg.payload;
+    renderModules();
+    // Jobs clickability depends on modules cache — rerender if we have one.
+    if (window._jobsCache) renderJobs(window._jobsCache);
   } else if (msg.type === 'status') {
     setStatus(msg.connected, msg.connected ? 'connected' : (msg.error || 'disconnected'));
   }
