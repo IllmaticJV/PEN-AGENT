@@ -1,28 +1,68 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PEN-AGENT &middot; operator portal</title>
+<title>PEN-AGENT &middot; Operator Console</title>
 <style>
-:root{--bg:#0b0d10;--panel:#14181d;--border:#2a2f37;--fg:#c9d1d9;--dim:#6e7681;--accent:#8ab4f8}
+:root{
+  --bg:#0a0c10;--surface:#11151b;--surface-2:#161b22;--surface-3:#1c222b;
+  --border:#222935;--border-strong:#2f3744;
+  --fg:#e6edf3;--fg-muted:#9aa5b1;--fg-dim:#6b7682;
+  --accent:#4f8cff;--accent-2:#7aa7ff;--accent-glow:rgba(79,140,255,.16);
+  --green:#3fb950;--red:#f85149;--amber:#d6a533;
+  --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
-body{background:var(--bg);color:var(--fg);font-family:ui-monospace,Menlo,Consolas,monospace;
-     display:flex;flex-direction:column;height:100vh}
-header{display:flex;align-items:center;gap:4px;padding:0 14px;height:46px;flex-shrink:0;
-       border-bottom:1px solid var(--border);background:var(--panel)}
-header .brand{font-size:14px;font-weight:600;color:var(--accent);margin-right:16px;white-space:nowrap}
-.tab{appearance:none;background:transparent;border:none;border-bottom:2px solid transparent;
-     color:var(--dim);font:inherit;font-size:13px;padding:12px 14px;cursor:pointer}
+body{background:var(--bg);color:var(--fg);font-family:var(--ui);
+     display:flex;flex-direction:column;height:100vh;-webkit-font-smoothing:antialiased}
+header{display:flex;align-items:center;gap:20px;padding:0 18px;height:54px;flex-shrink:0;
+       border-bottom:1px solid var(--border);
+       background:linear-gradient(180deg,var(--surface-2),var(--surface));
+       box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.brand{display:flex;align-items:center;gap:10px;white-space:nowrap}
+.brand .mark{width:26px;height:26px;flex-shrink:0;filter:drop-shadow(0 0 6px var(--accent-glow))}
+.brand .wm{display:flex;flex-direction:column;line-height:1.05}
+.brand .name{font-size:14px;font-weight:700;letter-spacing:.04em;color:var(--fg)}
+.brand .name b{color:var(--accent);font-weight:700}
+.brand .sub{font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-dim)}
+nav{display:flex;align-items:center;gap:2px;height:100%}
+.tab{appearance:none;background:transparent;border:none;position:relative;
+     color:var(--fg-dim);font-family:var(--ui);font-size:13px;font-weight:500;
+     padding:0 16px;height:100%;cursor:pointer;transition:color .15s}
 .tab:hover{color:var(--fg)}
-.tab.active{color:var(--fg);border-bottom-color:var(--accent)}
+.tab.active{color:var(--fg)}
+.tab.active::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:2px;
+     background:var(--accent);border-radius:2px 2px 0 0;box-shadow:0 0 8px var(--accent-glow)}
+.spacer{flex:1}
+.ribbon{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:500;
+        letter-spacing:.04em;color:var(--fg-dim);padding:4px 10px;border:1px solid var(--border);
+        border-radius:999px;background:var(--surface-3)}
+.ribbon .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);
+        box-shadow:0 0 6px var(--amber)}
 #frame{flex:1;border:none;width:100%;background:var(--bg)}
 </style></head>
 <body>
 <header>
-  <span class="brand">PEN-AGENT</span>
-  <button class="tab" data-tab="scope"  data-src="/scope">Objective &amp; Scope</button>
-  <button class="tab" data-tab="status" data-src="/status">Status</button>
-  <button class="tab" data-tab="msf"    data-src="/msf">MSF Logs</button>
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M16 2.5 27 7v9.2c0 7-4.7 11.6-11 13.3C9.7 27.8 5 23.2 5 16.2V7l11-4.5Z"
+            fill="var(--accent-glow)" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M12 13.3 15.6 16 12 18.7M17 19h4" stroke="var(--accent-2)" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="wm">
+      <span class="name">PEN&#8209;<b>AGENT</b></span>
+      <span class="sub">Operator Console</span>
+    </div>
+  </div>
+  <nav>
+    <button class="tab" data-tab="scope"  data-src="/scope">Objective &amp; Scope</button>
+    <button class="tab" data-tab="status" data-src="/status">Status</button>
+    <button class="tab" data-tab="msf"    data-src="/msf">C2 / MSF Logs</button>
+  </nav>
+  <span class="spacer"></span>
+  <span class="ribbon"><span class="dot"></span>Read&#8209;only</span>
 </header>
 <iframe id="frame" title="portal content"></iframe>
 <script>
