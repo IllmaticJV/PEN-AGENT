@@ -5,6 +5,17 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Removed
+
+- **Dropped `--yolo` / permission-skipping mode.** PEN-AGENT now runs in
+  standard permission mode only. `run.sh` no longer maps `--yolo` to
+  `--dangerously-skip-permissions`; passing either flag exits with an error
+  pointing at the `.claude/settings.json` allowlist (and
+  `/fewer-permission-prompts`). The orchestrator's human-approval gate and
+  Claude Code's permission prompts are the intended human-in-the-loop controls;
+  bypassing them was never safe for sustained multi-host work. README, CLAUDE.md,
+  and docs/installation.md updated to match.
+
 ### Added
 
 - **`run.sh` persists portal access details past the Claude TUI.** `run.sh`
