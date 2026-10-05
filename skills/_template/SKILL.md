@@ -102,12 +102,20 @@ available — do not check for these.
 
 ## Exploit and Tool Transfer
 
+**Metasploit first.** When Metasploit is the C2 (the default) and a matching
+module exists for this vector (a named CVE or versioned service), run it via
+`run_module` — find it with `console_exec("search cve:<id>")` or
+`search <product> <version>` — before any manual PoC. A module shell lands
+straight in the session table. The attackbox-first workflow below is the
+**fallback**: use it when MSF has no matching module, a module fails and is
+ruled out, the skill has no MSF route, or the C2 is shell-server.
+
 Never download exploits, scripts, or tools directly to the target from the
 internet (`curl https://github.com/...`, `git clone` on target). Targets may
 lack outbound internet access, and operators must review files before they
 reach the target.
 
-**Attackbox-first workflow:**
+**Attackbox-first workflow (manual fallback):**
 
 1. **Check locally first** — see Tool Discovery above
 2. **Download on attackbox** (only if not found) — `git clone`, `curl`, `searchsploit -m` locally

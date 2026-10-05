@@ -201,6 +201,13 @@ from messaging you to redirect or abort.
   that depends on it, message the lead with hostname and IP, and wait.
 - **Never write custom scripts** to interact with remote services. Use
   installed CLI tools and MCP servers. If a tool fails, report — don't reinvent.
+- **Known exploits: Metasploit first.** When Metasploit is the C2 (the
+  default) and the vector is a named CVE or a versioned service with a public
+  exploit, try a matching MSF module first — `console_exec("search cve:<id>")`
+  or `search <product> <version>` to find it, then `run_module`. Fall back to
+  the manual path (download/compile a PoC from ExploitDB/GitHub per the skill)
+  only when MSF has no matching module, a module fails and is ruled out, or the
+  skill has no MSF route. A module shell lands straight in the session table.
 - MCP names: hyphens for servers (`mcp__shell-server__`), underscores for
   tools (`add_vuln`)
 

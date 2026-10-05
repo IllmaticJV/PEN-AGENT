@@ -28,6 +28,17 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Exploit selection defaults to Metasploit first.** When Metasploit is the
+  C2 (the default) and the vector is a named CVE or a versioned service with a
+  public exploit, ops teammates now try a matching MSF module first
+  (`console_exec` search → `run_module`) and fall back to the manual
+  download/compile-a-PoC path (ExploitDB/GitHub) only when MSF has no module, a
+  module fails and is ruled out, or the C2 is shell-server. Encoded in the
+  always-in-context operational rules (`CLAUDE.md`), the orchestrator's
+  versioned-software routing (`skills/ctf/SKILL.md`), the skill template's
+  Exploit & Tool Transfer section (`skills/_template/SKILL.md`), and the
+  research teammate now reports whether an MSF module exists so the lead routes
+  MSF-first.
 - **Operator portal redesign — commercial-grade UI.** All five portal
   templates (`operator/portal/templates/{portal,login,scope,status,msf}.html`)
   were restyled into one cohesive design system: a branded header with a shield

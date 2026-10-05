@@ -37,6 +37,11 @@ message lead:      ONE LINE: file path + summary. No technique details in messag
 
 Use WebSearch and WebFetch for:
 - **CVE research**: exact version strings + software name
+- **Metasploit coverage FIRST**: for any CVE/public exploit, note whether a
+  Metasploit module exists (search includes "metasploit module <cve>"). If one
+  does, say so explicitly and recommend MSF-first — the ops teammate runs it
+  via `run_module` before any manual PoC. Only dig up a manual PoC when MSF has
+  no module (or the engagement's C2 is shell-server, not Metasploit).
 - **PoC discovery**: GitHub, exploit-db, security advisories
 - **Bypass techniques**: tarfile traversal, pickle gadgets, etc.
 
@@ -83,6 +88,7 @@ Do NOT download them yourself via a shell session.
 - CVE: <if applicable>
 
 ### Exploitation
+- MSF module: <exploit/... path if one exists, else "none — manual PoC">
 - Method: <how actioned>
 - Impact: <root shell, file read, privesc>
 - PoC source: <URL or "custom">
