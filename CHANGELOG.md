@@ -5,6 +5,27 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Added
+
+- **Lead-side proactive stall sweep + `[status-check]` probe.** Teammates
+  occasionally go silent longer than their task should take — a tool call
+  hung, they finished but forgot to signal task-complete, or they got into an
+  internal loop without triggering their own 5-round stall detection. A
+  teammate wedged mid-tool-call cannot self-report, and the lead was waiting
+  minutes to notice. New Stall Sweep procedure in the orchestrator skill
+  (`skills/ctf/SKILL.md`) runs on every loop iteration before pausing on async
+  work: measures per-teammate silence against `TaskGet.updated_at`, the
+  message log, and `poll_events`; sends a `[status-check]` probe at 3 minutes
+  of silence (5 for known long-running skills); escalates to the operator at
+  silence + 90 s with no reply with options to extend, respawn (same-name
+  fresh context + task reassigned), or mark the task failed. Companion rule
+  in CLAUDE.md § Teammate Protocol tells teammates how to reply to a
+  `[status-check]` with a one-line current-step or `[blocked]` without
+  interrupting their work. Owned by the lead (not state-mgr) because state-mgr
+  has no `TaskList`/`TaskGet` visibility, no scheduling context, and no
+  routing authority — expanding its role would blur the "one writer, no
+  decisions" contract.
+
 ### Changed
 
 - **Pivot tunneling: scoped routes only, no `autoroute CMD=autoadd`.**

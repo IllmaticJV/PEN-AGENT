@@ -68,6 +68,21 @@ and the lock releases.
 
 _Routing, sequencing, and approach improvements._
 
+### Lead must proactively probe silent teammates (teammates can't self-report wedges)
+
+The teammate-side 5-round stall detection only fires when a teammate is still
+executing tool calls. A teammate wedged mid-tool-call — hung bash command,
+long-blocking RPC, or finished-but-forgot-to-signal — looks exactly like
+"working" from the outside and self-reports nothing. The lead is the only
+role with the context (`TaskGet` + message log + `poll_events`) to notice
+silence, so it must do so proactively on every orchestrator loop iteration,
+not just when a message or event wakes it. PEN-AGENT's orchestrator skill
+runs a Stall Sweep each loop: probe at ~3 min silence (5 min for known
+long-running skills — nmap `-p-`, spraying, cracking), escalate to the
+operator at probe + 90 s with respawn / mark-failed options. State-mgr can't
+own this — it has no `TaskList` visibility, no scheduling authority, and the
+"one writer, no decisions" contract would blur if it did.
+
 ### Pivots: never un-scoped `autoroute` (`autoadd`) on a multi-homed host
 
 Metasploit's `post/multi/manage/autoroute` with `CMD=autoadd` enumerates every

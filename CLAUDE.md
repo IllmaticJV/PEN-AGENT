@@ -216,6 +216,19 @@ from messaging you to redirect or abort.
 5+ tool rounds on the same failure with no new info → stop immediately.
 Return: what was attempted, what failed, assessment (blocked/retry-later).
 
+### Status-Check Probes
+
+If the lead sends `[status-check] silence for Nm — what step are you on?`, reply
+immediately with a one-line summary of the step you're currently executing
+(e.g. `[status] running nmap -sC on 10.10.14.30, ~90s remaining`), or
+`[blocked] reason="<why>"` if you're genuinely stuck. If a long-running tool
+call is holding your turn, you can only reply once that call returns — that's
+expected; just reply then. Do not treat the probe as a new task and do not
+stop the work you were doing — the probe is diagnostic, not an assignment.
+The lead sends these when a teammate has gone silent longer than a work-unit
+should take; a prompt reply resets the silence timer and the lead keeps
+routing around you.
+
 ### Activation Protocol
 
 On activation (this runs once, before any task):
