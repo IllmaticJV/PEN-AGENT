@@ -28,8 +28,24 @@ header.chrome h1 .k { color: var(--accent); }
 .attach { font-size: 11px; color: var(--fg-dim); font-family: var(--ui); }
 .attach code { color: var(--orange); font-family: var(--mono); background: var(--bg3);
   border: 1px solid var(--border); border-radius: 5px; padding: 2px 6px; margin-left: 4px; }
-main.chrome-body { flex: 1; overflow-y: auto; padding: 18px 22px 32px;
-  max-width: 1680px; width: 100%; margin: 0 auto; }
+main.chrome-body { flex: 1; display: flex; min-height: 0; min-width: 0; }
+#side { width: 240px; border-right: 1px solid var(--border); overflow-y: auto;
+  flex-shrink: 0; background: var(--bg2); }
+#side section { padding: 14px 14px; border-bottom: 1px solid var(--border); }
+#side section h2 { font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--dim); font-weight: 600; margin: 0 0 10px; display: flex;
+  align-items: center; gap: 7px; cursor: default; }
+#side section h2::before { content: ''; width: 3px; height: 11px; background: var(--accent);
+  border-radius: 2px; }
+#nav { display: flex; flex-direction: column; gap: 2px; font-family: var(--mono); font-size: 12px; }
+#nav a { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 6px; cursor: pointer; color: var(--dim);
+  border-left: 2px solid transparent; text-decoration: none; transition: background .1s,color .1s; }
+#nav a:hover { background: rgba(255,255,255,.03); color: var(--text); }
+#nav a.active { background: var(--accent-glow); color: var(--text); border-left-color: var(--accent); }
+#nav a .n { font-variant-numeric: tabular-nums; color: var(--fg-dim); font-size: 11px; }
+#nav a.active .n { color: var(--accent-2); }
+#content { flex: 1; overflow-y: auto; padding: 18px 22px 32px; min-width: 0; }
 /* Legacy h1 selector kept for any dynamic markup that still writes it */
 h1.inline { font-size: 15px; font-weight: 700; letter-spacing: .03em; color: var(--text);
   margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
@@ -142,8 +158,12 @@ tbody tr:hover td { background: rgba(255,255,255,.025); }
   border-radius: 8px; padding: 4px 11px; font-family: var(--ui); font-size: 11px; font-weight: 500;
   cursor: pointer; vertical-align: middle; transition: color .15s,border-color .15s; }
 .refresh-btn:hover { color: var(--accent); border-color: var(--accent); }
+@media (max-width: 860px) {
+  main.chrome-body { flex-direction: column; }
+  #side { width: 100%; max-height: 32vh; border-right: none; border-bottom: 1px solid var(--border); }
+}
 @media (max-width: 760px) {
-  main.chrome-body { padding: 14px 14px 28px; }
+  #content { padding: 14px 14px 28px; }
   .cards { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
   .card .num { font-size: 22px; }
   .filter-bar { flex-wrap: wrap; }
@@ -164,12 +184,21 @@ tbody tr:hover td { background: rgba(255,255,255,.025); }
   <span class="attach">live via <code>/api/stream</code> SSE</span>
 </header>
 <main class="chrome-body">
+<div id="side">
+  <section>
+    <h2>Sections</h2>
+    <div id="nav"></div>
+  </section>
+</div>
+<div id="content">
 <div id="banner" class="banner" style="display:none">Waiting for engagement...</div>
 
-<div id="content" style="display:none">
+<div id="main-content" style="display:none">
+<div id="overview">
 <div class="cards" id="summary-cards"></div>
+</div>
 
-<div class="section">
+<div class="section" id="section-graph">
   <h2 onclick="toggleSection('graph')">Access Chain <button class="refresh-btn" onclick="event.stopPropagation(); refreshAll()">Refresh</button></h2>
   <div id="graph-body" class="section-body">
     <div id="graph-container"><button class="graph-expand-btn" onclick="toggleGraphFullscreen()" id="graph-expand-btn" title="Toggle fullscreen">&#x26F6;</button><svg id="graph"></svg><div class="graph-legend" id="graph-legend"></div><div class="tooltip" id="graph-tooltip"></div></div>
@@ -183,6 +212,7 @@ tbody tr:hover td { background: rgba(255,255,255,.025); }
 </div>
 
 <div id="tables"></div>
+</div>
 </div>
 </main>
 
@@ -226,18 +256,22 @@ function showContent() {
   if (!state) return;
   const hasData = state.targets.length || state.vulns.length || state.credentials.length;
   document.getElementById('banner').style.display = (state.engagement || hasData) ? 'none' : 'block';
-  document.getElementById('content').style.display = (state.engagement || hasData) ? '' : 'none';
+  document.getElementById('main-content').style.display = (state.engagement || hasData) ? '' : 'none';
 }
 function render() {
   showContent();
+  renderNav();
   renderCards();
   renderFlowGraph();
   renderTables();
+  initScrollSpy();
 }
 function renderLight() {
   showContent();
+  renderNav();
   renderCards();
   renderTables();
+  initScrollSpy();
 }
 
 function renderCards() {
@@ -295,6 +329,50 @@ const TABLE_DEFS = [
     fmt: { event_type: r => `<span class="badge sev-info">${r.event_type}</span>`,
            agent: r => r.agent ? `<span class="badge sev-low">${r.agent}</span>` : '' }},
 ];
+
+function renderNav() {
+  if (!state) return;
+  const nav = document.getElementById('nav');
+  const items = [
+    { id: 'overview', label: 'Overview', n: '' },
+    { id: 'section-graph', label: 'Access Chain', n: '' },
+  ];
+  for (const def of TABLE_DEFS) {
+    items.push({ id: `section-${def.id}`, label: def.title, n: (state[def.key] || []).length });
+  }
+  nav.innerHTML = items.map(i =>
+    `<a data-anchor="${i.id}">${i.label}${i.n !== '' ? `<span class="n">${i.n}</span>` : ''}</a>`
+  ).join('');
+  for (const a of nav.querySelectorAll('a')) {
+    a.onclick = () => {
+      const el = document.getElementById(a.dataset.anchor);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setActiveNav(a.dataset.anchor);
+    };
+  }
+}
+function setActiveNav(id){
+  for (const a of document.querySelectorAll('#nav a')) {
+    a.classList.toggle('active', a.dataset.anchor === id);
+  }
+}
+// Scroll-spy: highlight the nav row for whichever section is at the top of the viewport.
+function initScrollSpy(){
+  const content = document.getElementById('content');
+  if (content._spyBound) return;
+  content._spyBound = true;
+  content.addEventListener('scroll', () => {
+    const anchors = ['overview','section-graph',...TABLE_DEFS.map(d => `section-${d.id}`)];
+    let active = anchors[0];
+    for (const id of anchors) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      const top = el.getBoundingClientRect().top - content.getBoundingClientRect().top;
+      if (top < 100) active = id;
+    }
+    setActiveNav(active);
+  }, { passive: true });
+}
 
 function renderTables() {
   const container = document.getElementById('tables');
