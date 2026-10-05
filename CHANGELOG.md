@@ -7,6 +7,23 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Scribe + lead cover non-session exploits too.** Not every exploit
+  produces a `list_sessions` row — file-read RCEs, prompt-injection
+  extractions, DPAPI decrypts on the attackbox, API-only credential
+  recovery, cert/AD abuse that just mutates directory state. Those
+  would slip past a session-only monitor. New shell-server tool
+  `record_non_session_exploit(target, label, body, hostname, notes,
+  references, python_helper)` writes the same filename pattern
+  (`<ip>-[<hostname>-]<label>.sh|md`) but produces a standalone
+  bash body (no listener, no `${LHOST}` substitution) that prints
+  its proof to stdout. Scribe's protocol gains a `mode=no-session`
+  form of `[record-exploit]` (requires `body=…` instead of
+  `delivery=…`). Lead's scribe duty now runs TWO checks each loop:
+  (a) `list_sessions` on shell-server + MSF for unrecorded sessions
+  → `[nudge-session]`; (b) `poll_events()` for `vuln.update →
+  actioned` with no matching `engagement/exploits/<ip>-*` file →
+  `[nudge-vuln]`. Scribe's `.md` sidecar for non-session exploits
+  is tagged `kind: non-session` so audits can tell them apart.
 - **New `scribe` teammate — sole writer to `engagement/exploits/`.** The
   record-the-shell step was being skipped when the exploiting teammate
   got pulled into post-exploitation (and shell-mgr wasn't always

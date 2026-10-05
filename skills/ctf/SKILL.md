@@ -768,13 +768,27 @@ into post-exploitation.
 3. scribe goes idle after activation — this is normal.
 ```
 
-**Lead's scribe duty**: on every orchestrator loop iteration, after
-`poll_events()`, call `mcp__shell-server__list_sessions` and look for
-any **remote** session with `exploit_recorded: false`. For each one,
-send scribe `[nudge] session_id=<id>` so scribe chases the exploiting
-teammate for the delivery context. Don't call `record_exploit` yourself
-— you don't have the auth chain / CSRF / payload context; the
-exploiting teammate does, and scribe is the one who talks to them.
+**Lead's scribe duty** — two signals, both checked each loop:
+
+1. **Session-producing exploits.** After `poll_events()`, call
+   `mcp__shell-server__list_sessions` AND
+   `mcp__metasploit-server__list_sessions` and look for any remote /
+   MSF session with `exploit_recorded: false`. For each one, send
+   scribe `[nudge-session] session_id=<id>`.
+
+2. **Non-session exploits.** In the same `poll_events()` batch, pick
+   out `vuln.update` events where the vuln moved to `status=actioned`.
+   For each, glob `engagement/exploits/<ip>-*` (where `<ip>` is the
+   dash-escaped target IP). If NO file matches, send scribe
+   `[nudge-vuln] vuln_id=<N> target=<ip> title="<t>" discovered_by=<team>`.
+   This catches file-read RCEs, prompt-injection extractions, DPAPI
+   decrypts, API-only credential recovery — anything that never
+   produces a `list_sessions` row.
+
+Don't call `record_exploit` / `record_non_session_exploit` yourself —
+you don't have the auth chain / CSRF / payload context; the
+exploiting / discovering teammate does, and scribe is the one who
+talks to them.
 
 After initialization, remind the operator to start the portal:
 ```

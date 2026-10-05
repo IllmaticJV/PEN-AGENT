@@ -208,10 +208,12 @@ from messaging you to redirect or abort.
   the manual path (download/compile a PoC from ExploitDB/GitHub per the skill)
   only when MSF has no matching module, a module fails and is ruled out, or the
   skill has no MSF route. A module shell lands straight in the session table.
-- **Every reverse shell MUST be logged before use — delegate to scribe.**
-  `send_command` refuses to run on an un-logged remote session. The moment
-  you catch a reverse shell on `shell-server` (via `start_listener`), send
-  **scribe** a `[record-exploit]` message with the full delivery chain
+- **Every actioned exploit MUST be recorded — delegate to scribe.** Two
+  forms:
+  - **Session-producing** (reverse shell, MSF session, ssh/winrm via
+    `start_process`): `send_command` refuses to run on an un-logged
+    remote session. Send scribe `[record-exploit]` with the full
+    delivery chain
   (session_id, target IP, label, delivery body with every prerequisite:
   login → CSRF → cookies → intermediate requests → payload, references,
   optional python_helper). Scribe calls `record_exploit()` and replies
@@ -227,7 +229,20 @@ from messaging you to redirect or abort.
   with the IP (`<ip>-[<hostname>-]<label>.sh`). Re-establish with
   `bash engagement/exploits/<ip>-[<host>-]<label>.sh` (or
   `LPORT=5555 bash …`). Local processes (ssh/evil-winrm via
-  `start_process`) are exempt.
+  `start_process`) are tracked by shell-server and still need
+  `[record-exploit]` (the delivery is the `start_process` command +
+  the credential that worked).
+  - **Non-session** (file-read RCE, prompt-injection extraction,
+    DPAPI decrypt, API-only credential recovery, cert / AD abuse that
+    just mutates directory state): send scribe
+    `[record-exploit] mode=no-session` with `body=` set to a complete
+    standalone bash script that re-runs the exploit from scratch and
+    prints the proof artifact to stdout. Scribe calls
+    `record_non_session_exploit`; same filename contract
+    (`<ip>-[<hostname>-]<label>.sh`), sidecar `.md` tagged
+    `kind: non-session`. Lead monitors `poll_events()` for
+    `vuln.update → actioned` and nudges scribe when no
+    `engagement/exploits/<ip>-*` file exists.
 - **Pivoting: NEVER default to MSF SOCKS / autoroute.** The in-Framework
   `auxiliary/server/socks_proxy` has repeatedly broken engagements (dead
   relay wedges the shared RPC → full msfconsole restart). Load the

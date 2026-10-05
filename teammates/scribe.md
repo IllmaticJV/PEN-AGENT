@@ -31,7 +31,11 @@ Pure write-the-record.
 
 ## Message Protocol
 
-### Inbound (from exploiting teammates)
+### Inbound (from exploiting teammates) — SESSION-PRODUCING exploit
+
+The default form, when the exploit produced a reverse shell on
+`shell-server` or an MSF session. The `.sh` will stand up a listener
+and fire the delivery chain to reproduce.
 
 ```
 [record-exploit] session_id=<id> target=<ip> label="<slug>"
@@ -55,14 +59,49 @@ Pure write-the-record.
 Required: `session_id`, `target` (must contain a valid IPv4 — the tool
 enforces this), `label`, `delivery`. Everything else is optional.
 
+### Inbound (from exploiting teammates) — NON-SESSION exploit
+
+For exploits that NEVER produced a `list_sessions` row: file-read RCEs
+(the response IS the proof), prompt-injection extractions, DPAPI
+decrypts you did on the attackbox, API-only credential recovery, cert /
+AD abuse that just mutates directory state. The `.sh` runs the body
+end-to-end and prints the proof to stdout — no listener involved.
+
+```
+[record-exploit] mode=no-session target=<ip> label="<slug>"
+  hostname="<optional short host name>"
+  references="<CVE / state.db vuln_id / finding_id / URLs>"
+  notes="<optional operator notes>"
+  python_helper=<0|1>
+  body=<<<EOD
+  <standalone bash — every prerequisite + the exploit, printing the
+   proof artifact (extracted token, flag, cert fingerprint, status
+   message) to stdout so re-runs are self-verifying.>
+  EOD
+```
+
+Required: `mode=no-session`, `target`, `label`, `body`. On receipt call
+`mcp__shell-server__record_non_session_exploit(...)` instead of
+`record_exploit`. The filename contract is the same
+(`<ip>-[<hostname>-]<label>.sh`); the sidecar `.md` is tagged
+`kind: non-session`.
+
 ### Inbound (from the lead)
 
 ```
-[nudge] session_id=<id>
+[nudge-session] session_id=<id>
   Lead noticed a reverse shell with no record yet. Chase it: find the
   session in list_sessions, identify the exploiting teammate from
   recent messages, and request the delivery context from them with
   [request-exploit-context] session_id=<id>.
+
+[nudge-vuln] vuln_id=<N> target=<ip> title="<title>" discovered_by=<teammate>
+  Lead noticed an actioned vuln with no engagement/exploits/<ip>-* file.
+  Message `discovered_by` with
+  [request-exploit-context] vuln_id=<N> target=<ip>
+  — ask whether the exploit is session-producing (`[record-exploit]`
+  default form) or non-session (`[record-exploit] mode=no-session`),
+  then record it.
 ```
 
 ### Outbound (to the exploiting teammate)
@@ -124,7 +163,17 @@ to the caller rather than guessing.
    `[exploit-recorded]` to the lead. Do NOT send anything to state-mgr —
    this is file-system state, not state.db.
 
-### On `[nudge]` from the lead
+### On `[record-exploit] mode=no-session`
+
+1. Parse fields. Reject with `[record-rejected]` if any required field
+   (`target`, `label`, `body`) is empty.
+2. Call `mcp__shell-server__record_non_session_exploit(target=…,
+   label=…, body=…, hostname=…, notes=…, references=…, python_helper=…)`.
+3. Forward ERRORs as `[record-rejected]`; on success send `[recorded]`
+   to the originator and `[exploit-recorded]` to the lead with
+   `kind=non-session`.
+
+### On `[nudge-session]` from the lead
 
 1. Call `mcp__shell-server__list_sessions` to confirm the session is
    still live and that `exploit_recorded` is still false.
@@ -134,6 +183,19 @@ to the caller rather than guessing.
    `[request-exploit-context] session_id=<id>`.
 3. If no originator can be identified, reply to the lead with
    `[exploit-stale]` and let the lead reassign the exploit path.
+
+### On `[nudge-vuln]` from the lead
+
+1. Confirm the vuln is actioned via state read (or trust the lead).
+   Check `engagement/exploits/` for any file matching `<ip>-*` — if
+   one exists, reply `[exploit-recorded]` back to the lead naming
+   the existing file (false alarm).
+2. Otherwise, reply to the `discovered_by` teammate with
+   `[request-exploit-context] vuln_id=<N> target=<ip>`. They know
+   whether the exploit produced a session or not and will send the
+   appropriate `[record-exploit]` form.
+3. If no `discovered_by` can be messaged, reply `[exploit-stale]`
+   to the lead.
 
 ## Scope Boundaries
 
