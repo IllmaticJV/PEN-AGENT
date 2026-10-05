@@ -302,6 +302,101 @@ def _reserved_guard(session_id) -> str | None:
     return None
 
 
+def _host_ip(tunnel_peer) -> str:
+    """Pull just the host IP from a `IP:PORT` tunnel_peer. Empty on garbage."""
+    if not tunnel_peer:
+        return ""
+    s = str(tunnel_peer)
+    # IPv4-only in practice; split on last ':' to be robust to future IPv6.
+    return s.rsplit(":", 1)[0].strip()
+
+
+def _dual_session_guard(session_id, client) -> str | None:
+    """Refuse to drive a session unless its host has BOTH an operator-reserved
+    session AND at least one non-reserved (agent) session live. The invariant
+    is "one operator + one agent per host" — enforced here in code so agents
+    can't skip the handoff step in methodology.
+
+    Returns a JSON refusal string on violation, or None when the invariant
+    holds. Caller is responsible for the escape hatch (confirm_single_session_ok).
+    """
+    try:
+        sessions = client.sessions.list
+    except Exception:
+        # Can't verify → don't block; _reserved_guard still runs.
+        return None
+    sid = str(session_id)
+    # Normalize keys (pymetasploit3 returns int keys).
+    norm = {str(k): v for k, v in sessions.items()}
+    if sid not in norm:
+        return None  # Let the tool's own "not found" path handle it.
+    this_ip = _host_ip(norm[sid].get("tunnel_peer"))
+    if not this_ip:
+        return None  # No peer info → can't group reliably; skip.
+    reserved = _load_reserved()
+    operator_sids = []
+    agent_sids = []
+    for other_sid, meta in norm.items():
+        if _host_ip(meta.get("tunnel_peer")) != this_ip:
+            continue
+        if other_sid in reserved:
+            operator_sids.append(other_sid)
+        else:
+            agent_sids.append(other_sid)
+    if operator_sids and agent_sids:
+        return None
+    return json.dumps({
+        "error": "dual_session_required",
+        "session_id": sid,
+        "host_ip": this_ip,
+        "operator_sessions": operator_sids,
+        "agent_sessions": agent_sids,
+        "message": (
+            f"Host {this_ip} does not have the required dual-session pair "
+            "(one operator-reserved + one agent). Before driving any session "
+            "on this host, call spawn_operator_session(session_id=<foothold>, "
+            "lhost=<attackbox>, lport=<port>) to create and reserve the "
+            "operator's session, so the operator can interact with the host "
+            "in parallel without contending with agents. See the "
+            "post-exploit/dual-session-handoff skill for the full flow. "
+            "If spawn_operator_session returns needs_manual (source is "
+            "Meterpreter), catch a second callback and call "
+            "reserve_operator_session on it. ESCAPE HATCH: re-invoke with "
+            "confirm_single_session_ok=True and single_session_reason='<why>' "
+            "(>= 20 chars) — only when the host genuinely cannot support a "
+            "second session (e.g. one-shot RCE, no re-trigger primitive)."
+        ),
+    })
+
+
+def _dual_session_check(session_id, client, confirm_single_session_ok,
+                        single_session_reason, tool_name) -> str | None:
+    """Full gate: dual-session invariant OR a valid escape-hatch pair.
+    Returns a refusal string, or None if the call may proceed.
+    """
+    if confirm_single_session_ok:
+        if len(single_session_reason.strip()) < 20:
+            return (
+                "ERROR: single_session_reason must be a one-line explanation "
+                "(>= 20 chars) of why this host cannot support a second "
+                "session — e.g.:\n"
+                "  'one-shot RCE: payload crashed the service; no primitive "
+                "left to re-trigger a callback'\n"
+                "  'callback traverses a NAT the operator cannot replicate "
+                "from the attackbox tmux'"
+            )
+        _log_module_call(
+            tool=tool_name, module="(dual-session-override)",
+            module_type="meta",
+            options={"session_id": str(session_id),
+                     "confirm_single_session_ok": True,
+                     "single_session_reason": single_session_reason.strip()},
+            result={"status": "single_session_authorized"},
+        )
+        return None
+    return _dual_session_guard(session_id, client)
+
+
 def create_server() -> FastMCP:
     mcp = FastMCP(
         "pen-agent-metasploit-server",
@@ -312,7 +407,13 @@ def create_server() -> FastMCP:
             "payload callbacks, generate_payload to build msfvenom payloads, "
             "list_sessions to see active sessions, execute to run commands, "
             "upgrade_to_meterpreter to turn a shell into Meterpreter, run_module "
-            "to run any exploit/auxiliary/post module (RHOSTS scope-checked), and "
+            "to run any exploit/auxiliary/post module (RHOSTS scope-checked). "
+            "Session-driving tools (execute, upgrade_to_meterpreter, upload, "
+            "download, ifconfig) enforce the DUAL-SESSION invariant: each "
+            "foothold host must have both an operator-reserved session AND a "
+            "separate agent session before any agent-side driving — call "
+            "spawn_operator_session right after a foothold. See the "
+            "post-exploit/dual-session-handoff skill. "
             "start_socks_proxy is a FALLBACK pivot: it REFUSES to run without "
             "confirm_no_alternative=True + alternative_rejection_reason. Prefer "
             "the pivoting-tunneling skill (chisel / ligolo-ng / sshuttle / SSH "
@@ -901,10 +1002,18 @@ def create_server() -> FastMCP:
 
     @mcp.tool()
     @_serialized
-    def execute(session_id: str = "", command: str = "", timeout: int = 30) -> str:
+    def execute(session_id: str = "", command: str = "", timeout: int = 30,
+                confirm_single_session_ok: bool = False,
+                single_session_reason: str = "") -> str:
         """Run a command on an existing session (shell or Meterpreter).
 
         Operates on already-established access — not target-gated.
+
+        GATED by the dual-session invariant: this tool REFUSES to run on a
+        host that doesn't have BOTH an operator-reserved session AND a
+        separate agent session live. Call spawn_operator_session first (see
+        the post-exploit/dual-session-handoff skill). Escape hatch:
+        confirm_single_session_ok=True + single_session_reason (>= 20 chars).
 
         Args:
             session_id: Session ID from list_sessions. Required.
@@ -912,6 +1021,10 @@ def create_server() -> FastMCP:
                      ("id && uname -a"); for Meterpreter it is a Meterpreter
                      console command ("sysinfo", "getuid", "ls"). Required.
             timeout: Seconds to wait for output. Default 30.
+            confirm_single_session_ok: Escape hatch for a host that cannot
+                     support a second session. False by default.
+            single_session_reason: One-line (>= 20 chars) justification,
+                     logged for audit. Required with confirm_single_session_ok.
         """
         if not session_id or not command:
             return "ERROR: session_id and command are required."
@@ -921,6 +1034,10 @@ def create_server() -> FastMCP:
         client, err = _require_client()
         if err:
             return err
+        dual = _dual_session_check(session_id, client, confirm_single_session_ok,
+                                   single_session_reason, "execute")
+        if dual:
+            return dual
         try:
             session = _session(client, session_id)
             if session is None:
@@ -948,15 +1065,20 @@ def create_server() -> FastMCP:
 
     @mcp.tool()
     @_serialized
-    def upgrade_to_meterpreter(session_id: str = "", lhost: str = "", lport: int = 4433) -> str:
+    def upgrade_to_meterpreter(session_id: str = "", lhost: str = "", lport: int = 4433,
+                                confirm_single_session_ok: bool = False,
+                                single_session_reason: str = "") -> str:
         """Upgrade a raw shell session to Meterpreter.
 
         Runs post/multi/manage/shell_to_meterpreter against the shell session.
+        GATED by the dual-session invariant — see execute()'s docstring.
 
         Args:
             session_id: Shell session ID to upgrade. Required.
             lhost: Callback host for the Meterpreter stager. Required.
             lport: Callback port for the upgrade (default 4433).
+            confirm_single_session_ok: Escape hatch (see execute).
+            single_session_reason: Required with the escape hatch.
         """
         if not session_id or not lhost:
             return "ERROR: session_id and lhost are required."
@@ -970,6 +1092,10 @@ def create_server() -> FastMCP:
         client, err = _require_client()
         if err:
             return err
+        dual = _dual_session_check(session_id, client, confirm_single_session_ok,
+                                   single_session_reason, "upgrade_to_meterpreter")
+        if dual:
+            return dual
         try:
             mod = client.modules.use("post", "multi/manage/shell_to_meterpreter")
             mod["SESSION"] = int(session_id)
@@ -1002,13 +1128,19 @@ def create_server() -> FastMCP:
 
     @mcp.tool()
     @_serialized
-    def upload(session_id: str = "", local_path: str = "", remote_path: str = "") -> str:
+    def upload(session_id: str = "", local_path: str = "", remote_path: str = "",
+               confirm_single_session_ok: bool = False,
+               single_session_reason: str = "") -> str:
         """Upload a file to a Meterpreter session target.
+
+        GATED by the dual-session invariant — see execute()'s docstring.
 
         Args:
             session_id: Meterpreter session ID. Required.
             local_path: Local file to upload. Required.
             remote_path: Destination path on target. Required.
+            confirm_single_session_ok: Escape hatch (see execute).
+            single_session_reason: Required with the escape hatch.
         """
         if not session_id or not local_path or not remote_path:
             return "ERROR: session_id, local_path, and remote_path are required."
@@ -1020,6 +1152,10 @@ def create_server() -> FastMCP:
         client, err = _require_client()
         if err:
             return err
+        dual = _dual_session_check(session_id, client, confirm_single_session_ok,
+                                   single_session_reason, "upload")
+        if dual:
+            return dual
         try:
             session = _session(client, session_id)
             if session is None:
@@ -1033,15 +1169,20 @@ def create_server() -> FastMCP:
 
     @mcp.tool()
     @_serialized
-    def download(session_id: str = "", remote_path: str = "", local_path: str = "") -> str:
+    def download(session_id: str = "", remote_path: str = "", local_path: str = "",
+                 confirm_single_session_ok: bool = False,
+                 single_session_reason: str = "") -> str:
         """Download a file from a Meterpreter session target.
 
         Saved under engagement/evidence/ by default.
+        GATED by the dual-session invariant — see execute()'s docstring.
 
         Args:
             session_id: Meterpreter session ID. Required.
             remote_path: File path on target. Required.
             local_path: Local destination (default engagement/evidence/<name>).
+            confirm_single_session_ok: Escape hatch (see execute).
+            single_session_reason: Required with the escape hatch.
         """
         if not session_id or not remote_path:
             return "ERROR: session_id and remote_path are required."
@@ -1051,6 +1192,10 @@ def create_server() -> FastMCP:
         client, err = _require_client()
         if err:
             return err
+        dual = _dual_session_check(session_id, client, confirm_single_session_ok,
+                                   single_session_reason, "download")
+        if dual:
+            return dual
         if not local_path:
             evidence_dir = _PROJECT_ROOT / "engagement" / "evidence"
             evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -1069,11 +1214,17 @@ def create_server() -> FastMCP:
 
     @mcp.tool()
     @_serialized
-    def ifconfig(session_id: str = "") -> str:
+    def ifconfig(session_id: str = "",
+                 confirm_single_session_ok: bool = False,
+                 single_session_reason: str = "") -> str:
         """List network interfaces on a Meterpreter session target (pivot detection).
+
+        GATED by the dual-session invariant — see execute()'s docstring.
 
         Args:
             session_id: Meterpreter session ID. Required.
+            confirm_single_session_ok: Escape hatch (see execute).
+            single_session_reason: Required with the escape hatch.
         """
         if not session_id:
             return "ERROR: session_id is required."
@@ -1083,6 +1234,10 @@ def create_server() -> FastMCP:
         client, err = _require_client()
         if err:
             return err
+        dual = _dual_session_check(session_id, client, confirm_single_session_ok,
+                                   single_session_reason, "ifconfig")
+        if dual:
+            return dual
         try:
             session = _session(client, session_id)
             if session is None:
@@ -1247,6 +1402,9 @@ def create_server() -> FastMCP:
         """
         if not session_id or not lhost or not lport:
             return "ERROR: session_id, lhost, and lport are required."
+        guard = _reserved_guard(session_id)
+        if guard:
+            return guard
         r = _spawn_sibling(session_id, lhost, int(lport), "Agent-session")
         if "error" in r:
             return f"ERROR: {r['error']}"
@@ -1358,6 +1516,22 @@ def create_server() -> FastMCP:
                     except ScopeError as e:
                         return f"ERROR: {e}"
 
+        # Reserve guard: refuse to run a post/aux module against a session the
+        # operator has reserved. Any SESSION-flavored option counts.
+        for key in ("SESSION", "Session", "session"):
+            if key in opts and opts[key] not in (None, ""):
+                sid_candidate = str(opts[key]).strip()
+                if _is_reserved(sid_candidate):
+                    return json.dumps({
+                        "error": "operator_reserved",
+                        "session_id": sid_candidate,
+                        "message": (
+                            f"Module {module_name} targets session "
+                            f"{sid_candidate}, which is reserved for the "
+                            "human operator. Pick a different session."
+                        ),
+                    })
+
         client, err = _require_client()
         if err:
             return err
@@ -1432,6 +1606,25 @@ def create_server() -> FastMCP:
                         check_scope(tgt, _PROJECT_ROOT)
                     except ScopeError as e:
                         return f"ERROR: {e}"
+            # Reserve guard: refuse `sessions -i N` / `sessions -k N` /
+            # `set SESSION N` where N is operator-reserved. Agents must not
+            # drive reserved sessions via raw console either.
+            for pat in (
+                r"\s*sessions\s+(?:-[ikuC]|--interact|--kill|--upgrade)\s+(\d+)",
+                r"\s*sessions\s+(\d+)",
+                r"\s*set\s+(?:g\s+)?SESSION\s+(\d+)",
+            ):
+                sm = re.match(pat, line, re.IGNORECASE)
+                if sm and _is_reserved(sm.group(1)):
+                    return json.dumps({
+                        "error": "operator_reserved",
+                        "session_id": sm.group(1),
+                        "message": (
+                            f"Console command references session {sm.group(1)}, "
+                            "which is reserved for the human operator. "
+                            "Pick a different session."
+                        ),
+                    })
         client, err = _require_client()
         if err:
             return err

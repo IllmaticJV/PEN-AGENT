@@ -5,6 +5,39 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Added
+
+- **Dual-MSF-session invariant enforced in code.** The methodology "every
+  foothold host gets one operator-reserved session + one agent session"
+  (introduced as docs in #28) was still being skipped by agents, so
+  `metasploit-server.{execute,upgrade_to_meterpreter,upload,download,ifconfig}`
+  now REFUSE to run on a host missing the pair. Refusal names the host IP,
+  the current session groupings, and instructs the caller to run
+  `spawn_operator_session`. Escape hatch:
+  `confirm_single_session_ok=True` + `single_session_reason` (>= 20 chars,
+  logged to `engagement/evidence/msf-modules/` for operator audit) — for
+  the rare host that genuinely can't support a second session (one-shot
+  RCE, uncroutable NAT). Also plugged bypass paths: `run_module` refuses
+  a `SESSION` option pointing at a reserved session; `console_exec`
+  refuses `sessions -i <N>` / `set SESSION <N>` where <N> is reserved;
+  `spawn_session` refuses to re-stage from a reserved source. New skill
+  `skills/post-exploit/dual-session-handoff` documents the flow,
+  including how to handle `needs_manual` when the source is Meterpreter.
+  Operator must re-index the skill-router after merge:
+  `uv run --directory tools/skill-router python indexer.py`.
+- **Per-exploit `.sh` now launches BOTH legs (agent + operator).** The
+  `record_exploit`-generated script wraps the delivery body in a bash
+  function and fires it twice: once with `LPORT`/`LABEL` for the agent
+  callback, then with `OPERATOR_LPORT=LPORT+1` and
+  `OPERATOR_LABEL=<label>-operator` for the operator callback. One
+  `bash engagement/exploits/<host>-<label>.sh` re-establishes the full
+  dual-session state. `AGENT_ONLY=1` env flag skips the operator leg
+  when the host can only produce a single callback.
+- **shell-server send_command refuses `-operator`-labeled sessions.**
+  Mirrors the MSF-side reserve guard: shell-server sessions whose label
+  ends in `-operator` are the operator's shell and are off-limits to
+  agents at the shell-server level too.
+
 ### Fixed
 
 - **ligolo-ng sudoers: route helper required a password on real CIDRs.**

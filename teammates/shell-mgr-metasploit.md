@@ -72,11 +72,15 @@ b. Verify alive: execute(session_id, command="getuid") — if it succeeds,
 c. Send [session-ready] with backend=metasploit
 ```
 
-**Spawn the operator's session — this is step 4 of Shell Ownership Flow in
-shell-mgr.md, not optional.** Every shell handoff on this backend does this
-once per host, right after the foothold, before you close the listener. So
-the human operator can work the host in the live tmux msfconsole without
-fighting the agents over one shell, give them their own session:
+**Spawn the operator's session — not optional, CODE-ENFORCED.** This is
+step 4 of Shell Ownership Flow in shell-mgr.md. The metasploit-server
+session-driving tools (`execute`, `upgrade_to_meterpreter`, `upload`,
+`download`, `ifconfig`) REFUSE to run on a host that doesn't have the
+dual-session pair (one operator-reserved + one agent) — the refusal
+message names the host and the current session grouping, and tells you to
+call `spawn_operator_session`. Agents cannot proceed without it. Do this
+right after the foothold, before you close the listener. For the full flow
+load the `post-exploit/dual-session-handoff` skill:
 ```
 mcp__metasploit-server__spawn_operator_session(session_id=<the raw SHELL
    session you just caught, before/at upgrade time>, lhost=<callback>,
@@ -93,7 +97,10 @@ Session Tracking) so the next shell on the same host doesn't repeat this.
 **Never drive an operator-reserved session.** `list_sessions()` marks reserved
 sessions `operator_reserved: true`, and every session tool
 (`execute`/`upload`/`download`/`kill_session`/…) refuses them with
-`error: operator_reserved`. If you get that error, you grabbed the operator's
+`error: operator_reserved`. Bypass paths are gated too: `run_module` refuses
+`SESSION=<reserved>` options, `console_exec` refuses `sessions -i <reserved>`
+and `set SESSION <reserved>`, `spawn_session` refuses to re-stage from a
+reserved source. If you get any of those errors, you grabbed the operator's
 session — switch to another. Never `reserve_operator_session` /
 `release_operator_session` on your own initiative; those are operator calls.
 
