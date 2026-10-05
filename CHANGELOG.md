@@ -7,6 +7,20 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **shell-recovery skill — replay the recorded `.sh` on a dropped shell.**
+  shell-mgr's `[shell-dropped]` flow was rebuilding the callback from the
+  stored `delivery_payload` snippet, ignoring the end-to-end
+  `engagement/exploits/<host>-<label>.sh` written by `record_exploit`.
+  New skill `skills/post-exploit/shell-recovery` makes the `.sh` the
+  FIRST recovery path (`bash engagement/exploits/<host>-<label>.sh`),
+  with `AGENT_ONLY=1` for single-leg drops and `LPORT`/`OPERATOR_LPORT`
+  overrides for port conflicts. Covers port pre-flight, MSF-backend
+  extras (upgrade + reserve), and when to fall back to
+  `[recovery-blocked]` so the recording teammate fixes the delivery
+  rather than shell-mgr editing someone else's `.sh`. `teammates/
+  shell-mgr.md` Shell Recovery section rewritten around it.
+  Operator action: `uv run --directory tools/skill-router python
+  indexer.py` to pick up the new skill.
 - **Dual-MSF-session invariant enforced in code.** The methodology "every
   foothold host gets one operator-reserved session + one agent session"
   (introduced as docs in #28) was still being skipped by agents, so

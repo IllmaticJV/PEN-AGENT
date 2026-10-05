@@ -189,6 +189,20 @@ audit. The route helpers validate IPv4 CIDRs themselves (reject IPv6,
 companion uninstaller. Same approach generalizes to any other
 root-on-attackbox tool.
 
+### Dropped shells: replay the recorded .sh FIRST, don't rebuild from snippets
+
+PEN-AGENT's `record_exploit` writes an end-to-end `.sh` (full chain:
+auth → CSRF → cookies → payload, dual-session) to
+`engagement/exploits/<host>-<label>.sh` for every reverse shell. On a
+drop, shell-mgr was ignoring it and rebuilding the callback from the
+`delivery_payload` snippet it had stored in-memory — which drops the
+auth/CSRF/cookie steps and fails against anything but a trivially
+stateless RCE. Pattern: when the recovery artifact already exists on
+disk, the first recovery attempt is to RUN it (`bash <path>`), not to
+re-synthesize. Only fall back to the recording teammate when the `.sh`
+itself fails for a cause they must fix (stale auth, broken injection,
+target implant died). Codified as `skills/post-exploit/shell-recovery`.
+
 ### Methodology-only rules get skipped — code-gate the ones that matter
 
 Session-handoff invariants ("every foothold gets one operator + one agent
