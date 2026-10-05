@@ -189,6 +189,22 @@ audit. The route helpers validate IPv4 CIDRs themselves (reject IPv6,
 companion uninstaller. Same approach generalizes to any other
 root-on-attackbox tool.
 
+### Methodology-only rules get skipped — code-gate the ones that matter
+
+Session-handoff invariants ("every foothold gets one operator + one agent
+session", "every reverse shell must have a recorded exploit", "pivot via
+non-MSF tools first") were documented in skills and teammate templates and
+STILL got skipped. The pattern that actually works: refuse the operation
+in the MCP server by default, require an explicit `confirm_X=True` boolean
+plus a ≥20-char `reason` string that gets logged to
+`engagement/evidence/msf-modules/` for operator audit. Also gate every
+BYPASS path, not just the obvious tool — e.g. for the dual-session
+invariant, `execute` / `upload` / `ifconfig` all check it, AND
+`run_module` refuses a `SESSION=<reserved>` option, AND `console_exec`
+refuses `sessions -i <reserved>`. One un-gated path and the whole thing
+leaks. Mirror the gate wherever the shadow surface exists (shell-server
+mirrors msf's reserve on labels ending in `-operator`).
+
 ### Pivots: default to out-of-Framework tools (chisel / ligolo-ng / sshuttle / SSH)
 
 Metasploit's in-Framework `auxiliary/server/socks_proxy` has proven unstable

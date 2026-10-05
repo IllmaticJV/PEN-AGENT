@@ -94,26 +94,38 @@ _EXPLOIT_SH_TEMPLATE = r"""#!/usr/bin/env bash
 # Context:     see {md_name} next to this script.
 # Python helper: {helper_hint}
 #
-# Re-establish the reverse shell for this host:
+# Re-establish BOTH shells for this host (one agent + one operator — the
+# dual-session invariant PEN-AGENT enforces so the operator can drive the host
+# in parallel to agents without contention):
 #   bash <this script>
 #   LHOST=10.10.14.9 LPORT=5555 bash <this script>   # override callback endpoint
+#   AGENT_ONLY=1 bash <this script>                   # skip operator leg
 #
 # What it does:
-#   1. Start a fresh shell-server listener via the MCP (same label + port by default)
+#   1. Start a fresh shell-server listener for the AGENT callback (LPORT / LABEL)
 #   2. Fire the delivery body below — INCLUDING every prerequisite step (auth,
 #      CSRF, cookie flow, intermediate requests). ${{LHOST}} / ${{LPORT}} /
 #      ${{LABEL}} are substituted at runtime. If a step is cleaner in Python,
 #      the delivery can call a helper at ${{EXPLOITS_DIR}}/python/<name>.py.
-#   3. Poll list_sessions for ~30s and announce the new session_id.
+#   3. Poll list_sessions until the agent callback lands.
+#   4. UNLESS AGENT_ONLY=1 is set, start a SECOND listener for the OPERATOR
+#      callback (OPERATOR_LPORT=LPORT+1, OPERATOR_LABEL=<label>-operator by
+#      default) and re-fire the delivery body with those overrides.
+#   5. Poll list_sessions until the operator callback lands.
 #
-# NOTE: the new session's send_command is still gated on record_exploit —
-# call it again on the new session_id to unlock it.
+# NOTE: each new session's send_command is still gated on record_exploit —
+# call it again on each new session_id to unlock it. On the Metasploit side,
+# the operator session must also be reserve_operator_session'd (shell-mgr
+# does this automatically when the label ends in '-operator').
 
 set -euo pipefail
 
 LHOST="${{LHOST:-{default_lhost}}}"
 LPORT="${{LPORT:-{default_lport}}}"
 LABEL="${{LABEL:-{label_env}}}"
+OPERATOR_LPORT="${{OPERATOR_LPORT:-$((LPORT + 1))}}"
+OPERATOR_LABEL="${{OPERATOR_LABEL:-${{LABEL}}-operator}}"
+AGENT_ONLY="${{AGENT_ONLY:-}}"
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 EXPLOITS_DIR="$REPO_ROOT/engagement/exploits"
@@ -121,33 +133,77 @@ MCP_CALL="$REPO_ROOT/tools/shell-server/mcp-call.sh"
 # Expose to any Python helper invoked below (os.environ.get("LHOST") etc.)
 export LHOST LPORT LABEL REPO_ROOT EXPLOITS_DIR
 
-echo "[*] Starting shell-server listener on ${{LPORT}} (label=${{LABEL}})…"
+# Delivery body is a function so we can call it once per leg (agent, operator)
+# with different LPORT/LABEL env. Body is operator-supplied; ${{LHOST}} /
+# ${{LPORT}} / ${{LABEL}} are the callback endpoint it should reference.
+fire_delivery() {{
+    # ─── delivery body (operator-supplied, {label}) ───────────────────────
+    {delivery_block}
+    # ─── end delivery body ────────────────────────────────────────────────
+    :
+}}
+
+wait_for_session() {{
+    local want_label="$1"
+    echo "[*] Waiting for callback label=${{want_label}} (up to 30s)…"
+    for i in $(seq 1 30); do
+        sleep 1
+        out="$("$MCP_CALL" list_sessions '{{}}' 2>/dev/null || true)"
+        if echo "$out" | grep -qE "\"label\"[[:space:]]*:[[:space:]]*\"${{want_label}}\"" ; then
+            echo "[+] Session landed with label=${{want_label}}."
+            echo "$out" | sed -n '/"label"[[:space:]]*:[[:space:]]*"'"${{want_label}}"'"/,/}}/p' | head -40
+            return 0
+        fi
+    done
+    return 1
+}}
+
+# ── Agent leg ────────────────────────────────────────────────────────────
+echo "[*] Starting AGENT listener on ${{LPORT}} (label=${{LABEL}})…"
 "$MCP_CALL" start_listener "$(printf '{{"port": %s, "label": "%s"}}' "$LPORT" "$LABEL")" >/dev/null
+echo "[*] Firing delivery for AGENT callback (full chain: auth → prerequisites → trigger)…"
+export LHOST LPORT LABEL
+fire_delivery
+if ! wait_for_session "$LABEL"; then
+    echo "[-] No AGENT callback within 30s. Possible causes:"
+    echo "    - Target can't reach ${{LHOST}}:${{LPORT}} (route/firewall/transport retry window elapsed)"
+    echo "    - A prerequisite step (login/CSRF/token) is now stale — the delivery"
+    echo "      body MUST re-perform them from scratch; see {md_name} to adjust"
+    echo "    - Delivery didn't execute as expected (check sidecar notes in {md_name})"
+    echo "    - Target-side implant / process died (needs vuln re-trigger)"
+    exit 2
+fi
+echo "    Call record_exploit() on the new session_id to unlock send_command."
 
-echo "[*] Firing delivery (full chain: auth → prerequisites → trigger)…"
-# ─── delivery body (operator-supplied, {label}) ───────────────────────────
-{delivery_block}
-# ─── end delivery body ────────────────────────────────────────────────────
+if [ -n "$AGENT_ONLY" ]; then
+    echo "[*] AGENT_ONLY set — skipping operator session leg."
+    echo "    NOTE: metasploit-server session-driving tools require the"
+    echo "    dual-session invariant; use their confirm_single_session_ok"
+    echo "    escape hatch with a reason when driving this host."
+    exit 0
+fi
 
-echo "[*] Waiting for callback (up to 30s)…"
-for i in $(seq 1 30); do
-    sleep 1
-    out="$("$MCP_CALL" list_sessions '{{}}' 2>/dev/null || true)"
-    # Session rows contain the label; grep is a cheap existence check.
-    if echo "$out" | grep -qE "\"label\"[[:space:]]*:[[:space:]]*\"$LABEL\"" ; then
-        echo "[+] Session landed with label=${{LABEL}}."
-        echo "    Call record_exploit() on the new session_id to unlock send_command."
-        echo "$out" | sed -n '/"label"[[:space:]]*:[[:space:]]*"'"$LABEL"'"/,/}}/p' | head -40
-        exit 0
-    fi
-done
-echo "[-] No callback within 30s. Possible causes:"
-echo "    - Target can't reach ${{LHOST}}:${{LPORT}} (route/firewall/transport retry window elapsed)"
-echo "    - A prerequisite step (login/CSRF/token) is now stale — the delivery"
-echo "      body MUST re-perform them from scratch; see {md_name} to adjust"
-echo "    - Delivery didn't execute as expected (check sidecar notes in {md_name})"
-echo "    - Target-side implant / process died (needs vuln re-trigger)"
-exit 2
+# ── Operator leg ─────────────────────────────────────────────────────────
+echo "[*] Starting OPERATOR listener on ${{OPERATOR_LPORT}} (label=${{OPERATOR_LABEL}})…"
+"$MCP_CALL" start_listener "$(printf '{{"port": %s, "label": "%s"}}' "$OPERATOR_LPORT" "$OPERATOR_LABEL")" >/dev/null
+echo "[*] Firing delivery for OPERATOR callback…"
+(
+    LPORT="$OPERATOR_LPORT"
+    LABEL="$OPERATOR_LABEL"
+    export LHOST LPORT LABEL
+    fire_delivery
+)
+if ! wait_for_session "$OPERATOR_LABEL"; then
+    echo "[-] No OPERATOR callback within 30s. Agent session is up; operator leg"
+    echo "    failed — the delivery may not be fully idempotent, or the target"
+    echo "    only supports a single callback. Re-run with AGENT_ONLY=1 and have"
+    echo "    the operator catch a session manually in tmux, then call"
+    echo "    metasploit-server.reserve_operator_session on it."
+    exit 3
+fi
+echo "    Operator session landed. Call reserve_operator_session on its MSF side"
+echo "    (shell-mgr auto-reserves labels ending in '-operator')."
+exit 0
 """
 
 
@@ -579,12 +635,19 @@ def create_server() -> FastMCP:
              later shell-drop, run it (`bash engagement/exploits/<...>.sh`)
              and it:
                (a) starts a fresh shell-server listener via the MCP on the
-                   same port + label,
+                   agent port + label,
                (b) fires the delivery body IN FULL — including every
                    prerequisite step (login, CSRF, cookie flow, intermediate
                    requests): the body MUST be end-to-end self-sufficient,
                    not a one-liner that assumes external auth state,
-               (c) polls list_sessions until the callback lands.
+               (c) polls list_sessions until the AGENT callback lands,
+               (d) starts a SECOND listener (OPERATOR_LPORT=LPORT+1,
+                   OPERATOR_LABEL=<label>-operator) and re-fires the delivery
+                   with those overrides to produce the OPERATOR callback —
+                   satisfying PEN-AGENT's dual-session invariant (one agent
+                   + one operator per host). Set AGENT_ONLY=1 to skip the
+                   operator leg when the host truly can't support a second
+                   session.
              `${LHOST}` / `${LPORT}` / `${LABEL}` inside the delivery are
              bash-substituted at runtime; `${EXPLOITS_DIR}` points at the
              exploits dir so the delivery can `python3 "${EXPLOITS_DIR}"/
@@ -775,6 +838,21 @@ def create_server() -> FastMCP:
         if session.session_type == "local" and session.process.poll() is not None:
             session.status = "closed"
             return f"ERROR: Process exited with code {session.process.returncode}."
+
+        # Operator-reserved gate: shell-server sessions whose label ends in
+        # `-operator` are the human operator's shell on that host and MUST
+        # NOT be driven by agents (the dual-session invariant — see
+        # post-exploit/dual-session-handoff). The operator-leg of the
+        # record_exploit .sh produces these; the convention is agent-side.
+        if (session.label or "").strip().lower().endswith("-operator"):
+            return (
+                f"ERROR: session '{session_id}' is the OPERATOR shell for "
+                f"this host (label '{session.label}'). Agents must not drive "
+                "it — the human operator uses it in parallel. Use the "
+                "sibling agent session (same host, label without the "
+                "'-operator' suffix). See skills/post-exploit/"
+                "dual-session-handoff."
+            )
 
         # Mandatory-exploit-log gate: a reverse-shell session must have an
         # engagement/exploits/*.md file written before anyone drives it.

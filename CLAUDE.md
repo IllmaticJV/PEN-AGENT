@@ -237,6 +237,17 @@ from messaging you to redirect or abort.
   alternative really is ruled out for this specific pivot (no attackbox
   inbound to pivot; can't drop a binary on target; or MSF modules must route
   transparently without proxychains).
+- **Dual MSF sessions per host (one operator + one agent).** Right after a
+  foothold on a NEW host, call `mcp__metasploit-server__spawn_operator_session`
+  so that host ends up with BOTH a reserved-for-operator session AND a
+  separate agent session. The metasploit-server session-driving tools
+  (`execute`, `upgrade_to_meterpreter`, `upload`, `download`, `ifconfig`)
+  REFUSE to run on a host missing this pair. If the source is Meterpreter,
+  `spawn_operator_session` returns `needs_manual` — have the operator catch
+  a second callback and call `reserve_operator_session` on it. Load the
+  `post-exploit/dual-session-handoff` skill for the full flow. Escape hatch
+  (`confirm_single_session_ok=True` + `single_session_reason`) is only for
+  hosts that genuinely cannot support a second session; the reason is logged.
 - MCP names: hyphens for servers (`mcp__shell-server__`), underscores for
   tools (`add_vuln`)
 
