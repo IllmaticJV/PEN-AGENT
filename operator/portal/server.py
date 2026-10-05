@@ -35,6 +35,7 @@ import socket
 import sqlite3
 import threading
 import time
+from datetime import datetime, timezone
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -48,6 +49,8 @@ _SCOPE_ALLOW = _PROJECT_ROOT / "engagement" / "scope.allow"
 _SESSION_LOG_DIR = _PROJECT_ROOT / "engagement" / "evidence" / "msf-sessions"
 _MODULE_LOG_DIR = _PROJECT_ROOT / "engagement" / "evidence" / "msf-modules"
 _CONSOLE_SPOOL = _PROJECT_ROOT / "engagement" / "evidence" / "msf-console.log"
+_SHELL_LOG_DIR = _PROJECT_ROOT / "engagement" / "evidence"
+_SHELL_CMD_LOG = _PROJECT_ROOT / "engagement" / "evidence" / "shell-commands.log"
 _OPERATOR_SESSIONS = _PROJECT_ROOT / "engagement" / "operator-sessions.json"
 _OBJECTIVES_JSON = _PROJECT_ROOT / "engagement" / "objectives.json"
 _TOKEN_FILE = Path.home() / ".config" / "pen-agent" / "viewer-token"
@@ -530,6 +533,94 @@ class _MsfState:
             return {"data": "", "error": str(e)}
 
 
+# ── Shell-server read-side (operator visibility into non-MSF sessions) ──────
+# Shell-server writes a per-session live log at
+# engagement/evidence/shell-<session_id>-<label>.log and appends every
+# send_command to engagement/evidence/shell-commands.log. The portal reads
+# those files directly — shell-server itself doesn't expose HTTP.
+_SHELL_LOG_RE = re.compile(r"^shell-([^-]+)-(.+)\.log$")
+
+
+def _shell_list_sessions() -> dict:
+    """Scan engagement/evidence for shell-<sid>-<label>.log files.
+
+    Returns newest-first by mtime so the active session floats to the top.
+    """
+    if not _SHELL_LOG_DIR.exists():
+        return {"sessions": []}
+    out = []
+    try:
+        for p in _SHELL_LOG_DIR.glob("shell-*.log"):
+            m = _SHELL_LOG_RE.match(p.name)
+            if not m:
+                continue
+            try:
+                st = p.stat()
+            except OSError:
+                continue
+            out.append({
+                "session_id": m.group(1),
+                "label": m.group(2),
+                "size": st.st_size,
+                "mtime": st.st_mtime,
+                "mtime_iso": datetime.fromtimestamp(
+                    st.st_mtime, tz=timezone.utc
+                ).isoformat(timespec="seconds"),
+                "file": p.name,
+            })
+    except OSError:
+        return {"sessions": []}
+    out.sort(key=lambda x: x["mtime"], reverse=True)
+    return {"sessions": out}
+
+
+def _shell_session_log(file_name: str, max_bytes: int = 128 * 1024) -> dict:
+    """Return the tail of a single shell-session live log.
+
+    `file_name` is validated against the shell-*.log pattern so a crafted
+    `../` can't walk out of the evidence dir. Falls back to the whole file
+    when it's smaller than max_bytes.
+    """
+    if not _SHELL_LOG_RE.match(file_name):
+        return {"data": "", "error": "invalid file name"}
+    p = _SHELL_LOG_DIR / file_name
+    try:
+        p = p.resolve()
+    except OSError:
+        return {"data": "", "error": "resolve failed"}
+    try:
+        if not str(p).startswith(str(_SHELL_LOG_DIR.resolve())):
+            return {"data": "", "error": "out of scope"}
+    except OSError:
+        return {"data": "", "error": "resolve failed"}
+    if not p.exists():
+        return {"data": "", "error": "not found"}
+    try:
+        with p.open("rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - max_bytes))
+            return {"data": f.read().decode(errors="replace"), "size": size}
+    except OSError as e:
+        return {"data": "", "error": str(e)}
+
+
+def _shell_command_log(max_bytes: int = 64 * 1024) -> dict:
+    """Return the tail of the shared shell-commands.log — a one-liner-per-
+    command log across all shell-server sessions. Useful as a global
+    activity feed above the per-session views."""
+    if not _SHELL_CMD_LOG.exists():
+        return {"data": ""}
+    try:
+        with _SHELL_CMD_LOG.open("rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - max_bytes))
+            return {"data": f.read().decode(errors="replace"), "size": size}
+    except OSError as e:
+        return {"data": "", "error": str(e)}
+
+
 _msf = _MsfState()
 
 
@@ -645,6 +736,16 @@ class Handler(BaseHTTPRequestHandler):
                        200 if cid else 400)
         elif path == "/api/console/log":
             self._json(_msf.console_log())
+        elif path == "/api/shell/sessions":
+            self._json(_shell_list_sessions())
+        elif path == "/api/shell/log":
+            qs = parse_qs(urlparse(self.path).query)
+            name = (qs.get("file") or [""])[0]
+            self._json(_shell_session_log(name) if name
+                       else {"error": "file required"},
+                       200 if name else 400)
+        elif path == "/api/shell/commands":
+            self._json(_shell_command_log())
         elif path == "/api/stream":
             self._state_stream()
         elif path == "/api/msf/stream":
@@ -712,6 +813,10 @@ class Handler(BaseHTTPRequestHandler):
                 modules = _msf.list_module_calls()
                 self.wfile.write(
                     f"data: {json.dumps({'type': 'modules', 'payload': modules.get('calls', [])})}\n\n".encode()
+                )
+                shells = _shell_list_sessions()
+                self.wfile.write(
+                    f"data: {json.dumps({'type': 'shells', 'payload': shells.get('sessions', [])})}\n\n".encode()
                 )
                 self.wfile.flush()
                 time.sleep(2)
