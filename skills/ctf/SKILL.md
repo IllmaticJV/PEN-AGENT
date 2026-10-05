@@ -872,6 +872,11 @@ Then walk ALL items, collect every actionable finding, present to operator:
    VERSIONED SOFTWARE PoC LOOKUP (parallel with ops spawn):
      When discovery identifies software + specific version (not just "nginx"
      but "Tomcat 9.0.31", "GitLab 16.0.1", etc.):
+     MSF FIRST (when the C2 is Metasploit): have the ops teammate try a
+       matching MSF module before any manual PoC — `console_exec("search
+       cve:<id>")` / `search <product> <version>` → `run_module`. Only pursue
+       the manual PoC path (research teammate, below) when MSF has no matching
+       module or it fails. (Skip this when the C2 is shell-server.)
      a. Spawn the ops teammate for the technique immediately
      b. Spawn research teammate in parallel — instruct research to deliver
         its findings directly to the ops teammate (by name), NOT to the lead.
