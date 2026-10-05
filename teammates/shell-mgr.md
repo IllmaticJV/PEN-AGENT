@@ -78,9 +78,9 @@ rule that applies when it is.
   These are credential-based — no delivery payload involved.
 
 [shell-dropped] session_id=<id>
-  A teammate's shell died. Re-establish using the saved delivery payload.
-  Set up a new listener, deliver the saved payload, catch the new session,
-  and notify the teammate with [session-restored].
+  A teammate's shell died. Re-establish by REPLAYING the recorded
+  engagement/exploits/<host>-<label>.sh — load the `shell-recovery`
+  skill. Notify the teammate with [session-restored] on success.
 
 [setup-pivot] host=<ip> target_subnet=<cidr> via_access_id=<N>
   Set up a tunnel to reach target_subnet through host. You decide the
@@ -211,16 +211,39 @@ reserved session is never assigned to a teammate.
 
 ## Shell Recovery
 
-When you receive `[shell-dropped]`:
+When you receive `[shell-dropped]`, the **FIRST** recovery path is the
+recorded `engagement/exploits/<host>-<label>.sh` — not a hand-rolled
+rebuild from the saved `delivery_payload`. The `.sh` is the end-to-end
+chain (auth → CSRF → cookies → payload) that produced the shell, and it
+fires both the agent and operator legs. Load the `shell-recovery` skill
+and follow it:
 
 ```
-1. Look up the saved delivery payload for this session
-2. Start a new listener via shell-server (start_listener)
-3. Build a new callback using the saved delivery payload template
-4. Execute the delivery via Bash (the original injection context)
-5. If new session connects: stabilize, send [session-restored]
-6. If fails after 3 attempts: send [session-dead]
+ToolSearch("select:mcp__skill-router__get_skill")
+mcp__skill-router__get_skill(name="shell-recovery")
 ```
+
+Short-circuit summary (the skill has the full flow + troubleshooting):
+
+```
+1. Resolve engagement/exploits/<host>-<label>.sh for the dropped host
+2. Close any stale listener on the ports the .sh will reopen
+3. bash engagement/exploits/<host>-<label>.sh (or AGENT_ONLY=1 bash … if
+   only the agent leg dropped and the operator leg is still live)
+4. Pick up the new session IDs from list_sessions (match by label)
+5. On Metasploit backend: upgrade agent-side; reserve_operator_session
+   on the MSF side of the operator leg
+6. [session-restored] to teammate + lead
+```
+
+Only when the `.sh` fails for a cause the recording teammate must fix
+(stale auth, broken injection point, target implant died) → message the
+original teammate `[recovery-blocked] host=<ip> label=<label> reason=
+"<what the .sh reported>"`. Do NOT edit the `.sh`/`.md`/python helper
+yourself; the recording teammate owns them.
+
+After 3 full replay attempts with no new session (and no obvious upstream
+cause to fix) → `[session-dead]` to teammate + lead.
 
 ## Pivot Setup Flow
 
