@@ -388,7 +388,7 @@ When a flag arrives via teammate message or state event:
 ## Orchestrator Loop
 
 ```
-active_teammates = {}   # {name: {domain, status, current_task}}
+active_teammates = {}   # {name: {domain, status, current_task, last_probe_at}}
 
 while objectives_not_met:
     summary = get_state_summary()
@@ -400,6 +400,12 @@ while objectives_not_met:
         if approved:
             if not teammate: spawn_teammate(action.domain)
             assign_task(teammate, action.skill, action.target, action.context)
+
+    # Before pausing to wait on asynchronous teammate work, sweep for silent
+    # teammates and probe them — see Stall Sweep below. The lead is the only
+    # role with the context to notice; teammates stuck mid-tool-call cannot
+    # self-report.
+    stall_sweep(active_teammates)
 
     # Teammate messages arrive asynchronously — ACT ON THEM:
     on_teammate_message:
@@ -468,6 +474,87 @@ When a teammate messages that a task is complete:
 8. get_state_summary() → run Decision Logic → present next actions
 9. If 2+ independent paths: use Parallel Path format
 ```
+
+## Stall Sweep
+
+Teammates occasionally go silent longer than their task should take — a tool
+call hung, they finished but forgot to signal task-complete, or they got stuck
+in an internal loop without triggering their own 5-round stall detection.
+Teammates cannot self-report when wedged in a tool call. The lead is the only
+role with the context (`TaskGet`/`TaskList` + `poll_events` + its own message
+log) to notice, so this check belongs here and runs on every orchestrator loop
+iteration — before pausing to wait on async work.
+
+**Thresholds** (starting values; raise per-task when the work legitimately
+takes longer — a full `nmap -p-`, a heavy password spray):
+
+| Signal                                          | Threshold | Action                                           |
+|-------------------------------------------------|-----------|--------------------------------------------------|
+| Teammate silence (no messages, no state events, no TaskGet update) | **3 min** | Send `[status-check]` probe, record probe_at    |
+| Probe sent AND no reply                         | **90 s**  | Presumed wedged — escalate (see below)           |
+
+**Measuring silence per teammate:**
+```
+silence_minutes[t] = now - MAX(
+    TaskGet(t.current_task_id).updated_at,
+    last SendMessage received FROM t,
+    last state_event where agent == t.name  (via poll_events),
+    t.assigned_at                              # if nothing else recorded yet
+)
+```
+
+**Procedure (`stall_sweep`):**
+
+```
+for t in active_teammates where t.status == "working":
+    s = silence_minutes[t]
+
+    if s < 3:
+        continue                                   # healthy
+
+    # Raise the threshold for known-long tasks before probing. If the task's
+    # skill matches a long-running operation (e.g. nmap -p-, password-spraying
+    # with --continue-on-success, cracking jobs, deep metasploit modules),
+    # bump the probe threshold to 5 min instead of 3.
+    if t.current_task.skill in LONG_RUNNING_SKILLS and s < 5:
+        continue
+
+    if t.last_probe_at is None or (now - t.last_probe_at) > 2min:
+        SendMessage(t, f"[status-check] silence for {int(s)}m — what step "
+                       "are you on? If stuck reply [blocked] reason='...', "
+                       "else one-line [status] <current step>.")
+        t.last_probe_at = now
+        continue
+
+    # Probe sent and no reply within window → presumed wedged
+    if (now - t.last_probe_at) > 90s:
+        AskUserQuestion:
+          "<name> silent for <s>m and did not answer a status probe within 90s.
+           Presumed wedged. Options:
+             (a) Give it another 2 min (Recommended if the task is known long)
+             (b) Respawn the teammate (same name — fresh context, task reassigned)
+             (c) Mark the task failed and route the work elsewhere"
+        act on the operator's choice; if (b), TaskUpdate the task to failed,
+        spawn a replacement with the same name, re-send the [TASK] message
+        with the same context.
+```
+
+**LONG_RUNNING_SKILLS** (bump threshold to 5 min before probing): `network-recon`
+(the `-p-` phase), `password-spraying`, `credential-recovery` (cracking),
+`ad-discovery` on large domains, any `evasion/*` payload-building step, any
+`run_module` call carrying a known slow module (e.g. ms17_010 scans across a
+large subnet).
+
+**Why this isn't delegated to state-mgr.** state-mgr only serializes writes;
+it has no visibility into `TaskList`/`TaskGet`, no scheduling authority, and
+no routing context. Expanding its role would blur the "one writer, no
+decisions" contract and still leave the lead needing to do its own check.
+
+**On the probe reply.** A `[status] <step>` reply resets the silence clock —
+the teammate is working, keep routing other work in parallel. A `[blocked]`
+reply means it had already decided to stop but hadn't messaged yet — handle
+exactly like any other blocked message (state-mgr `[add-blocked]`, find
+alternative). No reply within 90 s goes to the escalation branch above.
 
 ## Parallel Execution
 
