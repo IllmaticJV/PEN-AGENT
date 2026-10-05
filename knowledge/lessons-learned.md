@@ -189,6 +189,21 @@ audit. The route helpers validate IPv4 CIDRs themselves (reject IPv6,
 companion uninstaller. Same approach generalizes to any other
 root-on-attackbox tool.
 
+### Pivot reach ≠ callback reach — test C→A directly before tunneling back
+
+When A→B→C is how we REACH C, agents reflexively assume C's egress to
+A must also go through B and start building reverse port forwards /
+in-pivot HTTP servers / chained tunnels for file delivery. In practice
+C often has its own path to A: shared VLAN with the pivot, internet
+egress, a second NIC the pivot didn't obscure, L3 that routes between
+zones. Probe first (one-minute test: curl / raw TCP / UDP/53 / ICMP
+against short-lived listeners on A; verify on BOTH ends to catch
+transparent-proxy spoofing). The common outcome is HTTPS/443 or the
+real callback port works directly, saving hours. The failure case
+("every probe blocked") is also useful — now the tunnel-back isn't a
+guess but a confirmed requirement. Codified as
+`skills/network/connectivity-probe`.
+
 ### Dropped shells: replay the recorded .sh FIRST, don't rebuild from snippets
 
 PEN-AGENT's `record_exploit` writes an end-to-end `.sh` (full chain:

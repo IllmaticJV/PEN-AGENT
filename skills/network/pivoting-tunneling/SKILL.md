@@ -116,6 +116,14 @@ pivot host runs unprivileged.
 
 ## Tool Selection Decision Tree
 
+**Before building a reverse tunnel from target → attackbox** (reverse port
+forward, in-pivot HTTP server, chained tunnel for file delivery), run the
+`connectivity-probe` skill from the target first. "I reached target through
+pivot" does NOT imply "target can only reach me through pivot" — target
+often has its own direct egress (shared VLAN, internet, second NIC). One
+minute of probing saves hours when the direct path works, and gives you
+proof of what's blocked when it doesn't.
+
 **Prefer out-of-Framework pivots** (chisel / ligolo-ng / sshuttle / native SSH
 `-D`/`-L`, i.e. the tree below) over Metasploit's `start_socks_proxy`. The
 in-Framework SOCKS has proven unstable in practice: a dead relay (session dies
