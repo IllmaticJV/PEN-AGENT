@@ -597,8 +597,8 @@ Q3 — Spray intensity: Light ~30 (recommended) | Medium ~10k | Heavy ~100k | Sk
 Q4 — Recovery method: Local (recommended) | Export | Skip | Ask each time
 Q5 — Shell backend:
   if AVAILABLE: Metasploit (recommended — covers sessions, file transfer, and
-    pivoting via autoroute+SOCKS; falls back to shell-server automatically if
-    anything fails) | shell-server | Custom
+    pivoting via scoped MSF route + SOCKS; falls back to shell-server
+    automatically if anything fails) | shell-server | Custom
   if UNAVAILABLE: shell-server (recommended — metasploit-framework not found) |
     Metasploit | Custom
 ```
@@ -825,7 +825,8 @@ When state shows a pivot (additional NIC, new subnet) AND you have access to the
 1. Check get_tunnels() — does an active tunnel already cover this subnet?
 2. If no tunnel:
    a. Message shell-mgr: [setup-pivot] host=<ip> target_subnet=<cidr> via_access_id=<N>
-      shell-mgr decides the method based on its backend (Metasploit autoroute/SOCKS, chisel, etc.)
+      shell-mgr decides the method based on its backend (Metasploit scoped
+      route + SOCKS using the target_subnet you just supplied, chisel, etc.)
    b. Wait for shell-mgr's [pivot-ready] response with tunnel details
    c. Message state-mgr: [update-pivot] to mark as exploited
    d. Assign recon teammate: network-recon on the internal subnet
@@ -943,8 +944,8 @@ on a fallback backend the operator didn't agree to.
 1. STOP routing new shell-dependent tasks.
 2. AskUserQuestion: "shell-mgr reports <backend> is unreachable (<error from
    shell-mgr>). Continue the engagement on shell-server (raw TCP/PTY —
-   loses Meterpreter file transfer, module execution, and autoroute+SOCKS
-   pivoting), or pause while you fix <backend> (e.g. `pkill -f msfrpcd &&
+   loses Meterpreter file transfer, module execution, and in-band
+   SOCKS pivoting), or pause while you fix <backend> (e.g. `pkill -f msfrpcd &&
    ./run.sh` — see docs/installation.md)?"
    Options: Continue on shell-server (Recommended if non-critical) |
             Pause — I'll fix it

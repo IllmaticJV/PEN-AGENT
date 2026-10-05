@@ -312,7 +312,9 @@ def create_server() -> FastMCP:
             "list_sessions to see active sessions, execute to run commands, "
             "upgrade_to_meterpreter to turn a shell into Meterpreter, run_module "
             "to run any exploit/auxiliary/post module (RHOSTS scope-checked), and "
-            "start_socks_proxy to pivot into internal networks via autoroute+SOCKS."
+            "start_socks_proxy(session_id, target_subnet) to pivot into an "
+            "internal subnet via a scoped MSF route + SOCKS5 (never autoadd on "
+            "multi-homed hosts)."
         ),
     )
 
@@ -1208,39 +1210,102 @@ def create_server() -> FastMCP:
         except Exception as e:
             return f"ERROR: Console execution failed: {e}"
 
-    # ── Pivoting: autoroute + SOCKS ─────────────────────────────────
+    # ── Pivoting: scoped route + SOCKS ──────────────────────────────
 
     @mcp.tool()
     @_serialized
-    def start_socks_proxy(session_id: str = "", srvport: int = 1080) -> str:
-        """Pivot into a session's internal network via autoroute + SOCKS5.
+    def start_socks_proxy(
+        session_id: str = "",
+        target_subnet: str = "",
+        srvport: int = 1080,
+        allow_autoadd: bool = False,
+    ) -> str:
+        """Pivot into a SPECIFIC internal subnet via a Meterpreter session + SOCKS5.
 
-        Adds routes through the session (post/multi/manage/autoroute) and starts
-        an auxiliary/server/socks_proxy job bound to 127.0.0.1. Use with
-        proxychains to route tools through the tunnel.
+        Adds a route for ONLY `target_subnet` through the session (via
+        `post/multi/manage/autoroute` with `CMD=add` + explicit `SUBNET` /
+        `NETMASK`), then starts an `auxiliary/server/socks_proxy` job bound to
+        127.0.0.1. Use with proxychains to route tools through the tunnel.
+
+        IMPORTANT — never use msfrpcd's `autoroute CMD=autoadd` on a
+        multi-homed pivot host. It enumerates every interface on the pivot
+        (internal + management + docker/vpn + any secondary IPs) and adds
+        routes for ALL of them, which contaminates your routing table,
+        routes agent traffic through subnets you didn't scope, and produces
+        flaky connectivity to the subnet you actually wanted. Always pass an
+        explicit `target_subnet` that matches what the lead's
+        `[setup-pivot]` message supplied.
 
         Args:
             session_id: Meterpreter session ID on the pivot host. Required.
+            target_subnet: CIDR of the internal subnet to route through this
+                session, e.g. "172.16.8.0/24". Required unless `allow_autoadd=
+                True` is passed as an explicit opt-in. Must be covered by
+                engagement/scope.allow.
             srvport: Local SOCKS port (default 1080).
+            allow_autoadd: Fallback escape hatch — if True and `target_subnet`
+                is empty, run the legacy `CMD=autoadd` (enumerate every pivot
+                interface). Only use when you genuinely need every reachable
+                subnet AND the pivot host has a single network interface.
+                The response carries a `warning` field reminding you this
+                path risks routing out-of-scope traffic on multi-NIC hosts.
         """
         if not session_id:
             return "ERROR: session_id is required."
+        if not target_subnet and not allow_autoadd:
+            return (
+                "ERROR: target_subnet is required (CIDR, e.g. '172.16.8.0/24'). "
+                "Un-scoped autoroute (CMD=autoadd) on a multi-homed pivot pulls "
+                "in every pivot interface and routes agent traffic out of scope. "
+                "Pass target_subnet explicitly, or set allow_autoadd=True only "
+                "if you genuinely want the autoadd fallback."
+            )
         guard = _reserved_guard(session_id)
         if guard:
             return guard
+
+        # Validate + decompose the CIDR into SUBNET + NETMASK for autoroute's
+        # scoped `CMD=add`. ipaddress raises ValueError on garbage input (bad
+        # CIDR, host bits set with strict=True, non-IPv4). Keep the error
+        # terse so the caller sees exactly what was rejected.
+        subnet_arg = ""
+        netmask_arg = ""
+        if target_subnet:
+            try:
+                import ipaddress
+                net = ipaddress.ip_network(str(target_subnet).strip(), strict=False)
+                if net.version != 4:
+                    return "ERROR: target_subnet must be IPv4 (msfrpcd autoroute requires it)."
+                subnet_arg = str(net.network_address)
+                netmask_arg = str(net.netmask)
+            except ValueError as e:
+                return f"ERROR: invalid target_subnet '{target_subnet}': {e}"
+            # Scope gate: the subnet we're about to route must be in-scope.
+            try:
+                check_scope(subnet_arg, _PROJECT_ROOT)
+            except ScopeError as e:
+                return f"ERROR: {e}"
+
         client, err = _require_client()
         if err:
             return err
         try:
             auto = client.modules.use("post", "multi/manage/autoroute")
             auto["SESSION"] = int(session_id)
-            auto["CMD"] = "autoadd"
+            if target_subnet:
+                auto["CMD"] = "add"
+                auto["SUBNET"] = subnet_arg
+                auto["NETMASK"] = netmask_arg
+                auto_opts = {"SESSION": int(session_id), "CMD": "add",
+                             "SUBNET": subnet_arg, "NETMASK": netmask_arg}
+            else:
+                auto["CMD"] = "autoadd"
+                auto_opts = {"SESSION": int(session_id), "CMD": "autoadd"}
             auto_result = auto.execute()
             auto_err = _execute_error(auto_result)
             _log_module_call(
                 tool="start_socks_proxy", module="post/multi/manage/autoroute",
-                module_type="post",
-                options={"SESSION": int(session_id), "CMD": "autoadd"},
+                module_type="post", options=auto_opts,
                 result={"error": auto_err} if auto_err else auto_result,
             )
             if auto_err:
@@ -1264,17 +1329,29 @@ def create_server() -> FastMCP:
             )
             if err_msg:
                 return f"ERROR: Failed to start SOCKS proxy: {err_msg}"
-            return json.dumps(
-                {
-                    "status": "started",
-                    "session_id": str(session_id),
-                    "job_id": result.get("job_id"),
-                    "port": int(srvport),
-                    "endpoint": f"socks5://127.0.0.1:{int(srvport)}",
-                    "proxychains_line": f"socks5 127.0.0.1 {int(srvport)}",
-                    "hint": "Routes added via autoroute. Use proxychains4 for tools.",
-                }
-            )
+            payload = {
+                "status": "started",
+                "session_id": str(session_id),
+                "job_id": result.get("job_id"),
+                "port": int(srvport),
+                "endpoint": f"socks5://127.0.0.1:{int(srvport)}",
+                "proxychains_line": f"socks5 127.0.0.1 {int(srvport)}",
+            }
+            if target_subnet:
+                payload["route"] = f"{subnet_arg}/{net.prefixlen}"
+                payload["hint"] = (
+                    f"Scoped route to {subnet_arg}/{net.prefixlen} added via "
+                    "the pivot session. Use proxychains4 for tools."
+                )
+            else:
+                payload["warning"] = (
+                    "autoadd fallback used — routes added for EVERY interface "
+                    "on the pivot host, including non-target NICs. On a "
+                    "multi-homed host this routes agent traffic through "
+                    "subnets you did not scope. Prefer passing target_subnet."
+                )
+                payload["hint"] = "Routes added via autoadd. Use proxychains4 for tools."
+            return json.dumps(payload)
         except Exception as e:
             return f"ERROR: Failed to start SOCKS proxy: {e}"
 

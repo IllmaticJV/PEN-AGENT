@@ -112,9 +112,13 @@ Choose the right tool based on what's available. **Check this first:** if the
 engagement's shell backend is Metasploit (`config.yaml shell.backend:
 metasploit` — the default whenever metasploit-framework is installed) and you
 already have, or can get, a Meterpreter session on the pivot host, use
-Metasploit's autoroute + SOCKS proxy (Step 9) instead of the tree below —
-zero footprint on the pivot host, no extra binary uploaded, every Metasploit
-module routes through it automatically. shell-mgr already does this natively
+Metasploit's **scoped** route + SOCKS proxy (Step 9) instead of the tree below
+— zero footprint on the pivot host, no extra binary uploaded, every Metasploit
+module routes through it automatically. **Always pass a specific target
+subnet** (via `start_socks_proxy(..., target_subnet="10.X.Y.0/24")` which runs
+`autoroute CMD=add` with explicit SUBNET+NETMASK); **never use `CMD=autoadd`**
+on a multi-homed pivot — it enumerates every pivot interface and routes agent
+traffic through subnets you did not scope. shell-mgr already does this natively
 for you if it owns the session (`[setup-pivot]` protocol); only fall through
 to the tree below if that's unavailable (shell-server-only access, or the
 Metasploit upgrade failed) or the destination needs a tool Metasploit can't
@@ -801,13 +805,24 @@ host — see the note at the top of the decision tree. Only use Chisel/Ligolo/
 sshuttle/etc. as the fallback (no Meterpreter session available, or this
 failed).
 
+**Rule: never un-scoped `autoroute` (`run autoroute` with no `-s`, or
+`run post/multi/manage/autoroute CMD=autoadd`).** It enumerates every
+interface on the pivot host and adds routes for every reachable subnet —
+on a multi-homed jumphost (dual-NIC, docker, VPN, secondary IPs) that
+routes agent traffic through management or internet subnets you did not
+scope, and makes the route table flaky and hard to tear down. Always
+pass the specific subnet. `start_socks_proxy` in the metasploit-server
+MCP enforces this.
+
 ```bash
 # After getting a Meterpreter session
-# Add route to internal network through session
+# Add route to internal network through session (SCOPED — specific subnet)
 run autoroute -s 10.10.10.0/24
 
-# Or manually
+# Or manually (equivalent — explicit CIDR; both forms are fine)
 route add 10.10.10.0 255.255.255.0 SESSION_ID
+
+# NEVER: `run autoroute` without -s, or `set CMD autoadd`
 
 # List routes
 route print
@@ -836,8 +851,8 @@ portfwd delete -l 8080 -p 80 -r 10.10.10.5
 socks5 127.0.0.1 1080
 ```
 
-**Use case:** When already in Metasploit. Autoroute makes all Metasploit modules
-work through the pivot transparently.
+**Use case:** When already in Metasploit. A scoped MSF route makes every
+Metasploit module targeting that subnet route through the pivot transparently.
 
 ## Step 10: FRP (Fast Reverse Proxy)
 

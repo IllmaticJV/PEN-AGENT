@@ -5,6 +5,24 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Changed
+
+- **Pivot tunneling: scoped routes only, no `autoroute CMD=autoadd`.**
+  `start_socks_proxy` in the metasploit-server MCP now **requires**
+  `target_subnet=<CIDR>` and runs `post/multi/manage/autoroute` with
+  `CMD=add` + explicit `SUBNET`+`NETMASK` instead of the legacy `autoadd`.
+  Un-scoped `autoadd` enumerates every interface on the pivot host and adds a
+  route per subnet — on a dual-NIC jumphost or any host with VPN/docker/bridge
+  interfaces, that routes agent traffic through NICs you didn't scope and
+  produces flaky connectivity on the subnet you actually wanted. The MCP tool
+  validates the CIDR, enforces IPv4, and runs `scope.allow` against the subnet
+  before adding the route. An opt-in `allow_autoadd=True` escape hatch remains
+  for the single-NIC case; using it attaches a `warning` field to the result.
+  Methodology and docs updated across `teammates/shell-mgr.md`,
+  `teammates/shell-mgr-metasploit.md`, `skills/network/pivoting-tunneling/SKILL.md`,
+  `skills/ctf/SKILL.md`, and `tools/metasploit-server/README.md`. Lesson logged
+  so it survives into future engagements.
+
 ### Fixed
 
 - **MSF RPC resilience: transparent re-auth after an msfconsole restart; wedged

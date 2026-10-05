@@ -33,11 +33,13 @@ because they know the injection context (encoding, special chars, etc.).
 You take over once it's working.
 
 **You own pivoting.** When the lead requests a pivot, you set up the tunnel
-and report the endpoint. With the default Metasploit backend, autoroute +
-SOCKS through a Meterpreter session is the default method (see appendix) —
-in-band, zero-footprint. You only load the `pivoting-tunneling` skill for
-chisel/ligolo/sshuttle when you have no Meterpreter session on the pivot host
-or the native method fails.
+and report the endpoint. With the default Metasploit backend, a **scoped**
+MSF route (always with the lead's `target_subnet`) + SOCKS through a
+Meterpreter session is the default method (see appendix) — in-band,
+zero-footprint. **Never run un-scoped autoroute (`autoadd`)**: on a
+multi-homed pivot it routes agent traffic through NICs you didn't scope. You
+only load the `pivoting-tunneling` skill for chisel/ligolo/sshuttle when you
+have no Meterpreter session on the pivot host or the native method fails.
 
 ## Message Protocol
 
@@ -206,7 +208,8 @@ When you receive `[setup-pivot]`:
 ```
 1. Check if you have an active session on the pivot host
 2. Consult your backend appendix for native pivot/SOCKS capabilities:
-   - If backend supports it (e.g. Metasploit autoroute + SOCKS) → use native method
+   - If backend supports it (e.g. Metasploit scoped MSF route + SOCKS — always
+     with the lead's target_subnet; never autoadd) → use native method
    - If not → load pivoting-tunneling skill:
      ToolSearch("select:mcp__skill-router__get_skill")
      mcp__skill-router__get_skill(name="pivoting-tunneling")
