@@ -54,6 +54,64 @@ _NOT_CONNECTED = (
     "(pgrep -f msfrpcd) and engagement/msfrpc.yaml is correct."
 )
 
+# ── RPC resilience ───────────────────────────────────────────────────────────
+# pymetasploit3 does NOT raise on msgrpc auth failures — a call with a stale
+# token (e.g. after an msfconsole restart that rebinds on the same port but
+# issues fresh tokens) silently returns {"error": True, "error_message":
+# "Invalid request parameters"} instead. The naïve probe `client.core.version`
+# therefore never raises, we hand back the stale client, and the next real
+# tool call fails the same way with no retry. These helpers detect the
+# error-dict shape (and token-flavored exception strings for defense in
+# depth) so _get_client can invalidate the cache and re-login — and so
+# _serialized can retry once at the tool-call layer.
+_STALE_AUTH_HINTS = (
+    "invalid request parameters",   # msgrpc "unknown/missing token"
+    "invalid auth",
+    "not authenticated",
+    "msfauth",
+)
+
+
+def _is_stale_auth_error(value: object) -> bool:
+    """True if `value` looks like a token/auth failure we can fix by re-login.
+
+    Accepts (a) an exception, (b) a pymetasploit3 error-dict response, or
+    (c) an error string returned by one of our tool handlers.
+    """
+    if isinstance(value, BaseException):
+        s = str(value).lower()
+        return "msfauth" in type(value).__name__.lower() or any(h in s for h in _STALE_AUTH_HINTS)
+    if isinstance(value, dict) and value.get("error"):
+        s = (str(value.get("error_message", "")) + " " + str(value.get("error_string", ""))).lower()
+        return any(h in s for h in _STALE_AUTH_HINTS)
+    if isinstance(value, str):
+        s = value.lower()
+        if not s.startswith("error:") and '"error"' not in s:
+            return False
+        return any(h in s for h in _STALE_AUTH_HINTS)
+    return False
+
+
+def _install_rpc_timeout(client, connect_s: float = 5.0, read_s: float = 25.0) -> None:
+    """Replace the client's post_request with one that enforces a (connect, read)
+    socket timeout — pymetasploit3's default has NO timeout, so a wedged
+    msgrpc call (the classic orphaned-SOCKS-job scenario) can hang indefinitely
+    and, because the metasploit RPC call lock is held, wedge every other agent
+    tool call behind it. A bounded read-timeout fails fast so the lock
+    releases and the error propagates to the caller.
+
+    Also drops pymetasploit3's embedded @retry(tries=3, backoff=2) wrapper on
+    post_request — on a real msgrpc wedge that retry just multiplies the pain;
+    tool-level retry (via _serialized) is better placed because it holds the
+    lock and knows the context.
+    """
+    import requests
+    headers = client.headers
+    def _patched(url, payload):
+        return requests.post(url, data=payload, headers=headers,
+                             verify=False, timeout=(connect_s, read_s))
+    client.post_request = _patched
+
 
 def _find_config() -> Path | None:
     default = _PROJECT_ROOT / "engagement" / "msfrpc.yaml"
@@ -279,23 +337,45 @@ def create_server() -> FastMCP:
         functools.wraps preserves the signature/annotations FastMCP
         introspects to build the tool schema (inspect.signature follows
         __wrapped__), so the exposed tool is unchanged apart from locking.
+
+        Also implements one-shot stale-auth retry: if the handler returns a
+        token-flavored error (dict or string), invalidate the cached client
+        so the next _get_client re-logs in, and re-invoke the handler once.
+        This makes an msfconsole restart transparent to the MCP — the old
+        painful dance (server.py cached the old token → agent errors → manual
+        /mcp reconnect) was exactly this missing retry.
         """
         @functools.wraps(fn)
         def _wrapper(*args, **kwargs):
             with _rpc_lock:
-                return fn(*args, **kwargs)
+                result = fn(*args, **kwargs)
+                if _is_stale_auth_error(result):
+                    _state["client"] = None
+                    result = fn(*args, **kwargs)
+                return result
         return _wrapper
 
     def _get_client():
-        """Return a connected MsfRpcClient, or None if unavailable."""
+        """Return a connected MsfRpcClient, or None if unavailable.
+
+        Validates the cached client with a RPC round-trip and inspects the
+        RESPONSE (not just exceptions) because pymetasploit3 returns
+        {"error": True, ...} on auth failures instead of raising — so a
+        naïve try/except around core.version would silently keep a stale
+        client after an msfconsole restart. A probe that returns an auth-
+        error dict invalidates the cache and triggers a fresh login.
+        """
         config_path = _find_config()
         if config_path is None:
             return None
         client = _state.get("client")
         if client is not None:
             try:
-                client.core.version  # cheap liveness probe
-                return client
+                probe = client.core.version
+                if _is_stale_auth_error(probe):
+                    _state["client"] = None  # fall through to re-login
+                else:
+                    return client
             except Exception:
                 _state["client"] = None
         try:
@@ -309,7 +389,14 @@ def create_server() -> FastMCP:
                 username=cfg.get("user", "msf"),
                 ssl=str(cfg.get("ssl", "true")).lower() in ("1", "true", "yes"),
             )
-            client.core.version  # force auth/connect now
+            # Enforce a bounded socket timeout on every RPC call so a wedged
+            # msgrpc (orphaned SOCKS job, dead relay) can't hang the lock
+            # indefinitely. Set BEFORE the probe below so it also protects it.
+            _install_rpc_timeout(client)
+            probe = client.core.version
+            if _is_stale_auth_error(probe):
+                _state["client"] = None
+                return None
             _state["client"] = client
             return client
         except Exception:
