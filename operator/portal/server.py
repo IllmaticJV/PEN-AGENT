@@ -46,6 +46,7 @@ _MSF_CFG = _PROJECT_ROOT / "engagement" / "msfrpc.yaml"
 _SCOPE_MD = _PROJECT_ROOT / "engagement" / "scope.md"
 _SCOPE_ALLOW = _PROJECT_ROOT / "engagement" / "scope.allow"
 _SESSION_LOG_DIR = _PROJECT_ROOT / "engagement" / "evidence" / "msf-sessions"
+_MODULE_LOG_DIR = _PROJECT_ROOT / "engagement" / "evidence" / "msf-modules"
 _CONSOLE_SPOOL = _PROJECT_ROOT / "engagement" / "evidence" / "msf-console.log"
 _OPERATOR_SESSIONS = _PROJECT_ROOT / "engagement" / "operator-sessions.json"
 _TOKEN_FILE = Path.home() / ".config" / "pen-agent" / "viewer-token"
@@ -349,6 +350,95 @@ class _MsfState:
             return {"session_id": str(session_id), "records": [], "error": str(e)}
         return {"session_id": str(session_id), "records": records[-max_records:]}
 
+    def list_module_calls(self, max_entries: int = 100) -> dict:
+        """Return recent MSF module-call setup records (newest-first).
+
+        Each entry is the FIRST record of a per-call JSONL file
+        (engagement/evidence/msf-modules/<id>-<slug>.jsonl, written by the
+        metasploit-server MCP). Carries just enough for the sidebar listing:
+        call_id, timestamp, tool, module path, and job_id (so the Jobs table
+        can cross-link to the matching setup log).
+        """
+        if not _MODULE_LOG_DIR.exists():
+            return {"calls": []}
+        try:
+            # Newest-first by call_id (the integer prefix in the filename).
+            files = sorted(
+                _MODULE_LOG_DIR.glob("*.jsonl"),
+                key=lambda p: int(p.name.split("-", 1)[0]) if p.name.split("-", 1)[0].isdigit() else 0,
+                reverse=True,
+            )[:max_entries]
+        except OSError:
+            return {"calls": []}
+        out = []
+        for p in files:
+            try:
+                first = p.read_text(errors="replace").splitlines()[0]
+                rec = json.loads(first)
+            except (OSError, IndexError, json.JSONDecodeError):
+                continue
+            out.append({
+                "id": p.stem,                        # <call_id>-<slug>
+                "call_id": rec.get("call_id"),
+                "ts": rec.get("ts", ""),
+                "tool": rec.get("tool", ""),
+                "module": rec.get("module", ""),
+                "module_type": rec.get("module_type", ""),
+                "job_id": rec.get("job_id"),
+            })
+        return {"calls": out}
+
+    def module_log(self, call_file_id: str) -> dict:
+        """Return the full JSONL for one module-call setup log.
+
+        `call_file_id` is the filename stem (<call_id>-<slug>), exactly what
+        list_module_calls returns in `id`. Also accepts a bare numeric
+        call_id — resolved by prefix match. For cross-linking from the Jobs
+        table, callers can pass `job:<job_id>` to look up by job_id instead.
+        """
+        if not _MODULE_LOG_DIR.exists():
+            return {"id": call_file_id, "records": []}
+        path: Path | None = None
+        safe = re.sub(r"[^A-Za-z0-9_-]", "_", str(call_file_id))
+
+        if safe.startswith("job_"):
+            # Caller wants the call that produced this job_id — scan files.
+            jid = safe[4:]
+            for p in _MODULE_LOG_DIR.glob("*.jsonl"):
+                try:
+                    first = p.read_text(errors="replace").splitlines()[0]
+                    if json.loads(first).get("job_id") == jid:
+                        path = p
+                        break
+                except (OSError, IndexError, json.JSONDecodeError):
+                    continue
+        else:
+            candidate = _MODULE_LOG_DIR / f"{safe}.jsonl"
+            if candidate.exists():
+                path = candidate
+            elif safe.isdigit():
+                # Numeric-only call_id — prefix match the first file we see.
+                for p in _MODULE_LOG_DIR.glob(f"{safe}-*.jsonl"):
+                    path = p
+                    break
+
+        if path is None or not path.exists():
+            return {"id": call_file_id, "records": []}
+
+        records = []
+        try:
+            for line in path.read_text(errors="replace").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        except OSError as e:
+            return {"id": call_file_id, "records": [], "error": str(e)}
+        return {"id": path.stem, "path": str(path), "records": records}
+
     def console_log(self, max_bytes: int = 60000) -> dict:
         if not _CONSOLE_SPOOL.exists():
             return {"data": ""}
@@ -464,6 +554,13 @@ class Handler(BaseHTTPRequestHandler):
             sid = (qs.get("id") or [""])[0]
             self._json(_msf.session_log(sid) if sid else {"error": "id required"},
                        200 if sid else 400)
+        elif path == "/api/modules":
+            self._json(_msf.list_module_calls())
+        elif path == "/api/module/log":
+            qs = parse_qs(urlparse(self.path).query)
+            cid = (qs.get("id") or [""])[0]
+            self._json(_msf.module_log(cid) if cid else {"error": "id required"},
+                       200 if cid else 400)
         elif path == "/api/console/log":
             self._json(_msf.console_log())
         elif path == "/api/stream":
@@ -529,6 +626,10 @@ class Handler(BaseHTTPRequestHandler):
                 jobs = _msf.list_jobs()
                 self.wfile.write(
                     f"data: {json.dumps({'type': 'jobs', 'payload': jobs.get('jobs', [])})}\n\n".encode()
+                )
+                modules = _msf.list_module_calls()
+                self.wfile.write(
+                    f"data: {json.dumps({'type': 'modules', 'payload': modules.get('calls', [])})}\n\n".encode()
                 )
                 self.wfile.flush()
                 time.sleep(2)

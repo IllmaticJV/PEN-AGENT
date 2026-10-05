@@ -88,10 +88,14 @@ it standalone: `bash operator/portal/start.sh`. The three tabs:
   (`engagement/scope.md`), the in-scope allowlist (`scope.allow`), and status.
 - **Status** — live engagement state from `state.db`: the access-chain graph,
   targets, creds, access, vulns, pivots, tunnels, event timeline.
-- **MSF Logs** — the live session + listener/job list plus a **per-session
-  command log** (what the agents ran on each session and its output, with
-  operator-reserved sessions badged). Read-only — `sessions -i` can't run in an
-  RPC/web console, so interact in the real tmux msfconsole (see C2 backend).
+- **MSF Logs** — the live session + listener/job list, a **per-session command
+  log** (every command an agent ran on each session, with operator-reserved
+  sessions badged), and a **Module Calls** list showing every
+  `start_handler` / `run_module` / `start_socks_proxy` /
+  `upgrade_to_meterpreter` / `generate_payload` call with its options and
+  result. Jobs rows are clickable → the matching setup log (cross-referenced
+  by `job_id`). Read-only — `sessions -i` can't run in an RPC/web console, so
+  interact in the real tmux msfconsole (see C2 backend).
 
 Python stdlib HTTP + SSE (the MSF tab reads the live session list via
 pymetasploit3, so the portal runs under `uv`). Binds `127.0.0.1` only by
