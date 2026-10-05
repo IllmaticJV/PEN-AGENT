@@ -141,7 +141,8 @@ function selectSession(sid) {
   logTitle.textContent = 'session ' + selectedSid + ' — command log';
   renderTable('sessions', 'sessions-empty', sessionsCache,
     ['session_id', 'type', 'info'], r => selectSession(r.session_id));
-  refreshLog();
+  // Explicit user action — jump to latest, overriding sticky-scroll state.
+  refreshLog(true);
 }
 
 function showConsole() {
@@ -151,25 +152,47 @@ function showConsole() {
   logTitle.textContent = 'shared msfconsole spool';
   renderTable('sessions', 'sessions-empty', sessionsCache,
     ['session_id', 'type', 'info'], r => selectSession(r.session_id));
-  refreshLog();
+  refreshLog(true);
 }
 
-function refreshLog() {
+// Sticky-scroll: only auto-scroll to the bottom if the operator was already
+// pinned there (within SCROLL_STICKY_PX). If they've scrolled up to read
+// earlier output, leave their position alone — the 2s refresh was yanking
+// them back to the bottom on every tick, making reading history impossible.
+// `force=true` from an explicit user action (session/view switch) bypasses
+// the stickiness and always jumps to the latest.
+const SCROLL_STICKY_PX = 24;
+function isAtBottom() {
+  return (logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight) <= SCROLL_STICKY_PX;
+}
+function setContent(html, mode) {
+  // Only touch the DOM when the text actually changed — avoids clobbering a
+  // user's text selection every 2s on an unchanged log.
+  if (mode === 'text') {
+    if (logEl.textContent !== html) logEl.textContent = html;
+  } else {
+    if (logEl.innerHTML !== html) logEl.innerHTML = html;
+  }
+}
+
+function refreshLog(force) {
   if (viewConsole) {
     fetch('/api/console/log').then(r => r.json()).then(j => {
-      logEl.textContent = j.data || (j.error ? '[error] ' + j.error : '(console spool empty — enable spool in tmux, or no activity yet)');
-      logEl.scrollTop = logEl.scrollHeight;
+      const stick = force || isAtBottom();
+      setContent(j.data || (j.error ? '[error] ' + j.error : '(console spool empty — enable spool in tmux, or no activity yet)'), 'text');
+      if (stick) logEl.scrollTop = logEl.scrollHeight;
     });
     return;
   }
   if (selectedSid === null) return;
   fetch('/api/session/log?id=' + encodeURIComponent(selectedSid)).then(r => r.json()).then(j => {
     const recs = j.records || [];
-    if (!recs.length) { logEl.innerHTML = '<div class="empty">no commands recorded for this session yet</div>'; return; }
-    logEl.innerHTML = recs.map(r =>
+    const stick = force || isAtBottom();
+    if (!recs.length) { setContent('<div class="empty">no commands recorded for this session yet</div>', 'html'); return; }
+    setContent(recs.map(r =>
       `<div class="rec"><div class="cmd">${esc(r.command)}<span class="ts">${esc(r.ts)}</span></div>`
-      + `<div class="out">${esc(r.output)}</div></div>`).join('');
-    logEl.scrollTop = logEl.scrollHeight;
+      + `<div class="out">${esc(r.output)}</div></div>`).join(''), 'html');
+    if (stick) logEl.scrollTop = logEl.scrollHeight;
   }).catch(e => { logEl.textContent = '[error] ' + e; });
 }
 

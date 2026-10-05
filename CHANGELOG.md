@@ -7,6 +7,17 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **Portal MSF-logs auto-scroll no longer yanks the operator away from history.**
+  The C2 / MSF Logs page refreshes the per-session command log and the shared
+  console spool every 2s. Each refresh unconditionally re-pinned the view to
+  the bottom (`logEl.scrollTop = logEl.scrollHeight`), so an operator trying to
+  scroll up to read earlier output got dragged back to the latest line on the
+  next tick — effectively unreadable history. Now uses sticky-scroll: if the
+  operator was already pinned to the bottom (within 24px) before the refresh,
+  it re-pins; otherwise it preserves their scroll position. Explicit user
+  actions (clicking a session row or the console-spool pill) still force a
+  jump to the latest. Also skips the DOM write when the fetched log content is
+  unchanged, so a text selection isn't clobbered every 2s on an idle log.
 - **shell-mgr was skipping the operator-session spawn.** The instruction to
   give the operator their own Meterpreter session (once per host, so they can
   work the host in the live tmux msfconsole without fighting the agents over
