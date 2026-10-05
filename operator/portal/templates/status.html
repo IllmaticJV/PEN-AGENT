@@ -17,7 +17,8 @@
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: var(--ui); font-size: 13px; background: var(--bg); color: var(--text);
-  padding: 20px 22px 40px; -webkit-font-smoothing: antialiased; }
+  padding: 20px 22px 40px; -webkit-font-smoothing: antialiased;
+  max-width: 1680px; margin: 0 auto; }
 h1 { font-size: 15px; font-weight: 700; letter-spacing: .03em; color: var(--text);
   margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
 h1 .dotgrid { width: 3px; height: 16px; background: var(--accent); border-radius: 2px;
@@ -129,6 +130,19 @@ tbody tr:hover td { background: rgba(255,255,255,.025); }
   border-radius: 8px; padding: 4px 11px; font-family: var(--ui); font-size: 11px; font-weight: 500;
   cursor: pointer; vertical-align: middle; transition: color .15s,border-color .15s; }
 .refresh-btn:hover { color: var(--accent); border-color: var(--accent); }
+@media (max-width: 760px) {
+  body { padding: 16px 14px 32px; }
+  .cards { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+  .card .num { font-size: 22px; }
+  .filter-bar { flex-wrap: wrap; }
+  .filter-bar input { width: 100%; max-width: none; }
+  #graph-container { min-height: 180px; }
+}
+@media (max-width: 480px) {
+  .cards { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
+  h1 { flex-wrap: wrap; }
+  .conn-status { margin-left: 0; }
+}
 </style>
 </head>
 <body>
