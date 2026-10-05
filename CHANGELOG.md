@@ -7,6 +7,19 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **connectivity-probe skill — test target→attackbox reachability before
+  tunneling back.** When a target C is reached through pivot B
+  (A→B→C), agents were assuming C's callbacks and file pulls must also
+  traverse B — and spending hours engineering reverse port forwards /
+  in-pivot HTTP servers when C often has its own direct path back to A
+  (shared VLAN, flat egress, second NIC, internet route). New skill
+  `skills/network/connectivity-probe` runs a minimal reachability test
+  from C to A on HTTPS/HTTP/DNS/high-TCP/ICMP, verifies on BOTH ends
+  (no transparent-proxy spoofing), and reports which transports work
+  before anyone over-engineers the egress. Saves evidence to
+  `engagement/evidence/connectivity-<target>-<ts>.txt`. Operator
+  action after merge: `uv run --directory tools/skill-router python
+  indexer.py` to pick up the new skill.
 - **shell-recovery skill — replay the recorded `.sh` on a dropped shell.**
   shell-mgr's `[shell-dropped]` flow was rebuilding the callback from the
   stored `delivery_payload` snippet, ignoring the end-to-end
