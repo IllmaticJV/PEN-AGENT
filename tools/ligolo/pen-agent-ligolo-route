@@ -9,12 +9,17 @@ set -euo pipefail
 
 IFACE="ligolo"
 
-if [[ $# -ne 1 ]]; then
-    echo "usage: pen-agent-ligolo-route <IPv4-CIDR>" >&2
+# Prefer the LIGOLO_SUBNET env var, fall back to $1 for backward compat.
+# The env-var form is what the sudoers rule actually permits NOPASSWD, because
+# sudo's wildcard `*` in command-arg patterns is implementation-dependent on
+# whether it matches `/` (older sudo + FNM_PATHNAME = no match → password
+# prompt). Passing the CIDR via env + SETENV: in sudoers sidesteps it.
+CIDR="${LIGOLO_SUBNET:-${1:-}}"
+if [[ -z "$CIDR" ]]; then
+    echo "usage: LIGOLO_SUBNET=<IPv4-CIDR> pen-agent-ligolo-route" >&2
+    echo "   or: pen-agent-ligolo-route <IPv4-CIDR>" >&2
     exit 2
 fi
-
-CIDR="$1"
 
 IP="$(command -v ip || true)"
 if [[ -z "$IP" ]]; then

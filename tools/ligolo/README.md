@@ -17,8 +17,8 @@ tightly that `sudo` grants nothing beyond "manage the ligolo TUN."
 |---|---|---|
 | `pen-agent-ligolo-up` | Creates `ligolo` TUN (owned by the install-time user), brings it up. Idempotent. | none |
 | `pen-agent-ligolo-down` | Tears down the `ligolo` TUN. Idempotent. | none |
-| `pen-agent-ligolo-route <CIDR>` | Adds `CIDR dev ligolo`. Validates the CIDR as IPv4; rejects `0.0.0.0/0` and `127.0.0.0/8`. | one IPv4 CIDR |
-| `pen-agent-ligolo-unroute <CIDR>` | Removes the matching route. Same validation. | one IPv4 CIDR |
+| `pen-agent-ligolo-route` | Adds `${LIGOLO_SUBNET} dev ligolo`. Validates the CIDR as IPv4; rejects `0.0.0.0/0` and `127.0.0.0/8`. | `LIGOLO_SUBNET=<cidr>` env var (positional `$1` kept as fallback) |
+| `pen-agent-ligolo-unroute` | Removes the matching route. Same env + validation. | `LIGOLO_SUBNET=<cidr>` env var |
 
 Plus `/etc/sudoers.d/pen-agent-ligolo` granting NOPASSWD execution of **only
 these four absolute paths** to the invoking user.
@@ -35,6 +35,14 @@ What the operator grants by running the installer:
 - **No other interface names.** The scripts hardcode `ligolo`.
 - The installer validates the sudoers file with `visudo -c` before saving to
   prevent a syntax error from locking out `sudo` for everyone.
+- The CIDR is passed via `LIGOLO_SUBNET` (env var) rather than a positional
+  arg, so sudoers doesn't need an argument wildcard. Older sudo + default
+  fnmatch flags refuse to match `/` through `*`, which silently falls back
+  to a password prompt — the env-var form is portable across every sudo
+  version. The `SETENV:` tag on the route rules + a scoped
+  `Defaults!…/pen-agent-ligolo-route env_keep += "LIGOLO_SUBNET"` is what
+  lets the var cross the `sudo` boundary without widening the general
+  env_keep policy.
 
 Revoke any time:
 
@@ -59,7 +67,7 @@ the no-password path works.
 `skills/network/pivoting-tunneling/SKILL.md` § **Step 2: Ligolo-ng** detects
 the helpers' presence (`command -v pen-agent-ligolo-up`) and when they're
 installed takes the operator-free path — `sudo -n pen-agent-ligolo-up`,
-`sudo -n pen-agent-ligolo-route <CIDR>`, etc. — with no handoff. When they're
+`sudo -n LIGOLO_SUBNET=<CIDR> pen-agent-ligolo-route`, etc. — with no handoff. When they're
 not present, the skill falls back to the hand-off-to-operator path.
 
 ## Not installed by default

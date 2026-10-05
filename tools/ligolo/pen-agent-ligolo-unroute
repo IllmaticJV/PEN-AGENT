@@ -6,12 +6,13 @@ set -euo pipefail
 
 IFACE="ligolo"
 
-if [[ $# -ne 1 ]]; then
-    echo "usage: pen-agent-ligolo-unroute <IPv4-CIDR>" >&2
+# See pen-agent-ligolo-route for why we prefer the env-var form.
+CIDR="${LIGOLO_SUBNET:-${1:-}}"
+if [[ -z "$CIDR" ]]; then
+    echo "usage: LIGOLO_SUBNET=<IPv4-CIDR> pen-agent-ligolo-unroute" >&2
+    echo "   or: pen-agent-ligolo-unroute <IPv4-CIDR>" >&2
     exit 2
 fi
-
-CIDR="$1"
 
 IP="$(command -v ip || true)"
 if [[ -z "$IP" ]]; then
