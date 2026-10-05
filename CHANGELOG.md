@@ -7,6 +7,22 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Portal: redesign Scope and Goals as single-column dashboards.** The
+  sidebar+pane layout on these tabs (previous pass) wasted space because
+  neither has genuine list→detail content (scope's "detail" is the raw
+  markdown; a goal's detail is one sentence). Rebuilt as dashboards
+  that still share the Status/MSF chrome tokens:
+  - **Goals**: hero row with a big percent-complete tile + accent
+    progress bar, plus a 5-tile stat grid (Done / In progress /
+    Blocked / Skipped / Pending). Filter chips below the hero
+    (persisted in localStorage). All objectives shown as a responsive
+    card grid, each card: #id pill in accent, full objective text,
+    status badge, operator note card, last-updated footer. Status
+    colour runs down the left edge of each card. No click-to-select,
+    no empty detail pane.
+  - **Scope**: stat-card row (name / mode / status / started) at top,
+    allowlist IPs as a dense green-dot grid, scope.md in a titled
+    bordered block at the bottom.
 - **Portal: adopt the MSF tab's full sidebar+pane layout on every tab.**
   Just unifying the header strip (previous pass) didn't match the MSF
   look — the signature is the left sidebar with stacked sections and a

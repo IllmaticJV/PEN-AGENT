@@ -4,98 +4,114 @@
 <title>PEN-AGENT &middot; Objective &amp; Scope</title>
 <style>
 :root{
-  --bg:#0a0c10;--surface:#11151b;--surface-2:#161b22;--surface-3:#1c222b;
-  --border:#222935;--border-strong:#2f3744;
+  --bg:#0a0c10;--bg2:#11151b;--bg3:#1c222b;
+  --surface-2:#161b22;--border:#222935;--border-strong:#2f3744;
   --fg:#e6edf3;--fg-muted:#9aa5b1;--fg-dim:#6b7682;
   --accent:#4f8cff;--accent-2:#7aa7ff;--accent-glow:rgba(79,140,255,.16);
-  --green:#3fb950;--red:#f85149;--amber:#d6a533;
+  --green:#3fb950;--red:#f85149;--amber:#d6a533;--orange:#d6a533;
   --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
   --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
 }
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--ui);
-     height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
-header{padding:8px 18px;min-height:50px;border-bottom:1px solid var(--border);display:flex;
-       align-items:center;gap:10px 14px;flex-shrink:0;flex-wrap:wrap;
-       background:linear-gradient(180deg,var(--surface-2),var(--surface))}
-header h1{font-size:13px;margin:0;color:var(--fg);font-weight:600;letter-spacing:.03em}
-header h1 .k{color:var(--accent)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--ui);font-size:13px;
+     -webkit-font-smoothing:antialiased;height:100vh;display:flex;flex-direction:column}
+header.chrome{padding:8px 18px;min-height:50px;border-bottom:1px solid var(--border);
+     display:flex;align-items:center;gap:10px 14px;flex-shrink:0;flex-wrap:wrap;
+     background:linear-gradient(180deg,var(--surface-2),var(--bg2))}
+header.chrome h1{font-size:13px;margin:0;color:var(--fg);font-weight:600;letter-spacing:.03em}
+header.chrome h1 .k{color:var(--accent)}
 #status{font-size:11px;font-weight:600;letter-spacing:.03em;padding:3px 10px;border-radius:999px;
-        border:1px solid var(--border-strong);color:var(--fg-dim);display:inline-flex;align-items:center;gap:6px}
+     border:1px solid var(--border-strong);color:var(--fg-dim);display:inline-flex;align-items:center;gap:6px}
 #status::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--fg-dim)}
 #status.ok{color:var(--green);border-color:rgba(63,185,80,.5);background:rgba(63,185,80,.08)}
 #status.ok::before{background:var(--green);box-shadow:0 0 6px var(--green)}
 #status.bad{color:var(--red);border-color:rgba(248,81,73,.5);background:rgba(248,81,73,.08)}
 #status.bad::before{background:var(--red);box-shadow:0 0 6px var(--red)}
 .attach{font-size:11px;color:var(--fg-dim);font-family:var(--ui)}
-.attach code{color:var(--amber);font-family:var(--mono);background:var(--surface-3);
-       border:1px solid var(--border);border-radius:5px;padding:2px 6px;margin-left:4px}
+.attach code{color:var(--orange);font-family:var(--mono);background:var(--bg3);
+     border:1px solid var(--border);border-radius:5px;padding:2px 6px;margin-left:4px}
 
-main{flex:1;display:flex;min-height:0}
-#side{width:340px;border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0;
-      background:var(--surface)}
-section{padding:14px 16px;border-bottom:1px solid var(--border)}
-section h2{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-dim);
-       font-weight:600;margin:0 0 10px;display:flex;align-items:center;gap:7px}
-section h2::before{content:"";width:3px;height:11px;background:var(--accent);border-radius:2px}
-section h2 .n{color:var(--fg-dim);font-weight:500;letter-spacing:0;text-transform:none;font-family:var(--mono);margin-left:auto}
-.kvs{display:flex;flex-direction:column;gap:10px}
-.kv{display:flex;flex-direction:column;gap:3px}
-.kv .k{font-size:9.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--fg-dim)}
-.kv .v{font-size:13px;font-weight:600;color:var(--fg);font-family:var(--mono);word-break:break-word}
+main{flex:1;overflow-y:auto;padding:20px 24px 40px;max-width:1400px;width:100%;margin:0 auto}
 
-.pill{display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:3px 9px;
-      margin:3px 5px 0 0;border-radius:999px;border:1px solid var(--border-strong);color:var(--fg-muted);
-      font-family:var(--mono);background:var(--surface-3)}
-.status-active{color:var(--green);border-color:rgba(63,185,80,.5);background:rgba(63,185,80,.1)}
-.status-closed{color:var(--amber);border-color:rgba(214,165,51,.5);background:rgba(214,165,51,.1)}
-#allow .pill{border-color:rgba(63,185,80,.45);color:var(--green);background:rgba(63,185,80,.08);
-   display:block;margin:0 0 4px 0;text-align:center}
-.empty{color:var(--fg-dim);font-size:12px;padding:6px 2px;font-family:var(--ui)}
+h2{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-dim);
+   margin:26px 0 12px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:3px;height:13px;background:var(--accent);border-radius:2px;
+   box-shadow:0 0 8px var(--accent-glow)}
+h2 .n{color:var(--fg-dim);font-weight:500;letter-spacing:0;text-transform:none;font-family:var(--mono);margin-left:auto;font-size:11px}
 
-#pane{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
-#panehead{padding:11px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--fg-dim);
-   display:flex;align-items:center;gap:10px;flex-shrink:0;background:var(--surface)}
-#panetitle{color:var(--fg);font-weight:600;font-size:12px}
-#panebody{flex:1;overflow-y:auto;padding:20px 24px;white-space:pre-wrap;word-break:break-word;
-   font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--fg-muted)}
+/* Stat cards — same look as Status overview */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+   gap:12px;margin-top:4px}
+.card{background:linear-gradient(180deg,var(--surface-2),var(--bg2));
+   border:1px solid var(--border);border-radius:12px;padding:14px 16px;position:relative;
+   overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.35)}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+   background:linear-gradient(90deg,var(--accent),transparent);opacity:.7}
+.card .val{font-size:17px;font-weight:700;font-family:var(--mono);line-height:1.2;
+   font-variant-numeric:tabular-nums;color:var(--fg);word-break:break-word}
+.card .label{color:var(--fg-dim);font-size:10px;font-weight:600;letter-spacing:.08em;
+   text-transform:uppercase;margin-top:4px}
+.card .pill-inline{display:inline-block;font-family:var(--mono);font-size:12px;font-weight:700;
+   padding:2px 10px;border-radius:999px;border:1px solid var(--border-strong);
+   color:var(--fg-muted);background:var(--bg3)}
+.pill-inline.active{color:var(--green);border-color:rgba(63,185,80,.5);background:rgba(63,185,80,.1)}
+.pill-inline.closed{color:var(--amber);border-color:rgba(214,165,51,.5);background:rgba(214,165,51,.1)}
 
-@media (max-width:860px){
-  main{flex-direction:column}
-  #side{width:100%;max-height:46vh;border-right:none;border-bottom:1px solid var(--border)}
-  #allow .pill{display:inline-flex;margin:3px 5px 0 0;text-align:left}
-}
-@media (max-width:620px){
+/* Allowlist IP grid */
+.ipgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;
+   background:linear-gradient(180deg,var(--surface-2),var(--bg2));
+   border:1px solid var(--border);border-radius:12px;padding:14px 16px;
+   box-shadow:0 1px 2px rgba(0,0,0,.35)}
+.ipgrid .ip{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12.5px;
+   padding:5px 10px;border-radius:6px;color:var(--fg-muted);background:var(--bg3);
+   border:1px solid var(--border);transition:border-color .12s,color .12s}
+.ipgrid .ip:hover{color:var(--fg);border-color:var(--border-strong)}
+.ipgrid .ip::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--green);
+   box-shadow:0 0 5px rgba(63,185,80,.5);flex-shrink:0}
+.empty-card{background:linear-gradient(180deg,var(--surface-2),var(--bg2));
+   border:1px solid var(--border);border-radius:12px;padding:20px 16px;text-align:center;
+   color:var(--fg-dim);font-size:12.5px;font-family:var(--mono)}
+
+/* Scope markdown block */
+.pre-wrap{background:linear-gradient(180deg,var(--surface-2),var(--bg2));
+   border:1px solid var(--border);border-radius:12px;overflow:hidden;
+   box-shadow:0 1px 2px rgba(0,0,0,.35)}
+.pre-head{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg2);
+   display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--fg-muted);font-weight:600}
+.pre-head .path{color:var(--accent);font-family:var(--mono)}
+.pre-head .hint{color:var(--fg-dim);font-weight:400;margin-left:auto;font-size:10.5px;letter-spacing:.04em}
+pre{padding:18px 20px;white-space:pre-wrap;word-break:break-word;
+    font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--fg-muted);
+    max-height:none}
+
+@media (max-width:760px){
+  main{padding:14px 14px 28px}
   .attach{display:none}
-  #panebody{padding:16px 16px;font-size:12.5px}
+  .cards{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+  pre{padding:14px 16px;font-size:12px}
 }
 </style></head>
 <body>
-<header>
+<header class="chrome">
   <h1><span class="k">SCOPE</span> &middot; Objective &amp; Rules of Engagement</h1>
   <span id="status">loading&hellip;</span>
   <span style="flex:1"></span>
   <span class="attach">edit in <code>engagement/scope.md</code></span>
 </header>
 <main>
-  <div id="side">
-    <section>
-      <h2>Engagement</h2>
-      <div class="kvs" id="meta"></div>
-    </section>
-    <section>
-      <h2>In&#8209;scope allowlist <span class="n" id="allow-count"></span></h2>
-      <div id="allow"></div>
-      <div class="empty" id="allow-empty" style="display:none">scope.allow empty — enforcement OFF.</div>
-    </section>
-  </div>
-  <div id="pane">
-    <div id="panehead">
-      <span id="panetitle">engagement/scope.md</span>
-      <span style="flex:1"></span>
-      <span class="attach">rules of engagement &middot; raw</span>
+  <h2>Engagement</h2>
+  <div class="cards" id="meta"></div>
+
+  <h2>In&#8209;scope allowlist <span class="n" id="allow-count"></span></h2>
+  <div id="allow-slot"></div>
+
+  <h2>Scope &amp; rules of engagement</h2>
+  <div class="pre-wrap">
+    <div class="pre-head">
+      <span class="path">engagement/scope.md</span>
+      <span class="hint">authoritative text &middot; raw</span>
     </div>
-    <div id="panebody">loading…</div>
+    <pre id="scope-md">loading…</pre>
   </div>
 </main>
 
@@ -103,35 +119,38 @@ section h2 .n{color:var(--fg-dim);font-weight:500;letter-spacing:0;text-transfor
 const statusEl = document.getElementById('status');
 function esc(s){return (s??'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;');}
 function setStatus(ok, msg){ statusEl.textContent = msg; statusEl.className = ok ? 'ok' : 'bad'; }
+
 function render(d){
   const e = d.engagement;
   const meta = document.getElementById('meta');
   if (e) {
     const st = (e.status||'').toLowerCase();
     meta.innerHTML =
-      `<div class="kv"><span class="k">Name</span><span class="v">${esc(e.name)||'(unnamed)'}</span></div>`
-      + `<div class="kv"><span class="k">Mode</span><span class="v">${esc(e.mode)}</span></div>`
-      + `<div class="kv"><span class="k">Status</span><span><span class="pill status-${esc(st)}">${esc(e.status)}</span></span></div>`
-      + `<div class="kv"><span class="k">Started</span><span class="v">${esc(e.created_at)}</span></div>`;
+      `<div class="card"><div class="val">${esc(e.name)||'(unnamed)'}</div><div class="label">Engagement name</div></div>` +
+      `<div class="card"><div class="val">${esc(e.mode)}</div><div class="label">Mode</div></div>` +
+      `<div class="card"><div class="val"><span class="pill-inline ${esc(st)}">${esc(e.status)}</span></div><div class="label">Status</div></div>` +
+      `<div class="card"><div class="val">${esc(e.created_at)||'—'}</div><div class="label">Started</div></div>`;
   } else {
-    meta.innerHTML = '<span class="empty">No engagement initialized yet.</span>';
+    meta.innerHTML = '<div class="empty-card">No engagement initialized yet. The orchestrator creates one at engagement start.</div>';
   }
-  const allow = document.getElementById('allow');
-  const allowEmpty = document.getElementById('allow-empty');
-  const allowCount = document.getElementById('allow-count');
+
+  const slot = document.getElementById('allow-slot');
+  const count = document.getElementById('allow-count');
   if (d.scope_allow && d.scope_allow.length) {
-    allow.innerHTML = d.scope_allow.map(a => `<span class="pill">${esc(a)}</span>`).join('');
-    allowCount.textContent = `(${d.scope_allow.length})`;
-    allowEmpty.style.display = 'none';
+    count.textContent = `(${d.scope_allow.length})`;
+    slot.innerHTML = '<div class="ipgrid">' +
+      d.scope_allow.map(a => `<span class="ip">${esc(a)}</span>`).join('') +
+      '</div>';
   } else {
-    allow.innerHTML = '';
-    allowCount.textContent = '';
-    allowEmpty.style.display = 'block';
+    count.textContent = '';
+    slot.innerHTML = '<div class="empty-card">scope.allow empty — tool-level enforcement OFF until the orchestrator writes it.</div>';
   }
-  const body = document.getElementById('panebody');
-  body.textContent = d.scope_md && d.scope_md.trim() ? d.scope_md
+
+  const md = document.getElementById('scope-md');
+  md.textContent = d.scope_md && d.scope_md.trim() ? d.scope_md
     : 'scope.md not written yet — the orchestrator creates it at engagement start.';
 }
+
 function load(){
   fetch('/api/scope')
     .then(r=>r.json())
