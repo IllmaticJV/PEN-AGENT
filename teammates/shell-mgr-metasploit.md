@@ -69,8 +69,10 @@ b. Verify alive: execute(session_id, command="getuid") — if it succeeds,
 c. Send [session-ready] with backend=metasploit
 ```
 
-**Spawn the operator's session (once per host, right after the foothold).**
-So the human operator can work the host in the live tmux msfconsole without
+**Spawn the operator's session — this is step 4 of Shell Ownership Flow in
+shell-mgr.md, not optional.** Every shell handoff on this backend does this
+once per host, right after the foothold, before you close the listener. So
+the human operator can work the host in the live tmux msfconsole without
 fighting the agents over one shell, give them their own session:
 ```
 mcp__metasploit-server__spawn_operator_session(session_id=<the raw SHELL
@@ -81,7 +83,9 @@ Do this from the **shell** session (it re-stages via shell_to_meterpreter);
 it spawns a second Meterpreter and reserves it for the operator. If the
 foothold is already Meterpreter (no shell to re-stage), the tool returns
 `needs_manual` — that's fine, skip it; the operator can reserve one themselves.
-The agents keep working the original session as normal.
+The agents keep working the original session as normal. Either way, mark this
+host `operator_session_spawned=true` in your tracking map (see shell-mgr.md §
+Session Tracking) so the next shell on the same host doesn't repeat this.
 
 **Never drive an operator-reserved session.** `list_sessions()` marks reserved
 sessions `operator_reserved: true`, and every session tool

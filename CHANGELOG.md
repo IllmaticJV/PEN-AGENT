@@ -5,6 +5,20 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Fixed
+
+- **shell-mgr was skipping the operator-session spawn.** The instruction to
+  give the operator their own Meterpreter session (once per host, so they can
+  work the host in the live tmux msfconsole without fighting the agents over
+  one shell) lived only as a standalone paragraph in the Metasploit backend
+  appendix (`teammates/shell-mgr-metasploit.md`) — it was never part of the
+  numbered "Shell Ownership Flow" in the base `teammates/shell-mgr.md` that
+  shell-mgr actually follows for every `[shell-established]` handoff, so the
+  step was easy to complete the flow without ever reaching. It's now an
+  explicit, mandatory step in that flow, with a per-host
+  `operator_session_spawned` flag in Session Tracking so a second shell on an
+  already-covered host doesn't spawn a duplicate.
+
 ### Removed
 
 - **Dropped `--yolo` / permission-skipping mode.** PEN-AGENT now runs in
