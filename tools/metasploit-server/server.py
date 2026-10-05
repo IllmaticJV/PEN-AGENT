@@ -312,11 +312,11 @@ def create_server() -> FastMCP:
             "list_sessions to see active sessions, execute to run commands, "
             "upgrade_to_meterpreter to turn a shell into Meterpreter, run_module "
             "to run any exploit/auxiliary/post module (RHOSTS scope-checked), and "
-            "start_socks_proxy(session_id, target_subnet) is a FALLBACK pivot "
-            "via scoped MSF route + SOCKS5 (never autoadd on multi-homed hosts); "
-            "prefer the pivoting-tunneling skill's chisel / ligolo-ng / sshuttle "
-            "/ SSH route first — the in-Framework SOCKS wedges the shared RPC "
-            "if its session dies while the job still points at it."
+            "start_socks_proxy is a FALLBACK pivot: it REFUSES to run without "
+            "confirm_no_alternative=True + alternative_rejection_reason. Prefer "
+            "the pivoting-tunneling skill (chisel / ligolo-ng / sshuttle / SSH "
+            "-D) — the in-Framework SOCKS wedges the shared RPC when a session "
+            "dies and has repeatedly broken engagements."
         ),
     )
 
@@ -1221,34 +1221,38 @@ def create_server() -> FastMCP:
         target_subnet: str = "",
         srvport: int = 1080,
         allow_autoadd: bool = False,
+        confirm_no_alternative: bool = False,
+        alternative_rejection_reason: str = "",
     ) -> str:
-        """Pivot into a SPECIFIC internal subnet via a Meterpreter session + SOCKS5.
+        """FALLBACK pivot — refuses to run unless the caller certifies no alternative fits.
 
-        FALLBACK PIVOT — prefer the `pivoting-tunneling` skill (chisel /
-        ligolo-ng / sshuttle / SSH `-D`/`-L`) first. The in-Framework
-        `auxiliary/server/socks_proxy` runs inside the shared Framework
-        instance; when its underlying session dies the relay doesn't
-        auto-tear-down and the next RPC call touching the orphaned job wedges
-        the shared command dispatch, forcing a full msfconsole restart to
-        recover. Use this ONLY when the attackbox cannot reach the pivot
-        inbound (no SSH / no chisel-reachable listener), you cannot drop a
-        small binary on target, or you specifically need every Metasploit
-        module targeting the pivoted subnet to route transparently without
-        proxychains.
+        PEN-AGENT's primary pivot path is the `pivoting-tunneling` skill
+        (chisel / ligolo-ng / sshuttle / native SSH `-D`/`-L`). The
+        in-Framework `auxiliary/server/socks_proxy` has repeatedly broken
+        engagements: when its underlying session dies the relay doesn't
+        auto-tear-down and the next RPC touching the orphaned job wedges the
+        shared command dispatch (full msfconsole restart to recover). This
+        tool therefore **refuses to run** unless the caller passes
+        `confirm_no_alternative=True` AND a one-line
+        `alternative_rejection_reason` explaining which alternative was ruled
+        out and why.
 
-        Adds a route for ONLY `target_subnet` through the session (via
-        `post/multi/manage/autoroute` with `CMD=add` + explicit `SUBNET` /
-        `NETMASK`), then starts an `auxiliary/server/socks_proxy` job bound to
-        127.0.0.1. Use with proxychains to route tools through the tunnel.
+        Legitimate rejection reasons (one of these must be true):
+          - "no attackbox inbound: pivot can't reach any chisel/SSH listener"
+          - "can't drop a binary on target: <policy / write-blocked FS / EDR>"
+          - "need every MSF module to route transparently without proxychains"
+          - "attempted ligolo-ng/chisel/sshuttle and all failed: <specifics>"
 
-        IMPORTANT — never use msfrpcd's `autoroute CMD=autoadd` on a
-        multi-homed pivot host. It enumerates every interface on the pivot
-        (internal + management + docker/vpn + any secondary IPs) and adds
-        routes for ALL of them, which contaminates your routing table,
-        routes agent traffic through subnets you didn't scope, and produces
-        flaky connectivity to the subnet you actually wanted. Always pass an
-        explicit `target_subnet` that matches what the lead's
-        `[setup-pivot]` message supplied.
+        If NONE of the above hold, do not call this tool — load the
+        `pivoting-tunneling` skill and use chisel / ligolo-ng / sshuttle /
+        SSH `-D` instead.
+
+        When permitted to proceed, this adds a route for ONLY `target_subnet`
+        through the session (`post/multi/manage/autoroute` with `CMD=add` +
+        explicit `SUBNET` / `NETMASK`) and starts an
+        `auxiliary/server/socks_proxy` job bound to 127.0.0.1. Never
+        `CMD=autoadd` on a multi-homed pivot — it enumerates every pivot
+        interface and routes agent traffic through subnets you did not scope.
 
         Args:
             session_id: Meterpreter session ID on the pivot host. Required.
@@ -1257,15 +1261,59 @@ def create_server() -> FastMCP:
                 True` is passed as an explicit opt-in. Must be covered by
                 engagement/scope.allow.
             srvport: Local SOCKS port (default 1080).
-            allow_autoadd: Fallback escape hatch — if True and `target_subnet`
-                is empty, run the legacy `CMD=autoadd` (enumerate every pivot
-                interface). Only use when you genuinely need every reachable
-                subnet AND the pivot host has a single network interface.
-                The response carries a `warning` field reminding you this
-                path risks routing out-of-scope traffic on multi-NIC hosts.
+            allow_autoadd: Fallback-of-the-fallback escape hatch — if True
+                and `target_subnet` is empty, run the legacy `CMD=autoadd`
+                (enumerate every pivot interface). Only use when you
+                genuinely need every reachable subnet AND the pivot host has
+                a single network interface. Response carries a `warning`
+                field reminding you this path risks out-of-scope traffic.
+            confirm_no_alternative: Required True to run. Setting it certifies
+                that the pivoting-tunneling skill's chisel / ligolo-ng /
+                sshuttle / SSH `-D` options have been considered and are
+                genuinely not viable for this pivot.
+            alternative_rejection_reason: One line (>= 20 chars) explaining
+                which alternative was ruled out and why. Required when
+                confirm_no_alternative=True. Written to the module-call log
+                (engagement/evidence/msf-modules/) for the operator's audit
+                trail.
         """
         if not session_id:
             return "ERROR: session_id is required."
+
+        # Gate 0 (strongest): refuse unless the caller explicitly certified no
+        # alternative. This is a code-level enforcement of the methodology
+        # rule, because the "FALLBACK" labels in docs weren't stopping agents
+        # from defaulting here.
+        if not confirm_no_alternative:
+            return (
+                "ERROR: start_socks_proxy refuses to run without "
+                "confirm_no_alternative=True.\n"
+                "\n"
+                "The in-Framework SOCKS proxy has repeatedly broken "
+                "engagements (dead relay wedges the shared RPC → full "
+                "msfconsole restart to recover). Use the pivoting-tunneling "
+                "skill INSTEAD: chisel / ligolo-ng (with the operator-free "
+                "pen-agent-ligolo helpers if installed) / sshuttle / "
+                "native SSH -D / -L. See skills/network/pivoting-tunneling.\n"
+                "\n"
+                "If — and ONLY if — every alternative is ruled out for this "
+                "specific pivot (no attackbox inbound to pivot; can't drop a "
+                "binary on target; or you specifically need every MSF module "
+                "to route transparently without proxychains), re-invoke with:\n"
+                "  confirm_no_alternative=True\n"
+                "  alternative_rejection_reason='<which alternative, why not viable>'"
+            )
+        if len(alternative_rejection_reason.strip()) < 20:
+            return (
+                "ERROR: alternative_rejection_reason must be a one-line "
+                "explanation (>= 20 chars) of which pivoting-tunneling "
+                "alternative was ruled out and why — e.g.:\n"
+                "  'ligolo-ng agent won't execute: target has non-exec /tmp "
+                "and no writable alternative'\n"
+                "  'no attackbox inbound: pivot behind strict egress-only "
+                "firewall; chisel/SSH can't reach us'"
+            )
+
         if not target_subnet and not allow_autoadd:
             return (
                 "ERROR: target_subnet is required (CIDR, e.g. '172.16.8.0/24'). "
@@ -1277,6 +1325,19 @@ def create_server() -> FastMCP:
         guard = _reserved_guard(session_id)
         if guard:
             return guard
+
+        # Audit record: log the rejection reason BEFORE any RPC work so even a
+        # subsequent failure leaves evidence of why the fallback was taken.
+        _log_module_call(
+            tool="start_socks_proxy", module="(preflight)",
+            module_type="meta",
+            options={"session_id": str(session_id),
+                     "target_subnet": target_subnet,
+                     "allow_autoadd": bool(allow_autoadd),
+                     "confirm_no_alternative": True,
+                     "alternative_rejection_reason": alternative_rejection_reason.strip()},
+            result={"status": "fallback_authorized"},
+        )
 
         # Validate + decompose the CIDR into SUBNET + NETMASK for autoroute's
         # scoped `CMD=add`. ipaddress raises ValueError on garbage input (bad

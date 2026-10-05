@@ -5,6 +5,28 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Changed
+
+- **MSF `start_socks_proxy` now refuses to run without explicit certification
+  that no alternative fits.** Documentation-only "fallback" labels across PRs
+  #32 / #34 were not stopping agents from defaulting to the MSF SOCKS path,
+  which keeps breaking engagements (dead relay wedges the shared RPC → full
+  msfconsole restart). The MCP tool is now code-gated:
+  `start_socks_proxy` requires `confirm_no_alternative=True` **and** a
+  non-trivial `alternative_rejection_reason` (>= 20 chars) describing which
+  specific alternative was ruled out and why. Both refusal messages name
+  chisel / ligolo-ng (with the operator-free `pen-agent-ligolo-*` helpers) /
+  sshuttle / native SSH `-D`/`-L` and point at the `pivoting-tunneling`
+  skill. The rejection reason is written to the module-call log in
+  `engagement/evidence/msf-modules/` for operator audit — if the fallback is
+  used, there's a durable record of why. Also added a new always-in-context
+  rule to CLAUDE.md § Operational Rules so every teammate turn carries the
+  warning, not just when the tool is called. Updated
+  `teammates/shell-mgr-metasploit.md` and `tools/metasploit-server/README.md`
+  to show the new call shape. Unit-tested: no `session_id` → refuse;
+  `confirm_no_alternative` missing → refuse; reason empty / short /
+  whitespace-only → refuse; proper call → proceeds.
+
 ### Added
 
 - **ligolo-ng operator-free pivot setup (opt-in).** Ligolo-ng is the most

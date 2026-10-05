@@ -195,18 +195,34 @@ to recover. A separate-process tunnel (chisel / ligolo-ng / sshuttle) can die
 without taking the C2 with it; recovery is a fresh agent on target, not a
 Framework restart.
 
-**MSF SOCKS fallback.** Use `start_socks_proxy` only when (a) the attackbox
-cannot reach the pivot host inbound (no SSH, no chisel-reachable listener),
-(b) you cannot drop a small binary on target (policy, write-blocked
-filesystem, detection posture), or (c) you specifically need every Metasploit
-module targeting the pivoted subnet to route transparently without
-proxychains:
+**MSF SOCKS fallback.** `start_socks_proxy` **refuses to run** without
+explicit certification that no alternative fits. Only use it when (a) the
+attackbox cannot reach the pivot host inbound (no SSH, no chisel-reachable
+listener), (b) you cannot drop a small binary on target (policy,
+write-blocked filesystem, detection posture), or (c) you specifically need
+every Metasploit module targeting the pivoted subnet to route transparently
+without proxychains. For every other case, go back and use the
+`pivoting-tunneling` skill.
+
+When one of the three cases genuinely applies:
 
 ```
-start_socks_proxy(session_id, target_subnet=<cidr-from-lead>, srvport=1080)
+start_socks_proxy(
+    session_id=<meterpreter-sid>,
+    target_subnet=<cidr-from-lead>,
+    srvport=1080,
+    confirm_no_alternative=True,
+    alternative_rejection_reason="<which alternative, specifically why not viable>",
+)
   → Runs autoroute CMD=add with SUBNET+NETMASK (NOT autoadd), then starts
     auxiliary/server/socks_proxy. Returns endpoint + proxychains line.
+    The rejection reason is written to the module-call log for the operator
+    to review.
 ```
+
+Missing/short `alternative_rejection_reason` (< 20 chars) is rejected — this
+is not a bypass, it's a prompt to actually think about whether chisel /
+ligolo-ng / sshuttle / SSH `-D` was tried first.
 
 **NEVER use `autoroute CMD=autoadd` (un-scoped autoroute).** On a multi-homed
 pivot host (dual-NIC jumphost, dockerized target, host with vpn/bridge
