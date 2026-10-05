@@ -7,15 +7,27 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
-- **Portal: unified MSF-style chrome across every tab.** The Objective
-  & Scope, Objective Tracker, and Status tabs now share the same
-  compact header strip (short `SCOPE / GOALS / STATE / C2` badge +
-  subtitle + status pill + right-side context hint), full-height flex
-  layout with scrolling body, and MSF's dense section/typography
-  tokens. Each page's data layout stays task-appropriate (scope =
-  cards + markdown pre, goals = progress bar + per-objective list,
-  state = cards + graph + tables), but the frame around them reads as
-  one product instead of three different page templates.
+- **Portal: adopt the MSF tab's full sidebar+pane layout on every tab.**
+  Just unifying the header strip (previous pass) didn't match the MSF
+  look — the signature is the left sidebar with stacked sections and a
+  right detail pane with its own sub-header. Now each tab follows that
+  pattern:
+  - **Goals** — sidebar lists all objectives (status dot + id +
+    snippet, click to select, status filter chips + progress bar at
+    top). Right pane shows the selected objective's full text, status
+    badge in its own sub-header, operator note card, and meta grid
+    (status, last updated, sync state). Click-selected id persists in
+    localStorage. Replaces the previous single-column list.
+  - **Scope** — sidebar carries the engagement meta (name / mode /
+    status / started) and the in-scope allowlist as stacked IP pills.
+    Right pane renders `engagement/scope.md` under its own sub-header
+    (`engagement/scope.md · rules of engagement`).
+  - **Status** — new sidebar `Sections` nav lists Overview, Access
+    Chain, and each table (Targets, Credentials, Access, Vulns, Pivot
+    Map, Tunnels, Blocked, Events) with live counts. Click to scroll
+    to that section; scroll-spy highlights the active one. All
+    existing table rendering, filtering, sorting, and the access-chain
+    graph are preserved — just reframed inside the new layout.
 
 ### Added
 
