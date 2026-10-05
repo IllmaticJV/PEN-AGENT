@@ -75,10 +75,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
 </style></head>
 <body>
 <header>
-  <h1><span class="k">C2</span> &middot; Metasploit Console</h1>
+  <h1><span class="k">C2</span> &middot; Metasploit &amp; Shell Server</h1>
   <span id="status">connecting&hellip;</span>
   <span style="flex:1"></span>
-  <span class="attach">read&#8209;only viewer &middot; interact in the live console:
+  <span class="attach">read&#8209;only viewer &middot; MSF live console:
     <code>tmux attach -t pen-msf</code></span>
 </header>
 <main>
@@ -98,12 +98,18 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <table id="modules"><tbody></tbody></table>
       <div class="empty" id="modules-empty">none yet</div>
     </section>
+    <section>
+      <h2>Shell Sessions <span class="opbadge" style="color:var(--amber);border-color:rgba(214,165,51,.5);background:rgba(214,165,51,.1);margin-left:7px">non-MSF</span></h2>
+      <table id="shells"><tbody></tbody></table>
+      <div class="empty" id="shells-empty">none yet</div>
+    </section>
   </div>
   <div id="logwrap">
     <div id="loghead">
       <span id="logtitle">Select a session, job, or module call to view its log</span>
       <span style="flex:1"></span>
-      <span class="pill" id="pill-console" onclick="showConsole()">console spool</span>
+      <span class="pill" id="pill-shells" onclick="showShellCommands()">shell cmd feed</span>
+      <span class="pill" id="pill-console" onclick="showConsole()">msf console</span>
     </div>
     <div id="log"></div>
   </div>
@@ -113,11 +119,13 @@ const statusEl = document.getElementById('status');
 const logEl = document.getElementById('log');
 const logTitle = document.getElementById('logtitle');
 
-// Single view-state object. Kinds: 'session' | 'console' | 'module'.
-// `id` is the session_id, module filename stem, or `job:<job_id>` lookup.
+// Single view-state object. Kinds: 'session' | 'console' | 'module' |
+// 'shell' (per shell-server session) | 'shellfeed' (global shell cmd log).
+// `id` is the session_id, module stem, `job:<job_id>`, or the shell log filename.
 let view = { kind: null, id: null };
 let sessionsCache = [];
 let modulesCache = [];
+let shellsCache = [];
 
 function setStatus(connected, msg) {
   statusEl.textContent = msg || (connected ? 'connected' : 'disconnected');
@@ -131,6 +139,7 @@ function isSelectedRow(id, row) {
   if (id === 'sessions') return view.kind === 'session' && String(row.session_id) === String(view.id);
   if (id === 'modules')  return view.kind === 'module'  && String(row.id) === String(view.id);
   if (id === 'jobs')     return view.kind === 'module'  && String(view.id) === 'job:' + row.job_id;
+  if (id === 'shells')   return view.kind === 'shell'   && String(row.file) === String(view.id);
   return false;
 }
 
@@ -165,6 +174,13 @@ function renderModules() {
       module: r => esc((r.module || '').length > 32 ? '…' + r.module.slice(-31) : (r.module || '')),
     });
 }
+function renderShells() {
+  renderTable('shells', 'shells-empty', shellsCache,
+    ['session_id', 'label', 'mtime_iso'],
+    r => selectShell(r.file),
+    { session_id: r => esc(String(r.session_id).slice(0, 10)) });
+}
+
 function renderJobs(rows) {
   // Jobs are clickable only if we have a matching module-call log recorded
   // (by job_id). Older jobs predating the module-log change show as plain rows.
@@ -181,33 +197,58 @@ function renderJobs(rows) {
 }
 
 // Selection ----------------------------------------------------------------
-function selectSession(sid) {
-  view = { kind: 'session', id: String(sid) };
+function clearPills() {
   document.getElementById('pill-console').classList.remove('active');
-  logTitle.textContent = 'session ' + sid + ' — command log';
+  document.getElementById('pill-shells').classList.remove('active');
+}
+function rerenderAll() {
   renderSessions();
   renderModules();
   renderJobs(window._jobsCache || []);
+  renderShells();
+}
+function selectSession(sid) {
+  view = { kind: 'session', id: String(sid) };
+  clearPills();
+  logTitle.textContent = 'MSF session ' + sid + ' — command log';
+  rerenderAll();
   refreshLog(true);
 }
 
 function showConsole() {
   view = { kind: 'console', id: null };
+  clearPills();
   document.getElementById('pill-console').classList.add('active');
   logTitle.textContent = 'shared msfconsole spool';
-  renderSessions();
-  renderModules();
-  renderJobs(window._jobsCache || []);
+  rerenderAll();
+  refreshLog(true);
+}
+
+function showShellCommands() {
+  view = { kind: 'shellfeed', id: null };
+  clearPills();
+  document.getElementById('pill-shells').classList.add('active');
+  logTitle.textContent = 'shell-server · all commands across sessions (live feed)';
+  rerenderAll();
+  refreshLog(true);
+}
+
+function selectShell(file) {
+  view = { kind: 'shell', id: String(file) };
+  clearPills();
+  const m = /^shell-([^-]+)-(.+)\.log$/.exec(file);
+  logTitle.textContent = m
+    ? `shell-server · session ${m[1]} (${m[2]}) — live transcript`
+    : 'shell-server · session log';
+  rerenderAll();
   refreshLog(true);
 }
 
 function selectModule(callFileId) {
   view = { kind: 'module', id: String(callFileId) };
-  document.getElementById('pill-console').classList.remove('active');
+  clearPills();
   logTitle.textContent = 'module call — setup log';
-  renderSessions();
-  renderModules();
-  renderJobs(window._jobsCache || []);
+  rerenderAll();
   refreshLog(true);
 }
 
@@ -246,6 +287,23 @@ function refreshLog(force) {
       setContent(j.data || (j.error ? '[error] ' + j.error : '(console spool empty — enable spool in tmux, or no activity yet)'), 'text');
       if (stick) logEl.scrollTop = logEl.scrollHeight;
     });
+    return;
+  }
+  if (view.kind === 'shellfeed') {
+    fetch('/api/shell/commands').then(r => r.json()).then(j => {
+      const stick = force || isAtBottom();
+      setContent(j.data || (j.error ? '[error] ' + j.error
+        : '(no shell-server commands recorded yet — nothing has called send_command)'), 'text');
+      if (stick) logEl.scrollTop = logEl.scrollHeight;
+    });
+    return;
+  }
+  if (view.kind === 'shell' && view.id) {
+    fetch('/api/shell/log?file=' + encodeURIComponent(view.id)).then(r => r.json()).then(j => {
+      const stick = force || isAtBottom();
+      setContent(j.data || (j.error ? '[error] ' + j.error : '(shell session log empty)'), 'text');
+      if (stick) logEl.scrollTop = logEl.scrollHeight;
+    }).catch(e => { logEl.textContent = '[error] ' + e; });
     return;
   }
   if (view.kind === 'session' && view.id) {
@@ -290,6 +348,9 @@ es.onmessage = (ev) => {
     renderModules();
     // Jobs clickability depends on modules cache — rerender if we have one.
     if (window._jobsCache) renderJobs(window._jobsCache);
+  } else if (msg.type === 'shells') {
+    shellsCache = msg.payload;
+    renderShells();
   } else if (msg.type === 'status') {
     setStatus(msg.connected, msg.connected ? 'connected' : (msg.error || 'disconnected'));
   }

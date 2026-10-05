@@ -5,6 +5,21 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Added
+
+- **Portal: shell-server session visibility in the C2 tab.** Exploits
+  that run via shell-server (reverse shells, local processes) were
+  invisible to the operator — only MSF had a live log view. The C2
+  tab now carries a `Shell Sessions` section in its sidebar listing
+  every shell-server live log (`engagement/evidence/shell-<sid>-<label>
+  .log`), newest-first. Click a row to tail its full transcript (every
+  send/recv) in the right pane. Two new pills at the top of the right
+  pane: `shell cmd feed` tails `engagement/evidence/shell-commands.log`
+  (all commands across all shell sessions as a global activity feed);
+  `msf console` keeps the existing msfconsole spool view. The MSF SSE
+  stream now carries shell sessions too so the sidebar updates live.
+  C2 tab retitled to `C2 · Metasploit & Shell Server`.
+
 ### Changed
 
 - **Portal: redesign Scope and Goals as single-column dashboards.** The
