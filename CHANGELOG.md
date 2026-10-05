@@ -5,6 +5,28 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-05
 
+### Fixed
+
+- **ligolo-ng sudoers: route helper required a password on real CIDRs.**
+  The sudoers rule shipped in #35 ended with `pen-agent-ligolo-route *`,
+  but sudo's command-arg wildcard uses `fnmatch` with `FNM_PATHNAME` on
+  many builds — `*` doesn't match `/`, so CIDR args like `172.16.121.0/24`
+  silently failed the match and sudo fell back to a password prompt.
+  Operator saw `sudo: a password is required` on every real route call,
+  defeating the whole point of the opt-in helper. Fix: pass the CIDR via
+  `LIGOLO_SUBNET` env var instead of positional arg; sudoers rule becomes
+  `NOPASSWD: SETENV: /usr/local/bin/pen-agent-ligolo-route` with a scoped
+  `Defaults!<path> env_keep += "LIGOLO_SUBNET"`. No wildcarding needed at
+  all — the env delivery sidesteps the `/`-matching lottery entirely.
+  Helpers still accept a positional `$1` as a fallback so operators who
+  installed from #35 and don't re-run the installer aren't broken.
+  `install-sudoers.sh` self-check now exercises the route path (not just
+  `-up`) with a harmless TEST-NET CIDR to catch future regressions of this
+  exact bug. New-form invocation documented everywhere:
+  `sudo -n LIGOLO_SUBNET=172.16.8.0/24 pen-agent-ligolo-route`.
+  Operator action: `sudo bash tools/ligolo/uninstall-sudoers.sh && sudo
+  bash tools/ligolo/install-sudoers.sh` to pick up the new sudoers rule.
+
 ### Changed
 
 - **Exploit `.sh` must be END-TO-END; `record_exploit` grows a `python_helper`

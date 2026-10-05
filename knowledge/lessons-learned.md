@@ -159,6 +159,20 @@ PID 1, severed from the originating request/thread lineage. Kills the main
 source — if the sessions don't die, the SOCKS jobs don't orphan, and the
 cascade this lessons section describes doesn't start.
 
+### sudoers command-arg `*` and `/`: don't use arg globs for anything with slashes
+
+sudo's command-arg wildcard uses `fnmatch` and on many builds (default
+`FNM_PATHNAME`) `*` does NOT match `/`. A sudoers rule like
+`NOPASSWD: /usr/local/bin/foo *` silently fails to match arguments
+containing `/` (CIDR notation `172.16.0.0/24`, file paths, URLs) and sudo
+falls back to a password prompt — exactly the opposite of what you set up
+`NOPASSWD` for. Portable fix: pass the slash-containing value via an env
+var, tag the sudoers rule `NOPASSWD: SETENV:`, and scope
+`Defaults!<path> env_keep += "FOO"`. No wildcarding needed. Self-check the
+installer against the exact path the operator will exercise (not just the
+no-arg case); the bug otherwise ships silent until someone actually tries
+to re-trigger a real pivot.
+
 ### Ligolo-ng attackbox-root friction: use pinned-path sudoers helpers, not wildcard `ip`
 
 Ligolo-ng is the most reliable pivot method in practice but needs root on the
