@@ -7,6 +7,19 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Local credential-dump ingester (secretsdump / hashcat / Kerberoast).**
+  New `tools/ingestors/cred_ingest.py` auto-detects the common cred
+  dump formats line-by-line and emits a SUMMARY + pre-formatted
+  `[add-cred]` state-mgr batch. Supported: impacket secretsdump NTLM
+  (SAM/NTDS), Kerberos AES/DES keys, CLEARTEXT lines, GetUserSPNs
+  `$krb5tgs$` / `$krb5asrep$` tickets (with user+domain extracted
+  from the hashcat-compatible format), hashcat `--show` output, plain
+  `user:pass`, JSON-per-line (`{"username","password","domain"}`).
+  Skips `Guest`/`DefaultAccount` noise automatically. Same shape as
+  the nmap ingester: no LLM transcription of 32-hex NTLM pairs or
+  ticket blobs. `teammates/ad-ops.md` updated to require it on every
+  cred capture; the technique's `[add-vuln]` + `via_vuln_id` wiring
+  stays the teammate's job.
 - **Local shell/MSF transcript summarizer — strips MOTD/prompt noise.**
   New `tools/ingestors/summarize_shell_log.py` takes any
   `engagement/evidence/shell-*.log` or `msf-modules/*.jsonl` and emits
