@@ -7,6 +7,15 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Web recon one-shot payload + parser.** `tools/payloads/web_recon.sh
+  <URL>` pulls (bounded 15s): HEAD, status/size/time, title, meta
+  generator, cookies with flags, robots.txt / sitemap.xml /
+  security.txt, framework fingerprints, favicon md5, TLS CN+SAN
+  (https), optional whatweb. All in deterministic `=== SECTION ===`
+  blocks. Companion `tools/ingestors/web_recon.py <output> --url
+  <URL>` emits a SUMMARY line + pre-formatted `[update-target]` /
+  `[add-port]` state-mgr writes with a dominant-product tag picked
+  from server / powered-by / generator / body signals.
 - **BloodHound shortest-path finder — no neo4j required.** New
   `tools/ingestors/bloodhound_paths.py <path> --from <PRINCIPAL>
   [--target 'DOMAIN ADMINS']` runs Dijkstra over typed BloodHound
