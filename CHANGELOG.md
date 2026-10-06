@@ -7,6 +7,16 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Objective auto-detection (propose-only).**
+  `tools/monitor/objective_match.py` scores objective text against
+  every vuln + access row in state.db using TF-IDF overlap plus
+  verbatim-IP / verbatim-hostname / verbatim-CVE boosts. Prints a
+  markdown proposal table with confidence (0.0–1.0); never
+  auto-applies — the lead/operator confirms and sends the
+  `update_objective` call. Catches "oh, that vuln just actioned
+  covers objective 3" without someone having to notice. `--threshold`
+  default 0.35, `--limit` per-objective, `--include-done` to re-check
+  already-done ones.
 - **Local credential sweep.** `tools/sweep/cred_sweep.py --username
   <u> --secret '<s>' --hosts <cidr/list>` tries one cred across SMB /
   WinRM / SSH against many hosts in one call. Engine autodetect: nxc
