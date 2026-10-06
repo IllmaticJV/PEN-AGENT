@@ -187,6 +187,20 @@ seconds: redirect stdout/stderr to `engagement/evidence/`, use
 when notified. Do NOT use TaskOutput. Blocking your turn prevents the lead
 from messaging you to redirect or abort.
 
+**Summarize shell transcripts locally before reading them.** For any
+`engagement/evidence/shell-*.log` or `engagement/evidence/msf-modules/
+*.jsonl` longer than ~100 lines (session recovery, catching up on a
+long enum run), pipe through the local summarizer first:
+```bash
+python3 tools/ingestors/summarize_shell_log.py <path> [--last-n 50]
+```
+It drops MOTD/prompt noise, trims per-command recv blocks to 30 lines
+(with elided counts), collapses identical consecutive outputs, and
+handles both shell transcripts and MSF module JSONL. Typically ~50%
+smaller; sometimes much more on PTY sessions with heavy banners. Only
+read the raw log when you specifically need output the summarizer
+elided.
+
 ### Operational Rules
 
 - **Stay in scope.** Only act against targets in `engagement/scope.md` /

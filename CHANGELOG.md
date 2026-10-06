@@ -7,6 +7,17 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Local shell/MSF transcript summarizer — strips MOTD/prompt noise.**
+  New `tools/ingestors/summarize_shell_log.py` takes any
+  `engagement/evidence/shell-*.log` or `msf-modules/*.jsonl` and emits
+  a condensed `[ts] $ cmd` + trimmed recv block form. Drops MOTD /
+  banner / bare-prompt lines, trims each recv to 30 lines (with
+  elided-count footer), collapses identical consecutive outputs to
+  `[same as above]`. Autodetects MSF JSONL vs shell transcript. Flags:
+  `--last-n N`, `--max-recv-lines N`, `--stats`. CLAUDE.md Tool
+  Execution now instructs teammates to pipe long transcripts through
+  it before reading. Typical reduction: ~50% on heavily banner'd PTY
+  sessions, more on raw `syslog`-style tail output.
 - **Local scribe-gap check replaces three MCP calls per orchestrator loop.**
   New `tools/monitor/scribe_check.py` does the lead's scribe duty
   locally in ~50ms: reads shell-server live logs, MSF session evidence,
