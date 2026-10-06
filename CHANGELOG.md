@@ -7,6 +7,16 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Local BloodHound JSON/ZIP ingester.** `tools/ingestors/bloodhound
+  _ingest.py` handles dir / zip / single JSON (both legacy BH and
+  BloodHound-CE field shapes). Emits SUMMARY (computer/user/group
+  counts, DA + EA members, kerberoastable + ASREP-roastable +
+  unconstrained + constrained delegation lists) and STATE WRITES:
+  `[add-target]` per computer with an IP, `[add-vuln]` for each
+  high-risk attribute (unconstrained/constrained delegation, kerb/
+  asrep roastable), `[add-cred]` placeholder for every DA member so
+  the cracking queue has a target list. Skips the 2-20 MB of raw AD
+  JSON through the LLM.
 - **Local hashcat wrapper — auto-detect mode + standardize evidence.**
   New `tools/crack/crack.sh <hashfile>` sniffs the first hash line
   (NTLM, SAM/NTDS, `$krb5tgs$23/17/18$`, `$krb5asrep$`, `$NETNTLMv2$`,
