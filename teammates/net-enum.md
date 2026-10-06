@@ -94,6 +94,13 @@ Output has two blocks:
   `[add-target]` + `[add-port]` lines. Send to state-mgr verbatim in ONE
   message (batch).
 
+For the staged full scan's SECOND pass, use the delta ingester instead
+so you only emit the new ports (the quick scan already got the
+common ones):
+```bash
+python3 tools/ingestors/nmap_delta.py <quick.xml> <deep.xml>
+```
+
 Why: raw `nmap -sVC -p-` on a /24 is huge; the ingester cuts it ~10x and
 keeps port/version strings exact (no LLM transcription drift). Use
 `--limit 0` if you want the full table and `--no-writes` if the lead
