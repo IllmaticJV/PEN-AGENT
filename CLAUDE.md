@@ -155,6 +155,14 @@ MUST also write an OffSec-style finding to `engagement/findings/<id>.json`
 conforming to `tools/reporter/finding.schema.json`. Copy the worked example at
 `tools/reporter/examples/finding-prompt-injection.json` and fill it in.
 
+Jumpstart: `python3 tools/reporter/new_finding.py <vuln_id>` writes
+`engagement/findings/<vuln_id>.json` pre-populated from state.db
+(target, title, severity, affected, classification hints, finding id).
+Open it and fill the TODO fields — `steps_to_reproduce`, the
+`verification` oracle, `impact`, `placeholders.ATTACKBOX`. Flip
+`confidence` / `verification.status` to `confirmed` only when the
+oracle actually fires.
+
 Non-negotiable contents (the exporter enforces these):
 
 - **`steps_to_reproduce`** — the COMPLETE, ordered exploit path: every command
