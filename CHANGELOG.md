@@ -7,6 +7,15 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Local CVE → MSF module hint index.** New `tools/exploit-index/`
+  with a static JSON (~30 common CVEs + a dozen product/version
+  entries covering Tomcat, GitLab, Jenkins, Confluence, OpenSSH,
+  vsftpd, Exchange) and a `lookup.py` CLI that answers in <1ms:
+  `--cve CVE-2021-44228` / `--product GitLab --version 13.0.0` /
+  `--query jenkins`. Replaces burning a `console_exec("search ...")`
+  round-trip for the common cases. A `MISS:` response names the exact
+  fallback search string so the pattern degrades gracefully. CLAUDE.md
+  "Known exploits: Metasploit first" rule rewritten around the index.
 - **One-shot shell recon payload + parser.** New
   `tools/payloads/shell_recon.sh` (+ `.ps1` sibling) runs the classic
   new-shell triage in ONE `send_command` call — whoami/id/hostname/os/
