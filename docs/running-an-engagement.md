@@ -66,6 +66,22 @@ The orchestrator follows this decision flow from target to objective:
   <img src="../workflow.svg" width="700" alt="Engagement workflow: Scope → Recon → Attack Surface → Discovery & Exploitation → Chaining → Complete">
 </p>
 
+### Two different "preflights"
+
+PEN-AGENT uses the word in two unrelated places — don't confuse them:
+
+- **`preflight.sh`** at the repo root is the **attackbox dependency
+  check**. Operators run it once after `install.sh` to install missing
+  pentest tools (nmap, ffuf, sqlmap, hashcat, impacket, …). See
+  `docs/installation.md`.
+- **`tools/preflight/gen_payloads.sh`** is the **per-engagement
+  msfvenom payload bake-off**. shell-mgr runs it automatically at
+  engagement init (on the Metasploit backend) in response to the
+  orchestrator's mandatory `[preflight-payloads] lhost=…` message —
+  pre-generates ~13 common payloads under `engagement/payloads/` with
+  a live handler per entry. Teammates then grab them with
+  `tools/preflight/pick.py` instead of running msfvenom mid-exploit.
+
 ## Reconnaissance
 
 After scope setup, the orchestrator runs reconnaissance.
