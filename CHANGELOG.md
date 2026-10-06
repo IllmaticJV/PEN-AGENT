@@ -7,6 +7,18 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **One-shot shell recon payload + parser.** New
+  `tools/payloads/shell_recon.sh` (+ `.ps1` sibling) runs the classic
+  new-shell triage in ONE `send_command` call — whoami/id/hostname/os/
+  kernel/ifaces/sudo-list/docker/cron/world-writable/listening — with
+  deterministic `=== SECTION ===` delimiters. Companion
+  `tools/ingestors/shell_recon.py <output> --ip <this>` parses it and
+  emits a SUMMARY line (host/user/os/ifaces/sudo/pivot candidates) +
+  pre-formatted `[update-target]` + `[add-pivot]` state-mgr lines.
+  Auto-detects pivot candidates by diffing interface subnets against
+  the shell's own IP (any CIDR we're ON but DON'T match `this_ip` =
+  dual-NIC → likely pivot subnet). Replaces 5-8 separate `send_command`
+  rounds + the LLM reading each output with one send + one bash pipe.
 - **Local finding JSON skeleton generator.** New
   `tools/reporter/new_finding.py <vuln_id>` reads state.db for a given
   vuln (target IP, hostname, title, severity, vuln_type, details,
