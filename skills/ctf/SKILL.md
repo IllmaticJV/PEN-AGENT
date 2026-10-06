@@ -722,7 +722,29 @@ Immediately after, call `init_objectives()` to parse the `OBJECTIVES:` block
 from `scope.md` into `engagement/objectives.json` so the operator portal's
 Objective Tracker tab lights up.
 
-**MANDATORY first step after shell-mgr is up (Metasploit backend):**
+**Objective-tracker usage (lifetime of the engagement).** As you chain
+vulns toward impact, mark progress with
+`update_objective(objective_id=N, status=…, note=…)`. Statuses:
+`pending | in_progress | done | blocked | skipped`. Set `in_progress`
+when you assign the task, `done` with the finding_id in the note when
+the objective is proven complete, `blocked` with the reason when stuck.
+This is how the operator tracks progress at a glance; keep it live.
+
+**Automated nudge** — once per loop (or whenever you notice an actioned
+vuln might cover an objective), run:
+```bash
+python3 tools/monitor/objective_match.py
+```
+It scores actioned vulns + access rows against each objective's text
+(TF-IDF + verbatim IP/hostname/CVE boost) and prints a markdown
+proposal table with confidence. Confirm each row that looks right
+and call `update_objective` for it — the script never auto-applies.
+
+Copy dump-state script (use Bash `cp`, do NOT read the file):
+`cp operator/templates/dump-state.sh engagement/dump-state.sh && chmod +x engagement/dump-state.sh`
+
+**MANDATORY first message to shell-mgr (Metasploit backend only):**
+After shell-mgr spawns (see § Spawn shell-mgr), send:
 ```
 [preflight-payloads] lhost=<IP-or-iface, e.g. tun0>
 ```
@@ -738,38 +760,18 @@ field patch) + ETW (`PSEtwLogProvider.etwProvider` nulled) bypass from
 the amsi.fail / Matt Graeber family — good against basic / older AV
 without further obfuscation. Teammates look up a payload with
 `python3 tools/preflight/pick.py --platform X --arch Y --format Z`
-instead of running msfvenom per-exploit.
+instead of running msfvenom per-exploit. Starter set only — no custom
+encoders/templates; teammates regenerate per-target for hardened AV.
 
-Starter set only — no custom encoders/templates. For hardened AV
-teammates regenerate per-target.
-
-**Preflight covers both dual-session legs on the SAME LPORT.** One
-handler per baked payload is enough; the Metasploit (and shell-server)
-handlers accept multiple callbacks. The exploit's `.sh`
+**Preflight + dual-session interaction.** One handler per baked
+payload covers both dual-session legs; the Metasploit (and
+shell-server) handlers accept multiple callbacks. The exploit's `.sh`
 (`engagement/exploits/<host>-<label>.sh`) fires the delivery twice on
 the SAME LPORT with LABEL swapped — first callback → agent session,
 second callback → operator session (label ends `-operator`, shell-mgr
-auto-reserves). No LPORT doubling, no second handler. For a
-Meterpreter-origin first session, `spawn_operator_session`'s
-re-stage-via-shell path still works too; both routes end at the same
-dual-session invariant. As you chain vulns toward impact, mark
-progress with `update_objective(objective_id=N, status=…, note=…)` — statuses
-are `pending | in_progress | done | blocked | skipped`. Set `in_progress`
-when you assign the task, `done` with the finding_id in the note when the
-objective is proven complete, `blocked` with the reason when stuck. This is
-how the operator tracks progress at a glance; keep it live.
-
-**Automated nudge** — once per loop (or whenever you notice an actioned
-vuln might cover an objective), run:
-```bash
-python3 tools/monitor/objective_match.py
-```
-It scores actioned vulns + access rows against each objective's text
-(TF-IDF + verbatim IP/hostname/CVE boost) and prints a markdown
-proposal table with confidence. Confirm each row that looks right
-and call `update_objective` for it — the script never auto-applies.
-Copy dump-state script (use Bash `cp`, do NOT read the file):
-`cp operator/templates/dump-state.sh engagement/dump-state.sh && chmod +x engagement/dump-state.sh`
+auto-reserves). No LPORT doubling. For a Meterpreter-origin first
+session, `spawn_operator_session`'s re-stage-via-shell path still
+works too; both routes end at the same dual-session invariant.
 
 ### Spawn state-mgr
 
