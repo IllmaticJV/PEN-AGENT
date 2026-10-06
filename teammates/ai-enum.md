@@ -50,6 +50,14 @@ message net-enum:  request network scans for model-server/vector-DB ports —
   (`/v1/models`, `/api/tags`, etc.), and fetch agent cards.
 - Follow the `ai-recon` methodology; use `curl --connect-timeout 5 --max-time 15`.
 
+## Local helpers (prefer over LLM round-trips)
+
+- **Finding skeleton** on confirmed AI-surface vulns (prompt-injection
+  extraction, system-prompt leak, tool-call abuse):
+  `python3 tools/reporter/new_finding.py <vuln_id>` → fill the TODO
+  fields. Keep raw prompts/responses in `engagement/evidence/` and
+  point `evidence_ref` at them.
+
 ## Scope Boundaries
 
 - Do NOT exploit — identify and route (see HARD STOP above).

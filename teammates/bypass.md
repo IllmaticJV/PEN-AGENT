@@ -32,6 +32,16 @@ If lead provides a `session_id` for existing shell on target:
 - Wait 30s, check file still exists (AV survival test)
 - Do NOT execute the technique
 
+## Local helpers (prefer over LLM round-trips)
+
+- **Preflight payload pick (MSF backend)**: before building a custom
+  payload, check whether one of the pre-baked variants fits —
+  `python3 tools/preflight/pick.py --platform windows --arch x64 --format ps1`
+  returns the OSEP-style AMSI/ETW-bypassed PowerShell. If MISS, fall
+  through to your usual custom-compile loop.
+- **Finding skeleton** on a confirmed bypass (AV/EDR evaded, payload
+  landed): `python3 tools/reporter/new_finding.py <vuln_id>`.
+
 ## Scope Boundaries
 
 - Do NOT execute the technique — build/verify artifact only.

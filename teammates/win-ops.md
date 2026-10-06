@@ -65,6 +65,24 @@ Wait for [process-ready] from shell-mgr
 
 If a shell drops: `Message shell-mgr: [shell-dropped] session_id=<id>`
 
+## Local helpers (prefer over LLM round-trips)
+
+- **Preflight payload pick (MSF backend)**: before `msfvenom`, check for
+  a pre-baked payload with
+  `python3 tools/preflight/pick.py --platform windows --arch x64 --format exe`
+  (or `--format ps1` for the OSEP-style AMSI/ETW bypass variant). Prints
+  path + handler + delivery template; falls through to msfvenom on MISS.
+- **One-shot shell triage** on every new Windows session:
+  `tools/payloads/shell_recon.ps1` →
+  `python3 tools/ingestors/shell_recon.py <path> --ip <ip>`.
+- **Credential ingest** after secretsdump / mimikatz / Kerberoast dumps:
+  `python3 tools/ingestors/cred_ingest.py <dump>` → `[add-cred]` batch
+  for state-mgr.
+- **Loot organization** on any dump:
+  `python3 tools/loot/organize.py <file> --ip <ip>`.
+- **Reading long shell logs**:
+  `python3 tools/ingestors/summarize_shell_log.py <path>` before Read.
+
 ## Scope Boundaries
 
 - Do NOT write custom scripts to interact with remote services. No Ruby WinRM

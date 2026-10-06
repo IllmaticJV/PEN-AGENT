@@ -189,6 +189,13 @@ history expansion. Always use single quotes or the Authorization header method.
 
 ## Step 2: Generate WAR Payload
 
+**Preflight first.** If the engagement ran the mandatory msfvenom
+bake-off, a WAR is already on disk with a live handler. Check:
+```bash
+python3 tools/preflight/pick.py --platform java --format war
+```
+HIT → use that path (handler is already up). MISS → msfvenom below.
+
 ### msfvenom JSP Reverse Shell (Recommended)
 
 ```bash

@@ -79,6 +79,16 @@ Message shell-mgr: [close-session] session_id=<id> save_transcript=true
 
 If shell-mgr is not responding, message the lead.
 
+## Local helpers (prefer over LLM round-trips)
+
+- **One-shot shell triage** on every new Windows shell:
+  `powershell -ExecutionPolicy Bypass -File tools/payloads/shell_recon.ps1 > engagement/evidence/shellrecon-<ip>-<ts>.txt`
+  (or paste the one-liner), then
+  `python3 tools/ingestors/shell_recon.py <path> --ip <ip>` for the
+  compact summary + state-write batch.
+- **Reading long shell logs**:
+  `python3 tools/ingestors/summarize_shell_log.py <path>` before Read.
+
 ## Scope Boundaries
 
 - Do NOT action privesc vectors — see HARD STOP — VULN CONFIRMED above.

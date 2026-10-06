@@ -75,6 +75,22 @@ If a shell drops: `Message shell-mgr: [shell-dropped] session_id=<id>`
 
 Artifact caught → **stop, don't retry.** Return structured AV-blocked context.
 
+## Local helpers (prefer over LLM round-trips)
+
+- **Preflight payload pick (MSF backend)**: before `msfvenom` on the
+  attackbox, check for a pre-baked one:
+  `python3 tools/preflight/pick.py --platform linux --arch x64 --format elf`
+  prints the path, the live handler, and a delivery template. Falls back
+  to msfvenom only on MISS.
+- **One-shot shell triage** on any new session:
+  `bash tools/payloads/shell_recon.sh > engagement/evidence/shellrecon-<ip>-<ts>.txt`
+  then `python3 tools/ingestors/shell_recon.py <path> --ip <ip>`.
+- **Reading long shell logs**:
+  `python3 tools/ingestors/summarize_shell_log.py <path>` before Read.
+- **Loot organization** on any exfil:
+  `python3 tools/loot/organize.py <file> --ip <ip>` moves the file under
+  `engagement/loot/<ip>/<kind>/` with a meta sidecar.
+
 ## Scope Boundaries
 
 - Do NOT call `search_skills()` or `list_skills()` — only `get_skill()`.

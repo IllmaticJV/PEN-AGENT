@@ -3,6 +3,35 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-06 (standardization pass)
+
+### Changed
+
+- **`## Local helpers` sections added to 11 teammates** that were missing
+  them: `lin-ops`, `lin-enum`, `win-ops`, `win-enum`, `net-enum`, `ai-ops`,
+  `ai-enum`, `bypass`, `spray`, `recover`, `research`. Each points at the
+  2–4 helpers that teammate actually uses (preflight pick, shell_recon,
+  summarize_shell_log, nmap_ingest/delta, cred_ingest, cred_sweep,
+  crack.sh, exploit-index/lookup, loot/organize, reporter/new_finding).
+  Wiring parity with `ad-*` and `web-*` teammates.
+- **Preflight-first nudges in msfvenom skills.** `web/tomcat-manager-deploy`,
+  `network/smb-exploitation`, `privesc/windows-service-dll-abuse`,
+  `privesc/windows-uac-bypass` now point at `tools/preflight/pick.py`
+  above their first msfvenom call — so skills honor the mandatory
+  bake-off instead of regenerating payloads from scratch mid-exploit.
+- **CONTRIBUTING.md** now mandates the exact `## Local helpers (prefer
+  over LLM round-trips)` section wording in teammate templates for
+  stable greps across the fleet.
+- **lessons-learned.md** gains an Environment entry: auto-mode safety
+  classifier can disable Bash permanently on AMSI/offensive strings —
+  keep bypass payload text localized to the generator script, exit
+  auto mode before editing such files.
+- **skills/ctf/SKILL.md** — untangled a spliced block where the
+  preflight-payloads text was dropped mid-sentence into the
+  objective-tracker paragraph. Clean section ordering: objective
+  tracker → `objective_match.py` nudge → dump-state copy → MANDATORY
+  preflight → preflight + dual-session interaction.
+
 ## 2026-10-06 (later)
 
 ### Changed

