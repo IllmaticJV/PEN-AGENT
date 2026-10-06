@@ -7,6 +7,16 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **BloodHound shortest-path finder — no neo4j required.** New
+  `tools/ingestors/bloodhound_paths.py <path> --from <PRINCIPAL>
+  [--target 'DOMAIN ADMINS']` runs Dijkstra over typed BloodHound
+  edges (MemberOf, AdminTo, HasSession, DCSync, GenericAll /Write,
+  WriteDacl / Owner, AllowedToDelegate / Act, ForceChangePassword,
+  AddKeyCredentialLink, ReadLAPSPassword, CanRDP / CanPSRemote,
+  ExecuteDCOM, SQLAdmin) weighted by abuse difficulty. Prints the
+  shortest path hop-by-hop + total weight. Replaces spinning up
+  neo4j + BloodHound GUI for the common "cheapest route to DA"
+  question. Handles both legacy BH and BH-CE edge shapes.
 - **nmap delta ingester — only emit what changed between two scans.**
   `tools/ingestors/nmap_delta.py <old-xml> <new-xml>` reuses the
   nmap_ingest parser to compare by (ip, proto, port). Prints a
