@@ -39,11 +39,9 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
-import json
 import re
 import shutil
 import socket
-import sqlite3
 import subprocess
 import sys
 from datetime import datetime, timezone

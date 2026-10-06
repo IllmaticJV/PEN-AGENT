@@ -86,6 +86,17 @@ Clock skew: KRB_AP_ERR_SKEW — requires sudo ntpdate <DC_IP>
 Assessment: retry-later (skill works after clock sync)
 ```
 
+## Local helpers (prefer over LLM round-trips)
+
+- **BloodHound ingest**: after SharpHound / bloodhound-python drops its
+  JSON (or `.zip`), run
+  `python3 tools/ingestors/bloodhound_ingest.py <dir|zip>` — summary of
+  computers/users/DA members + `[add-target]`/`[add-vuln]`/`[add-cred]`
+  batch for state-mgr. Covers unconstrained/constrained delegation,
+  kerberoastable, ASREP-roastable, DA members.
+- **Cred dump ingest** (if you capture any during enum): see
+  `tools/ingestors/cred_ingest.py` (ad-ops has the full note).
+
 ## Scope Boundaries
 
 Discover AD assessment surface — don't action. See HARD STOP — VULN CONFIRMED.

@@ -117,6 +117,23 @@ If a shell drops: `Message shell-mgr: [shell-dropped] session_id=<id>`
 `ss -tlnp | grep :<port>`. Stale Docker containers from previous sessions
 silently hold ports — message shell-mgr `[close-session]` or `docker stop`.
 
+## Local helpers (prefer over LLM round-trips)
+
+- **Hash cracking**: `bash tools/crack/crack.sh engagement/evidence/
+  <hashes>.txt` — auto-mode-detect, auto-wordlist, evidence under
+  `engagement/evidence/crack-*/` with pre-formatted `[update-cred]`
+  templates. Use `--show-only` for a re-check.
+- **Cred sweep after new creds land**: `python3 tools/sweep/cred_sweep.py
+  --username <u> --secret '<s>' --hosts 10.1.1.0/24` tests SMB/WinRM/SSH
+  across many hosts in one call; emits `[add-access]` on hits.
+- **BloodHound DA path planning**: once ad-enum has imported a dump,
+  `python3 tools/ingestors/bloodhound_paths.py <path> --from <YOU@DOMAIN>`
+  returns the shortest Dijkstra path to Domain Admins hop-by-hop with
+  per-edge abuse-difficulty weight — no neo4j, no BloodHound GUI.
+- **Dumped file placement**: `python3 tools/loot/organize.py <file> --ip <ip>`
+  moves SAM hives / tickets / keys into `engagement/loot/<ip>/<kind>/`
+  with sha256 sidecar so later audit can find them.
+
 ## Scope Boundaries
 
 Action the assigned AD vulnerability using the loaded technique skill. Don't

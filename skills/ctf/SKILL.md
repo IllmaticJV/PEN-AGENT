@@ -726,6 +726,16 @@ are `pending | in_progress | done | blocked | skipped`. Set `in_progress`
 when you assign the task, `done` with the finding_id in the note when the
 objective is proven complete, `blocked` with the reason when stuck. This is
 how the operator tracks progress at a glance; keep it live.
+
+**Automated nudge** — once per loop (or whenever you notice an actioned
+vuln might cover an objective), run:
+```bash
+python3 tools/monitor/objective_match.py
+```
+It scores actioned vulns + access rows against each objective's text
+(TF-IDF + verbatim IP/hostname/CVE boost) and prints a markdown
+proposal table with confidence. Confirm each row that looks right
+and call `update_objective` for it — the script never auto-applies.
 Copy dump-state script (use Bash `cp`, do NOT read the file):
 `cp operator/templates/dump-state.sh engagement/dump-state.sh && chmod +x engagement/dump-state.sh`
 

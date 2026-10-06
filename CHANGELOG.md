@@ -3,6 +3,36 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-06
+
+### Fixed
+
+- **har_replay generated broken bash.** Two real bugs found during
+  review: (a) the token-extraction `grep -oE` used `\\s` and
+  `[^"=]+$` which never matched a real HTML/JSON token (sed with
+  capturing groups replaces it), and (b) `shlex.quote` wrapped
+  `${CSRF_TOKEN}` in single quotes so bash never expanded it (new
+  `_sh_mixed` splits on `${VAR}` boundaries and emits
+  `'literal'"$VAR"'more'`). End-to-end against a local server now
+  extracts the token and substitutes it on the next request.
+  Also fixed sed `-E` vs BRE confusion in the capturing-group syntax.
+
+### Changed
+
+- **Wired every local helper into docs/teammates.** Review found 9 of
+  16 helpers had no mention in `CLAUDE.md`, teammate templates, or
+  the orchestrator skill — if agents don't know they exist, they
+  don't use them. Added a central `Local Helpers` index to CLAUDE.md
+  (one row per script, says when to use it) and per-teammate
+  pointers: shell-mgr runs `shell_recon` as step 6 of Shell
+  Ownership Flow; ad-enum uses `bloodhound_ingest`; ad-ops uses
+  `crack.sh`, `cred_sweep`, `bloodhound_paths`, `loot/organize`;
+  web-enum uses `web_recon`; web-ops uses `har_replay`; orchestrator
+  skill calls `objective_match` per loop.
+- **Dead code removed.** `_attr` in `bloodhound_ingest` (defined,
+  never called) and unused `json` / `sqlite3` imports in
+  `cred_sweep`.
+
 ## 2026-10-05
 
 ### Added
