@@ -28,6 +28,20 @@ operational rules, stall detection, activation protocol) is in CLAUDE.md
 > Message state-mgr with `[add-cred]` (with `via_vuln_id` if technique),
 > then message the lead. Only resume your current task AFTER both messages
 > are sent. Do not batch creds into your final report.
+>
+> **Use the local ingester for cred dumps.** Save the raw dump
+> (secretsdump SAM/NTDS, GetUserSPNs, hashcat `--show`, LAPS output,
+> Responder captures, impacket cleartext lines) to
+> `engagement/evidence/<label>.txt`, then:
+> ```bash
+> python3 tools/ingestors/cred_ingest.py <path> --source "<label>" --domain <DOM>
+> ```
+> It auto-detects NTLM hashes, AES keys, cleartext, TGS/ASREP tickets,
+> and `user:pass` lines; emits a SUMMARY block (relay to lead) and
+> pre-formatted `[add-cred]` lines (batch to state-mgr). Deterministic
+> hash transcription — no LLM drift on 32-hex strings. Still send the
+> `[add-vuln]` for the technique yourself first and reference the
+> returned id as `via_vuln_id=<N>` when you forward the writes.
 
 ## Communication
 
