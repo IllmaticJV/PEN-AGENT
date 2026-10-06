@@ -314,6 +314,20 @@ elided.
   alternative really is ruled out for this specific pivot (no attackbox
   inbound to pivot; can't drop a binary on target; or MSF modules must route
   transparently without proxychains).
+- **Pre-flight payload bake-off is MANDATORY at engagement init.** When
+  the Metasploit backend is in play, the lead MUST send shell-mgr
+  `[preflight-payloads] lhost=<IP|iface>` as the FIRST message after
+  shell-mgr spawns, before routing any exploit tasks. shell-mgr runs
+  `tools/preflight/gen_payloads.sh --lhost <X>` (bakes ~13 common
+  msfvenom payloads under `engagement/payloads/` + index.json) then
+  iterates `tools/preflight/handler_calls.py --json` and calls
+  `mcp__metasploit-server__start_handler(...)` per entry so every
+  baked binary has a hot handler. Reply `[preflight-ready] payloads=N
+  handlers=N` — this is a HARD gate; do NOT assign any
+  exploitation task that may produce a callback before shell-mgr
+  confirms. Teammates then use `python3 tools/preflight/pick.py` to
+  grab a payload with the handler already live. Skipped only on the
+  shell-server-only backend.
 - **Dual MSF sessions per host (one operator + one agent).** Right after a
   foothold on a NEW host, call `mcp__metasploit-server__spawn_operator_session`
   so that host ends up with BOTH a reserved-for-operator session AND a

