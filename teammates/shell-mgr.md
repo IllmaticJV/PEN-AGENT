@@ -253,6 +253,16 @@ On `[preflight-payloads] lhost=<X>` from the lead:
 Skip this entirely on the shell-server-only backend (no msfvenom
 needed; teammates use start_listener per-exploit).
 
+**Interaction with the dual-session invariant.** One handler per baked
+payload covers BOTH legs — handlers accept multiple callbacks. The
+`record_exploit` `.sh` fires the delivery twice on the SAME LPORT
+with LABEL swapped (first → agent, second → `<label>-operator`),
+and you auto-reserve the second session because its label ends in
+`-operator`. No LPORT doubling. For a Meterpreter-origin first
+session, `spawn_operator_session`'s shell_to_meterpreter route still
+works too; both paths land on the dual-session invariant without a
+second preflight handler.
+
 ## Shell Recovery
 
 When you receive `[shell-dropped]`, the **FIRST** recovery path is the

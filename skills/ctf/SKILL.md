@@ -722,19 +722,37 @@ Immediately after, call `init_objectives()` to parse the `OBJECTIVES:` block
 from `scope.md` into `engagement/objectives.json` so the operator portal's
 Objective Tracker tab lights up.
 
-**Pre-flight payload bake-off.** When the Metasploit backend is in
-play, delegate payload pre-generation + handler bring-up to shell-mgr
-once (after it's spawned, see § Spawn shell-mgr): send
-`[preflight-payloads] lhost=<IP-or-iface, e.g. tun0>`.
-shell-mgr runs `tools/preflight/gen_payloads.sh --lhost <X>` (bakes
-~13 common msfvenom payloads under `engagement/payloads/` with an
-`index.json`), then iterates
-`tools/preflight/handler_calls.py --json` and calls
-`mcp__metasploit-server__start_handler(...)` for each. Teammates then
-grab a payload with
-`python3 tools/preflight/pick.py --platform linux --arch x64 --format elf`
-instead of running msfvenom per-exploit. Starter set only — no AV
-evasion; teammates regenerate per-target when AV is in play. As you chain vulns toward impact, mark
+**MANDATORY first step after shell-mgr is up (Metasploit backend):**
+```
+[preflight-payloads] lhost=<IP-or-iface, e.g. tun0>
+```
+This is a HARD GATE — do NOT route any exploitation task that could
+produce a callback until shell-mgr replies `[preflight-ready]`. It:
+- bakes ~13 common msfvenom payloads under `engagement/payloads/` with
+  `index.json` (one dedicated LPORT per payload),
+- spins up a `start_handler` per entry via the metasploit-server MCP so
+  every pre-baked binary has a hot handler on the matching LPORT.
+
+Includes an OSEP-style PowerShell with inline AMSI (`amsiInitFailed`
+field patch) + ETW (`PSEtwLogProvider.etwProvider` nulled) bypass from
+the amsi.fail / Matt Graeber family — good against basic / older AV
+without further obfuscation. Teammates look up a payload with
+`python3 tools/preflight/pick.py --platform X --arch Y --format Z`
+instead of running msfvenom per-exploit.
+
+Starter set only — no custom encoders/templates. For hardened AV
+teammates regenerate per-target.
+
+**Preflight covers both dual-session legs on the SAME LPORT.** One
+handler per baked payload is enough; the Metasploit (and shell-server)
+handlers accept multiple callbacks. The exploit's `.sh`
+(`engagement/exploits/<host>-<label>.sh`) fires the delivery twice on
+the SAME LPORT with LABEL swapped — first callback → agent session,
+second callback → operator session (label ends `-operator`, shell-mgr
+auto-reserves). No LPORT doubling, no second handler. For a
+Meterpreter-origin first session, `spawn_operator_session`'s
+re-stage-via-shell path still works too; both routes end at the same
+dual-session invariant. As you chain vulns toward impact, mark
 progress with `update_objective(objective_id=N, status=…, note=…)` — statuses
 are `pending | in_progress | done | blocked | skipped`. Set `in_progress`
 when you assign the task, `done` with the finding_id in the note when the

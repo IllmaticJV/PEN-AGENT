@@ -3,6 +3,31 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-06 (later)
+
+### Changed
+
+- **Preflight payload bake-off is now MANDATORY at engagement init
+  (Metasploit backend).** Added as a HARD gate in CLAUDE.md
+  Operational Rules + orchestrator skill: lead's FIRST message to
+  shell-mgr after it spawns MUST be `[preflight-payloads]
+  lhost=<X>`; do NOT route any exploitation task that could produce
+  a callback until shell-mgr replies `[preflight-ready]`. Explicit
+  interaction note with the dual-session invariant: preflight
+  handlers are first-contact only; the operator twin is spawned
+  on-demand via `spawn_operator_session` on a fresh LPORT, so no
+  double-baking needed.
+- **PowerShell payload is now OSEP-style.** Replaced the plain
+  `cmd/windows/reverse_powershell` msfvenom oneliner with a custom
+  `.ps1` that patches AMSI (`amsiInitFailed` field) + ETW
+  (`PSEtwLogProvider.etwProvider` nulled) inline before firing the
+  reverse TCP shell — amsi.fail / Matt Graeber family of bypasses.
+  Not AV-evasive against modern Defender, but good enough for basic /
+  older AV. Teammate still obfuscates for hardened targets. Entry
+  renamed to `win-powershell-amsi-etw-bypass`; handler routed to
+  `windows/powershell_reverse_tcp` instead of the stager-based
+  default.
+
 ## 2026-10-06
 
 ### Added
