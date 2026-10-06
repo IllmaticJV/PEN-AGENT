@@ -7,6 +7,14 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Loot organizer — standardize dumped-file paths.** New
+  `tools/loot/organize.py <file> --ip <ip>` moves dumped files into
+  `engagement/loot/<ip>/<kind>/<basename>` with a `.meta.json` sidecar
+  (sha256, size, source, notes, moved_at, original_path). Auto-detects
+  kind from filename/content (key / dump / config / backup / pcap /
+  binary / creds / other). Collisions suffix with timestamp. `--copy`
+  to keep the original, `--rehome` for a sub-path. One layout
+  everyone can find things in later.
 - **Objective auto-detection (propose-only).**
   `tools/monitor/objective_match.py` scores objective text against
   every vuln + access row in state.db using TF-IDF overlap plus
