@@ -94,6 +94,36 @@ engagement data and let future runs "succeed" by recall instead of method).
 This is how PEN-AGENT improves across runs; keep per-engagement detail in
 `state.db` / `findings/`.
 
+## Local Helpers (prefer over LLM round-trips)
+
+These stdlib-only scripts replace common LLM-mediated boilerplate.
+Prefer them whenever the input/output shape fits — they're faster,
+deterministic, and don't burn context on raw tool output.
+
+| Script | Use when |
+|---|---|
+| `tools/ingestors/nmap_ingest.py <xml>` | After `nmap_scan` — compact summary + `[add-target]`/`[add-port]` batch |
+| `tools/ingestors/nmap_delta.py <old> <new>` | Staged scan second pass — only emit new rows |
+| `tools/ingestors/cred_ingest.py <dump>` | secretsdump / hashcat / Kerberoast dump → `[add-cred]` batch |
+| `tools/ingestors/bloodhound_ingest.py <dir|zip|json>` | BloodHound JSON → AD summary + state writes |
+| `tools/ingestors/bloodhound_paths.py <path> --from X [--target Y]` | Shortest attack path to Domain Admins (no neo4j) |
+| `tools/ingestors/web_recon.py <output> --url <URL>` | After `web_recon.sh` — HTTP triage summary + state writes |
+| `tools/ingestors/har_replay.py <in.har> <out.sh>` | Burp/DevTools HAR → runnable curl replay with cookie jar + CSRF substitution |
+| `tools/ingestors/summarize_shell_log.py <path>` | Before reading a long shell/MSF transcript — strips MOTD/prompts, trims recv blocks |
+| `tools/ingestors/shell_recon.py <output> --ip X` | After running `tools/payloads/shell_recon.{sh,ps1}` in one send_command |
+| `tools/payloads/shell_recon.sh` / `.ps1` | One-shot new-shell triage (whoami/id/os/ifaces/sudo/pivots) |
+| `tools/payloads/web_recon.sh <URL>` | One-shot web endpoint triage (status/title/cookies/robots/TLS/fingerprint) |
+| `tools/monitor/scribe_check.py` | Lead's per-loop scribe-gap check (replaces 3 MCP round-trips) |
+| `tools/monitor/objective_match.py` | Propose objective-tracker updates from state.db (never auto-applies) |
+| `tools/reporter/new_finding.py <vuln_id>` | Pre-populate `engagement/findings/<id>.json` skeleton from state.db |
+| `tools/exploit-index/lookup.py --cve <id>` | Local CVE → MSF module hint (<1ms); fall through to console search on MISS |
+| `tools/crack/crack.sh <hashfile>` | hashcat wrapper — auto-mode, auto-wordlist, evidence to engagement/evidence/crack-*/ |
+| `tools/sweep/cred_sweep.py --username U --secret S --hosts C` | One cred × many hosts × SMB/WinRM/SSH; `[add-access]` on hits |
+| `tools/loot/organize.py <file> --ip <ip>` | Move a dumped file into `engagement/loot/<ip>/<kind>/` with meta sidecar |
+
+Each script runs `--help` for the full flag set. Scope-guarded ones
+(nmap, metasploit, cred_sweep) honor `engagement/scope.allow`.
+
 ## Teammate Protocol
 
 This section applies to all domain teammates spawned during engagements.

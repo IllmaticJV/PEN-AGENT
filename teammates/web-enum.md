@@ -77,6 +77,17 @@ Typical workflow:
 
 Use curl/Bash for: raw HTTP with precise headers, injection payloads, fuzzing (ffuf).
 
+## Local helpers (prefer over LLM round-trips)
+
+- **One-shot web endpoint triage**: before any manual enum, run
+  ```bash
+  bash tools/payloads/web_recon.sh <URL> > engagement/evidence/webrecon-<host>-<ts>.txt
+  python3 tools/ingestors/web_recon.py <that path> --url <URL>
+  ```
+  Pulls status/title/cookies/robots/sitemap/security.txt/fingerprint/
+  TLS CN+SAN in one bounded 15s run; emits SUMMARY + state-mgr
+  `[update-target]`/`[add-port]` writes with a dominant-product tag.
+
 ## Scope Boundaries
 
 - Do NOT call `search_skills()` or `list_skills()` — only `get_skill()`.

@@ -49,7 +49,30 @@ _SKIP_REQ_HEADERS = {
 
 
 def _sh(s: str) -> str:
+    """Quote for bash. Pure single-quote so NOTHING expands."""
     return shlex.quote(s)
+
+
+def _sh_mixed(s: str, vars_in_scope: set[str]) -> str:
+    """Quote a string that may contain ${VAR} references we WANT bash
+    to expand. Produces something like  'literal: '"$CSRF_TOKEN"' etc'
+    — each literal segment single-quoted, each var ref unquoted so
+    bash expands it (and double-quoted to tolerate whitespace in the
+    expanded value)."""
+    if not vars_in_scope:
+        return shlex.quote(s)
+    # Split on ${VAR} where VAR is one of our scope names.
+    pattern = r"\$\{(" + "|".join(re.escape(v) for v in vars_in_scope) + r")\}"
+    parts = re.split(pattern, s)
+    # Even indices = literal text; odd indices = captured VAR name.
+    out: list[str] = []
+    for i, p in enumerate(parts):
+        if i % 2 == 0:
+            if p:
+                out.append(shlex.quote(p))
+        else:
+            out.append(f'"${p}"')
+    return "".join(out) if out else "''"
 
 
 def _bash_var(name: str) -> str:
@@ -118,48 +141,60 @@ def _build_curl(entry: dict, idx: int, jar: str,
            "'%{http_code} %{size_download}b %{time_total}s\\n'",
            "-b", jar, "-c", jar, "-X", method]
 
+    vars_in_scope = set(token_vars.keys())
     for name, value in headers.items():
         # Swap in bash var when the value matches a token we extracted
         for v_name, v_val in token_vars.items():
             if v_val and v_val in value:
                 value = value.replace(v_val, _bash_var(v_name))
         cmd.append("-H")
-        cmd.append(_sh(f"{name}: {value}"))
+        cmd.append(_sh_mixed(f"{name}: {value}", vars_in_scope))
 
     if body is not None:
         if body.startswith("__MULTIPART__"):
             params = json.loads(body[len("__MULTIPART__"):])
             for n, v in params:
                 cmd.append("-F")
-                cmd.append(_sh(f"{n}={v}"))
+                cmd.append(_sh_mixed(f"{n}={v}", vars_in_scope))
         else:
-            # Replace token values inside body too.
             for v_name, v_val in token_vars.items():
                 if v_val and v_val in body:
                     body = body.replace(v_val, _bash_var(v_name))
             cmd.append("--data-binary")
-            cmd.append(_sh(body))
+            cmd.append(_sh_mixed(body, vars_in_scope))
 
     cmd.append(_sh(url))
     lines.append(" ".join(cmd))
     lines.append(f"echo \"---> request {idx} done\"")
 
-    # If the entry's response body includes a known CSRF-ish token,
-    # extract it into a bash var after this request so subsequent
-    # requests can reference ${CSRF_TOKEN} etc.
+    # Extract CSRF-ish tokens into bash vars so later requests can
+    # reference ${CSRF_TOKEN} etc. We write the entire response to disk
+    # (-o above), so pull with sed capturing groups — portable + correct.
     rtext = (resp.get("content") or {}).get("text") or ""
     found = _extract_token_regex(rtext)
+    # sed -E (ERE): plain `(...)` for groups, `\1` for backref, `+` as
+    # a quantifier (no backslash).
+    sed_patterns = {
+        "CSRF_TOKEN": (
+            r's/.*name="csrf-token"[[:space:]]+content="([^"]*)".*/\1/p;'
+            r's/.*name="authenticity_token"[[:space:]]+value="([^"]*)".*/\1/p;'
+            r's/.*name="_token"[[:space:]]+value="([^"]*)".*/\1/p;'
+            r's/.*"csrf_token"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p'
+        ),
+        "XSRF_TOKEN": r's/.*XSRF-TOKEN=([^;[:space:]]*).*/\1/p',
+        "BEARER": r's/.*Bearer[[:space:]]+([A-Za-z0-9._-]+).*/\1/p',
+    }
     for v_name, v_val in found.items():
+        pat = sed_patterns.get(v_name)
+        if not pat:
+            continue
         lines.append(
-            f"{v_name}=$(grep -oE '"
-            + {
-                "CSRF_TOKEN": r'(?:csrf-token"\\s+content="[^"]+|authenticity_token"\\s+value="[^"]+|_token"\\s+value="[^"]+)',
-                "XSRF_TOKEN": r'XSRF-TOKEN=[^;]+',
-                "BEARER":     r'Bearer [A-Za-z0-9._-]{20,}',
-            }.get(v_name, re.escape(v_val))
-            + f"' /tmp/resp_{idx}.out | head -1 | grep -oE '[^\"=]+$')"
+            f"{v_name}=$(sed -nE '{pat}' /tmp/resp_{idx}.out | head -1)"
         )
-        # Keep track so later requests substitute it too.
+        lines.append(
+            f'[ -n "${{{v_name}}}" ] && echo "    extracted {v_name}=${{{v_name}:0:16}}…"'
+        )
+        # Track so later requests substitute it in headers/body.
         token_vars[v_name] = v_val
     return "\n".join(lines)
 

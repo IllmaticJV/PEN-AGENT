@@ -102,6 +102,21 @@ notify you with `[session-restored]`.
 Do NOT enumerate through curl, web APIs, or command injection one-liners.
 A proper shell is faster — the lead routes host discovery to lin-enum/win-enum.
 
+## Local helpers (prefer over LLM round-trips)
+
+- **Replay a captured browser flow**: when the operator (or you via
+  browser-server) exported a HAR of a working auth / exploit chain,
+  turn it into a runnable curl replay script in one step:
+  ```bash
+  python3 tools/ingestors/har_replay.py <in.har> engagement/exploits/<label>-replay.sh \
+      [--only-xhr] [--filter '/api/'] [--placeholders BEARER=xxx]
+  ```
+  Shared cookie jar across requests, CSRF / authenticity_token / `_token` /
+  Bearer tokens auto-extracted from responses into bash vars, next
+  request's header or body gets `${CSRF_TOKEN}` / `${BEARER}` substituted
+  automatically. Edit the generated `.sh` as the exploit's delivery
+  payload for `record_exploit`.
+
 ## Scope Boundaries
 
 - Action the assigned vulnerability — do NOT run content discovery (ffuf, vhost fuzzing). The lead routes discovery to web-enum.

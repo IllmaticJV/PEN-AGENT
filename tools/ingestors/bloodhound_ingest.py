@@ -86,20 +86,6 @@ def _load_inputs(path: Path) -> dict[str, list]:
     return out
 
 
-def _attr(obj: dict, *keys: str, default=None):
-    """Walk a chain of nested keys ('Properties.name', case-insensitive)."""
-    for k in keys:
-        if not isinstance(obj, dict):
-            return default
-        for cand in (k, k.lower(), k.capitalize()):
-            if cand in obj:
-                obj = obj[cand]
-                break
-        else:
-            return default
-    return obj
-
-
 def _computers(data: list) -> list[dict]:
     out = []
     for c in data:

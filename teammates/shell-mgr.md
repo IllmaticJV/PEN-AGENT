@@ -174,7 +174,17 @@ When you receive `[shell-established]`:
 5. **Close the listener** that caught this shell (close_session on the
    listener_id). The session persists independently — the listener is only
    needed to catch the callback.
-6. Notify lead: [session-ready]
+6. **Run the one-shot shell recon** so the lead gets host context without
+   round-trips:
+   ```
+   send_command(session_id, "$(cat tools/payloads/shell_recon.sh)")  # Linux
+   # or: send_command with the contents of tools/payloads/shell_recon.ps1 for Windows
+   ```
+   Save output to engagement/evidence/recon-<ip>-<ts>.txt, then:
+   `python3 tools/ingestors/shell_recon.py <path> --ip <this-ip>` →
+   relay SUMMARY to the lead, STATE WRITES to state-mgr (auto-detects
+   pivot candidates from dual-NIC interfaces).
+7. Notify lead: [session-ready]
 ```
 
 ## Session Tracking
