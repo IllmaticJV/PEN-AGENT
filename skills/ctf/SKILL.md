@@ -768,27 +768,34 @@ into post-exploitation.
 3. scribe goes idle after activation — this is normal.
 ```
 
-**Lead's scribe duty** — two signals, both checked each loop:
+**Lead's scribe duty** — one local script per loop. Run:
 
-1. **Session-producing exploits.** After `poll_events()`, call
-   `mcp__shell-server__list_sessions` AND
-   `mcp__metasploit-server__list_sessions` and look for any remote /
-   MSF session with `exploit_recorded: false`. For each one, send
-   scribe `[nudge-session] session_id=<id>`.
+```bash
+python3 tools/monitor/scribe_check.py
+```
 
-2. **Non-session exploits.** In the same `poll_events()` batch, pick
-   out `vuln.update` events where the vuln moved to `status=actioned`.
-   For each, glob `engagement/exploits/<ip>-*` (where `<ip>` is the
-   dash-escaped target IP). If NO file matches, send scribe
-   `[nudge-vuln] vuln_id=<N> target=<ip> title="<t>" discovered_by=<team>`.
-   This catches file-read RCEs, prompt-injection extractions, DPAPI
-   decrypts, API-only credential recovery — anything that never
-   produces a `list_sessions` row.
+It reads shell-server live logs, MSF session evidence, state.db and
+`engagement/exploits/` directly (no MCP round-trips) and prints EITHER:
 
-Don't call `record_exploit` / `record_non_session_exploit` yourself —
-you don't have the auth chain / CSRF / payload context; the
-exploiting / discovering teammate does, and scribe is the one who
-talks to them.
+```
+OK: all N shell-server + M MSF sessions recorded, all K actioned vulns covered.
+```
+
+in which case move on, OR a block like:
+
+```
+NUDGE: (relay to scribe)
+  [nudge-session] session_id=5f3a label=devhub-ssrf
+  [nudge-vuln] vuln_id=12 target=10.1.121.40 title="LLM path traversal" discovered_by=ai-ops
+```
+
+in which case forward those lines verbatim to scribe. The script also
+appends every decision to `engagement/evidence/daemon.log` for operator
+audit. One bash call replaces three MCP calls + a glob + a diff loop
+each turn — saves tokens and makes the gap-check deterministic. Don't
+call `record_exploit` / `record_non_session_exploit` yourself — you
+don't have the auth chain / CSRF / payload context; scribe talks to
+the discovering teammate.
 
 After initialization, remind the operator to start the portal:
 ```

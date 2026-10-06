@@ -7,6 +7,19 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Local scribe-gap check replaces three MCP calls per orchestrator loop.**
+  New `tools/monitor/scribe_check.py` does the lead's scribe duty
+  locally in ~50ms: reads shell-server live logs, MSF session evidence,
+  state.db and `engagement/exploits/` directly, and prints EITHER
+  `OK: ...` (lead moves on) OR a block of pre-formatted
+  `[nudge-session]` / `[nudge-vuln]` lines ready to relay to scribe.
+  Replaces the lead burning context on `shell-server.list_sessions` +
+  `metasploit-server.list_sessions` + `state.poll_events` + glob + diff
+  every loop just to confirm there's nothing to nudge. Every decision
+  is appended to `engagement/evidence/daemon.log` for operator audit
+  (the observability concern I flagged when proposing the local path).
+  Exit codes: 0 = OK, 1 = nudges printed, 2 = engagement missing.
+  Orchestrator skill rewritten around the one-line bash call.
 - **Local nmap ingester cuts scan tokens ~10x.** New
   `tools/ingestors/nmap_ingest.py` parses an nmap XML dump (produced by
   `mcp__nmap-server__nmap_scan` and saved in `engagement/evidence/`) and
