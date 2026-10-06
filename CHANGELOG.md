@@ -7,6 +7,19 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Local hashcat wrapper — auto-detect mode + standardize evidence.**
+  New `tools/crack/crack.sh <hashfile>` sniffs the first hash line
+  (NTLM, SAM/NTDS, `$krb5tgs$23/17/18$`, `$krb5asrep$`, `$NETNTLMv2$`,
+  `$6$`, `$5$`, `$2a$`, `$1$`, bare SHA-1) and picks the right
+  `hashcat -m <N>` automatically. Finds a wordlist from the usual
+  candidates (rockyou, SecLists best1050000, fasttrack). `--runtime`-
+  bounded (default 10 min, `--max-min` to adjust). All output under
+  `engagement/evidence/crack-<base>-<ts>/`: `hashcat.log`,
+  `cracked.txt` (hashcat --show), and `state-writes.txt` with
+  pre-formatted `[update-cred] cracked=true secret="…"` templates the
+  teammate matches back to state.db cred ids. `--show-only` for a
+  re-check without re-running. Hides the mode/wordlist/rules
+  boilerplate every teammate was retyping.
 - **Local CVE → MSF module hint index.** New `tools/exploit-index/`
   with a static JSON (~30 common CVEs + a dozen product/version
   entries covering Tomcat, GitLab, Jenkins, Confluence, OpenSSH,
