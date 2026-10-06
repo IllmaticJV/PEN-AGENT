@@ -34,6 +34,14 @@ Tool preference: hashcat (GPU) with `--force` if no GPU. john when `*2john` was 
 Check both `john` and `/opt/john/john`.
 hashcat may need `$TMPDIR` as working directory if default session path not writable.
 
+## Local helpers (prefer over LLM round-trips)
+
+- **Hash cracking**: `tools/crack/crack.sh <hashfile>` — hashcat wrapper
+  (auto-mode, auto-wordlist, evidence to `engagement/evidence/crack-*/`).
+- **Credential ingest** on cracked output:
+  `python3 tools/ingestors/cred_ingest.py <dump>` → `[add-cred]` batch
+  for state-mgr.
+
 ## Scope Boundaries
 
 - **No network traffic.** No nmap, nxc, curl. 100% local.
@@ -41,7 +49,7 @@ hashcat may need `$TMPDIR` as working directory if default session path not writ
 - Do NOT create custom wordlists or mutation scripts — use only system wordlists
   (rockyou, SecLists) and built-in rules (best64, d3ad0ne, dive).
 - Missing wordlists → stop, report which were checked, return.
-- Only `get_skill()` — no `search_skills()`.
+- Do NOT call `search_skills()` or `list_skills()` — only `get_skill()`.
 
 ## Task Summary Format
 

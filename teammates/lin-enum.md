@@ -82,6 +82,16 @@ If shell-mgr is not responding, message the lead.
 Check: `/.dockerenv`, `/run/.containerenv`, `cat /proc/1/cgroup`
 If containerized → report to lead. Container escapes are separate skills.
 
+## Local helpers (prefer over LLM round-trips)
+
+- **One-shot shell triage**: on every new shell, before manual enum run
+  `bash tools/payloads/shell_recon.sh > engagement/evidence/shellrecon-<ip>-<ts>.txt`
+  then `python3 tools/ingestors/shell_recon.py <that path> --ip <ip>` —
+  whoami/id/os/ifaces/sudo/pivots + a state-write batch for state-mgr.
+- **Reading long shell logs**: pipe through
+  `python3 tools/ingestors/summarize_shell_log.py <path>` before Read —
+  typically ~50% smaller, elides MOTD/prompt noise.
+
 ## Scope Boundaries
 
 - Do NOT call `search_skills()` or `list_skills()` — only `get_skill()`.

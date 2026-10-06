@@ -25,7 +25,7 @@ prompts. Store templates in `operator/templates/` and reference them by path.
 | Docs site | `docs/*.md` | Human-facing reference. `docs/dependencies.md` tracks tool deps. |
 | MCP servers | `tools/*/README.md` | **Required.** Update when tools/params/behavior change |
 | Skills | `skills/*/SKILL.md` | Self-contained |
-| Teammates | `teammates/*.md` | Self-contained (shared behavior in `CLAUDE.md` § Teammate Protocol) |
+| Teammates | `teammates/*.md` | Self-contained (shared behavior in `CLAUDE.md` § Teammate Protocol). When pointing at a local helper, use a bulleted section titled exactly `## Local helpers (prefer over LLM round-trips)` — the same wording as `CLAUDE.md § Local Helpers` — so greps across teammates stay stable. |
 | Hooks | `tools/hooks/README.md` | Update when hook scripts change |
 | Operator portal | Root `README.md` (Operator portal section) | No per-tool README — one README only. Update when behavior changes |
 

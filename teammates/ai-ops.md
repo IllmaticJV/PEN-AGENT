@@ -74,6 +74,17 @@ immediately**:
    d. Wait for the next task.
 ```
 
+## Local helpers (prefer over LLM round-trips)
+
+- **Finding skeleton** the moment a vuln goes `actioned`:
+  `python3 tools/reporter/new_finding.py <vuln_id>` writes
+  `engagement/findings/<vuln_id>.json` pre-populated from state.db
+  (target, title, severity, affected, classification hints) — then fill
+  the `steps_to_reproduce`, `verification`, `impact`, `placeholders`
+  TODOs. AI findings MUST ground `verification` in an independent oracle
+  (out-of-band callback, exfiltrated canary, concrete state change) —
+  never model judgement.
+
 ## Scope Boundaries
 
 - Action the assigned technique — do NOT run recon/discovery. The lead routes

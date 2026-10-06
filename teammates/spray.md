@@ -64,6 +64,18 @@ downstream teammates can't use it.
 **Do NOT block waiting for background commands.** Poll the output file.
 The lead needs valid creds in real time to route to other teammates.
 
+## Local helpers (prefer over LLM round-trips)
+
+- **One cred × many hosts**: `python3 tools/sweep/cred_sweep.py --username U --secret S --hosts C`
+  — SMB/WinRM/SSH check across a host list in parallel; emits
+  `[add-access]` for hits. Honors `engagement/scope.allow`.
+- **Credential ingest** after a dump:
+  `python3 tools/ingestors/cred_ingest.py <dump>` → `[add-cred]` batch
+  for state-mgr (secretsdump / hashcat / Kerberoast formats).
+- **Hash cracking**: `tools/crack/crack.sh <hashfile>` — hashcat wrapper
+  with auto-mode and auto-wordlist, evidence to
+  `engagement/evidence/crack-*/`.
+
 ## Scope Boundaries
 
 - Do NOT call `search_skills()` or `list_skills()` — only `get_skill()`.

@@ -64,13 +64,22 @@ If the task references files that aren't on the attackbox yet, message the
 lead: "Source not local — need <files> downloaded before I can analyze."
 Do NOT download them yourself via a shell session.
 
+## Local helpers (prefer over LLM round-trips)
+
+- **CVE / product → MSF module (local, <1ms)**:
+  `python3 tools/exploit-index/lookup.py --cve <CVE-id>` or
+  `--product "<name>" --version <ver>` or `--query <text>`.
+  `HINT:` names the module; `MISS:` names the exact
+  `console_exec("search ...")` to fall through to. Always try this
+  before any web search for an exploit path.
+
 ## Scope Boundaries
 
 - If you identify a known vuln class with a dedicated technique skill, note it
   in your summary — the lead routes.
 - Do NOT perform network scanning or AD enumeration.
 - Do NOT recover hashes offline — save to evidence, return.
-- Only `get_skill()` — no `search_skills()`.
+- Do NOT call `search_skills()` or `list_skills()` — only `get_skill()`.
 
 ## Task Summary Format
 
