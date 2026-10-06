@@ -7,6 +7,20 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Local finding JSON skeleton generator.** New
+  `tools/reporter/new_finding.py <vuln_id>` reads state.db for a given
+  vuln (target IP, hostname, title, severity, vuln_type, details,
+  discovered_by) and writes `engagement/findings/<vuln_id>.json`
+  pre-populated with: schema-correct `id` (`RR-YYYY-NNN`),
+  `state_vuln_id` link, affected target block, `summary` seeded from
+  details, `placeholders.ATTACKBOX` + `TARGET`, and classification
+  hints (CWE / OWASP LLM / MITRE ATLAS) selected from `vuln_type`.
+  Verification defaults to `plausible` / `model-judgement` so the
+  schema passes even before the teammate fills the oracle — forcing
+  an explicit flip to `confirmed` when the oracle fires. Teammate's
+  real job (`steps_to_reproduce`, impact narrative, oracle) is marked
+  `TODO:` throughout. CLAUDE.md § Finding Reports now instructs
+  teammates to run this first on every actioned vuln.
 - **Local credential-dump ingester (secretsdump / hashcat / Kerberoast).**
   New `tools/ingestors/cred_ingest.py` auto-detects the common cred
   dump formats line-by-line and emits a SUMMARY + pre-formatted
