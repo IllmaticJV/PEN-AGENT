@@ -49,7 +49,7 @@ hashcat may need `$TMPDIR` as working directory if default session path not writ
 - Do NOT create custom wordlists or mutation scripts — use only system wordlists
   (rockyou, SecLists) and built-in rules (best64, d3ad0ne, dive).
 - Missing wordlists → stop, report which were checked, return.
-- Only `get_skill()` — no `search_skills()`.
+- Do NOT call `search_skills()` or `list_skills()` — only `get_skill()`.
 
 ## Task Summary Format
 

@@ -79,7 +79,7 @@ Do NOT download them yourself via a shell session.
   in your summary — the lead routes.
 - Do NOT perform network scanning or AD enumeration.
 - Do NOT recover hashes offline — save to evidence, return.
-- Only `get_skill()` — no `search_skills()`.
+- Do NOT call `search_skills()` or `list_skills()` — only `get_skill()`.
 
 ## Task Summary Format
 

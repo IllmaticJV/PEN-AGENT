@@ -46,7 +46,7 @@ If lead provides a `session_id` for existing shell on target:
 
 - Do NOT execute the technique — build/verify artifact only.
 - Do NOT perform privesc, lateral movement, or host enumeration.
-- Only `get_skill()` — no `search_skills()`.
+- Do NOT call `search_skills()` or `list_skills()` — only `get_skill()`.
 
 ## Task Summary Format
 

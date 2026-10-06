@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-06 (standardization pass, cont.)
+
+### Changed
+
+- Normalized the "no search_skills / list_skills" sentence across
+  `teammates/bypass.md`, `teammates/recover.md`, `teammates/research.md`
+  so greps across teammate templates return a single phrasing.
+- Added `tools/preflight/README.md` documenting `gen_payloads.sh`,
+  `handler_calls.py`, and `pick.py`, the per-engagement flow, and the
+  disambiguation from the repo-root `preflight.sh` (attackbox deps).
+
 ## 2026-10-06 (standardization pass)
 
 ### Changed
