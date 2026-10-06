@@ -7,6 +7,15 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **nmap delta ingester — only emit what changed between two scans.**
+  `tools/ingestors/nmap_delta.py <old-xml> <new-xml>` reuses the
+  nmap_ingest parser to compare by (ip, proto, port). Prints a
+  compact DELTA SUMMARY (new hosts / gone hosts / new ports on
+  existing hosts / service-or-version changes) and emits
+  `[add-target]`/`[add-port]` ONLY for the new rows — nothing already
+  recorded by the first ingest. Perfect for the staged full scan:
+  teammate runs `nmap_ingest` on the quick scan, then `nmap_delta` on
+  the deep scan to send only the new ports.
 - **Loot organizer — standardize dumped-file paths.** New
   `tools/loot/organize.py <file> --ip <ip>` moves dumped files into
   `engagement/loot/<ip>/<kind>/<basename>` with a `.meta.json` sidecar
