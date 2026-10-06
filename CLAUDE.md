@@ -120,6 +120,9 @@ deterministic, and don't burn context on raw tool output.
 | `tools/crack/crack.sh <hashfile>` | hashcat wrapper — auto-mode, auto-wordlist, evidence to engagement/evidence/crack-*/ |
 | `tools/sweep/cred_sweep.py --username U --secret S --hosts C` | One cred × many hosts × SMB/WinRM/SSH; `[add-access]` on hits |
 | `tools/loot/organize.py <file> --ip <ip>` | Move a dumped file into `engagement/loot/<ip>/<kind>/` with meta sidecar |
+| `tools/preflight/gen_payloads.sh --lhost <ip|iface>` | ONCE at engagement init (via shell-mgr `[preflight-payloads]`) — pre-bakes ~13 common msfvenom payloads into `engagement/payloads/` + index.json |
+| `tools/preflight/handler_calls.py [--json]` | Emits the exact `start_handler` MCP calls to spin up a handler per baked payload — shell-mgr iterates these after gen_payloads |
+| `tools/preflight/pick.py --platform X --arch Y --format Z` | Look up a pre-generated payload (prints path + start_handler call); replaces mid-exploit msfvenom round-trips |
 
 Each script runs `--help` for the full flag set. Scope-guarded ones
 (nmap, metasploit, cred_sweep) honor `engagement/scope.allow`.

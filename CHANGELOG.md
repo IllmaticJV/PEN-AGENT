@@ -5,6 +5,36 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-10-06
 
+### Added
+
+- **Pre-flight payload bake-off.** New `tools/preflight/gen_payloads.sh
+  --lhost <IP|iface>` runs msfvenom once at engagement init against a
+  13-row payload matrix: windows x64 / x86 meterpreter (staged +
+  stageless), windows shell, powershell oneliner, linux x64 meterpreter
+  (staged + stageless), linux shell, bash oneliner, python/php
+  meterpreter, JSP WAR, ASPX. Each gets a dedicated LPORT (44xx /
+  45xx / 46xx bands) and is written to `engagement/payloads/<name>.
+  <ext>` with a central `index.json` carrying path/payload/arch/format/
+  callback/handler_module/sha256. `--lhost` accepts an IP OR an
+  interface name (`tun0`, `eth0`) which gets resolved to its current
+  IPv4 — VPN reconnects don't invalidate the index, teammate just
+  reruns. Companion `tools/preflight/pick.py --platform X --arch Y
+  --format Z` returns the matching entry + the exact
+  `start_handler(...)` call to run first + a one-liner HTTP-server
+  delivery template. Replaces mid-exploit msfvenom round-trips with a
+  disk lookup. Starter-set only (no encoders / templates) — teammates
+  regenerate per-target when AV is in play. CLAUDE.md Local Helpers
+  index + skills/ctf/SKILL.md init flow updated.
+- **Payload bake-off is agent-driven, not lead-driven.** The lead
+  sends shell-mgr a new `[preflight-payloads] lhost=<X>` message; shell-
+  mgr runs `gen_payloads.sh` AND iterates
+  `tools/preflight/handler_calls.py --json` calling
+  `mcp__metasploit-server__start_handler` per entry so the matching
+  handlers are up BEFORE any exploit callback — mid-exploit teammates
+  skip both msfvenom AND start_handler round-trips. New
+  `handler_calls.py` emits the exact MCP calls (or JSON) for shell-
+  mgr to iterate. Skipped entirely on the shell-server-only backend.
+
 ### Fixed
 
 - **har_replay generated broken bash.** Two real bugs found during

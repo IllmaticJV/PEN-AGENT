@@ -92,6 +92,12 @@ rule that applies when it is.
 
 [list-sessions]
   Return all active sessions you're tracking.
+
+[preflight-payloads] lhost=<IP|iface>
+  (Metasploit backend only) Pre-generate the common msfvenom payloads
+  AND bring up a handler per entry so later exploits can grab a
+  ready-made binary + a hot handler without round-trips. One-time at
+  engagement init. See the Preflight Payloads flow below.
 ```
 
 ### Outbound (to requesting teammate)
@@ -218,6 +224,34 @@ teammate needs to interact with a host that another already holds, give it its
 Only genuinely one-off, read-only checks may reuse another teammate's session;
 any workflow or interactive/stateful sequence gets its own. The operator's
 reserved session is never assigned to a teammate.
+
+## Preflight Payloads (Metasploit backend only)
+
+On `[preflight-payloads] lhost=<X>` from the lead:
+
+```
+1. Verify the Metasploit MCP is up (list_sessions returns anything,
+   or at least no connection error). If not, reply [preflight-failed]
+   reason="msfrpcd not reachable" — lead escalates.
+2. Run via Bash (dangerouslyDisableSandbox: true, run_in_background:
+   true since msfvenom per-payload takes a few seconds × ~13 entries):
+      bash tools/preflight/gen_payloads.sh --lhost <X> --out engagement/payloads
+   Tail the output file; expect ~30-90s total depending on msfvenom
+   speed and target CPU.
+3. When it exits, read tools/preflight/handler_calls.py --json output
+   (one entry per payload with payload/lhost/lport) and for EACH:
+      mcp__metasploit-server__start_handler(
+        payload="<payload>", lhost="<lhost>", lport=<lport>)
+   Idempotent — start_handler dedupes on payload+LHOST+LPORT, so
+   re-running after a C2 restart is safe.
+4. Reply to lead:
+      [preflight-ready] payloads=<N> handlers=<N> index=engagement/payloads/index.json
+   Teammates will then use `python3 tools/preflight/pick.py` to look
+   up a payload for exploitation.
+```
+
+Skip this entirely on the shell-server-only backend (no msfvenom
+needed; teammates use start_listener per-exploit).
 
 ## Shell Recovery
 

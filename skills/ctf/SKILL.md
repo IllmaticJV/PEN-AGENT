@@ -720,7 +720,21 @@ that are in scope. A target absent from this file is refused at the tool layer.
 Call `init_engagement(name="...")`.
 Immediately after, call `init_objectives()` to parse the `OBJECTIVES:` block
 from `scope.md` into `engagement/objectives.json` so the operator portal's
-Objective Tracker tab lights up. As you chain vulns toward impact, mark
+Objective Tracker tab lights up.
+
+**Pre-flight payload bake-off.** When the Metasploit backend is in
+play, delegate payload pre-generation + handler bring-up to shell-mgr
+once (after it's spawned, see § Spawn shell-mgr): send
+`[preflight-payloads] lhost=<IP-or-iface, e.g. tun0>`.
+shell-mgr runs `tools/preflight/gen_payloads.sh --lhost <X>` (bakes
+~13 common msfvenom payloads under `engagement/payloads/` with an
+`index.json`), then iterates
+`tools/preflight/handler_calls.py --json` and calls
+`mcp__metasploit-server__start_handler(...)` for each. Teammates then
+grab a payload with
+`python3 tools/preflight/pick.py --platform linux --arch x64 --format elf`
+instead of running msfvenom per-exploit. Starter set only — no AV
+evasion; teammates regenerate per-target when AV is in play. As you chain vulns toward impact, mark
 progress with `update_objective(objective_id=N, status=…, note=…)` — statuses
 are `pending | in_progress | done | blocked | skipped`. Set `in_progress`
 when you assign the task, `done` with the finding_id in the note when the
