@@ -25,6 +25,15 @@ follows [Keep a Changelog](https://keepachangelog.com/).
   disk lookup. Starter-set only (no encoders / templates) — teammates
   regenerate per-target when AV is in play. CLAUDE.md Local Helpers
   index + skills/ctf/SKILL.md init flow updated.
+- **Payload bake-off is agent-driven, not lead-driven.** The lead
+  sends shell-mgr a new `[preflight-payloads] lhost=<X>` message; shell-
+  mgr runs `gen_payloads.sh` AND iterates
+  `tools/preflight/handler_calls.py --json` calling
+  `mcp__metasploit-server__start_handler` per entry so the matching
+  handlers are up BEFORE any exploit callback — mid-exploit teammates
+  skip both msfvenom AND start_handler round-trips. New
+  `handler_calls.py` emits the exact MCP calls (or JSON) for shell-
+  mgr to iterate. Skipped entirely on the shell-server-only backend.
 
 ### Fixed
 
