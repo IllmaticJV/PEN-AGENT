@@ -7,6 +7,18 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **HAR → runnable bash curl script.** New
+  `tools/ingestors/har_replay.py <in.har> <out.sh>` converts a HAR
+  (DevTools "Export HAR" / Burp "copy as HAR") into an ordered
+  `curl`-only replay script with a shared cookie jar
+  (`-b/-c /tmp/har_replay.cookies`) so cookies carry request-to-
+  request. Pulls CSRF tokens / authenticity_token / `_token` /
+  XSRF-TOKEN / Bearer out of recorded responses into bash vars; the
+  next request's header or body gets `${CSRF_TOKEN}` / `${BEARER}`
+  substituted automatically. `--filter <regex>`, `--only-xhr`
+  (skip static assets), `--placeholders KEY=VAL,...` for pre-seeded
+  overrides. Replaces the "LLM re-reads the 200KB HAR to figure out
+  the right curl incantation" cycle.
 - **Web recon one-shot payload + parser.** `tools/payloads/web_recon.sh
   <URL>` pulls (bounded 15s): HEAD, status/size/time, title, meta
   generator, cookies with flags, robots.txt / sitemap.xml /
