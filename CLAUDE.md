@@ -225,11 +225,16 @@ elided.
   installed CLI tools and MCP servers. If a tool fails, report — don't reinvent.
 - **Known exploits: Metasploit first.** When Metasploit is the C2 (the
   default) and the vector is a named CVE or a versioned service with a public
-  exploit, try a matching MSF module first — `console_exec("search cve:<id>")`
-  or `search <product> <version>` to find it, then `run_module`. Fall back to
-  the manual path (download/compile a PoC from ExploitDB/GitHub per the skill)
-  only when MSF has no matching module, a module fails and is ruled out, or the
-  skill has no MSF route. A module shell lands straight in the session table.
+  exploit, try a matching MSF module first. Check the local index FIRST
+  (free, instant) before burning a `console_exec` round-trip:
+  `python3 tools/exploit-index/lookup.py --cve <CVE-id>` or
+  `--product "<name>" --version <ver>` or `--query <text>`. A `HINT:`
+  line names the module to try with `run_module`; a `MISS:` line names
+  the exact `console_exec("search ...")` to fall through to. Fall back
+  to the manual path (download/compile a PoC from ExploitDB/GitHub per
+  the skill) only when both the index and the MSF console search miss,
+  a module fails and is ruled out, or the skill has no MSF route. A
+  module shell lands straight in the session table.
 - **Every actioned exploit MUST be recorded — delegate to scribe.** Two
   forms:
   - **Session-producing** (reverse shell, MSF session, ssh/winrm via
