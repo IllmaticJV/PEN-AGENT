@@ -7,6 +7,16 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Local nmap ingester cuts scan tokens ~10x.** New
+  `tools/ingestors/nmap_ingest.py` parses an nmap XML dump (produced by
+  `mcp__nmap-server__nmap_scan` and saved in `engagement/evidence/`) and
+  emits two blocks: (1) a compact markdown summary table with
+  ip/host/os/services for the lead, and (2) pre-formatted
+  `[add-target]` + `[add-port]` command lines for state-mgr. Teammate
+  relays both verbatim — no LLM transcription of port numbers / version
+  strings (deterministic, zero drift) and the lead never sees the raw
+  XML dict. `teammates/net-enum.md` updated to require the pipe-through
+  on every scan. No new Python dependencies (stdlib only).
 - **Scribe + lead cover non-session exploits too.** Not every exploit
   produces a `list_sessions` row — file-read RCEs, prompt-injection
   extractions, DPAPI decrypts on the attackbox, API-only credential
