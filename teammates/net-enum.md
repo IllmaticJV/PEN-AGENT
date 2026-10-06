@@ -77,6 +77,28 @@ For a plain `quick` scan, just do step 1 and report. (`nmap_scan` is an MCP
 call, not a shell command — it can't be `run_in_background`; the parallelism is
 the LEAD working other teammates while your deep scan runs.)
 
+### Post-process locally (saves tokens, deterministic state writes)
+
+After `nmap_scan` returns, DO NOT paste the structured dict into your
+summary or into state-mgr messages — pipe the saved XML through the local
+ingester:
+
+```bash
+python3 tools/ingestors/nmap_ingest.py engagement/evidence/nmap-<target>.xml
+```
+
+Output has two blocks:
+- `=== SUMMARY ===` — a compact markdown table (ip, host, os, services).
+  Relay this to the lead verbatim.
+- `=== STATE WRITES (relay to state-mgr) ===` — pre-formatted
+  `[add-target]` + `[add-port]` lines. Send to state-mgr verbatim in ONE
+  message (batch).
+
+Why: raw `nmap -sVC -p-` on a /24 is huge; the ingester cuts it ~10x and
+keeps port/version strings exact (no LLM transcription drift). Use
+`--limit 0` if you want the full table and `--no-writes` if the lead
+only wants the summary.
+
 ## Shell Establishment
 
 If a skill achieves RCE:
