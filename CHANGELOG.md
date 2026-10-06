@@ -7,6 +7,16 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Local credential sweep.** `tools/sweep/cred_sweep.py --username
+  <u> --secret '<s>' --hosts <cidr/list>` tries one cred across SMB /
+  WinRM / SSH against many hosts in one call. Engine autodetect: nxc
+  (netexec) → crackmapexec → raw (ssh via sshpass). Pre-flight port
+  check skips closed-port tries. Scope-guarded against
+  `engagement/scope.allow`. Prints per-attempt log + a SUMMARY and
+  pre-formatted `[add-access]` lines for state-mgr on each hit
+  (admin/user privilege picked from `(pwn3d!)` markers). `--save`
+  writes evidence under `engagement/evidence/sweep-<user>-<ts>/`.
+  Replaces per-host-per-protocol LLM round-trips.
 - **Local BloodHound JSON/ZIP ingester.** `tools/ingestors/bloodhound
   _ingest.py` handles dir / zip / single JSON (both legacy BH and
   BloodHound-CE field shapes). Emits SUMMARY (computer/user/group
