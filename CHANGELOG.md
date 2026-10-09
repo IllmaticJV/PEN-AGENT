@@ -3,6 +3,42 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (portal: Attack Graph tab + pivot_map rendering)
+
+### Added
+
+- **Attack Graph tab** in the operator portal (`/status?view=graph`). The
+  existing Access Chain graph was already comprehensive — this gives it
+  a dedicated full-viewport tab so operators get "where are we" in one
+  click instead of scrolling past cards and tables. A new `focus-graph`
+  body class hides the sidebar, overview cards, filter bar, and tables
+  when `?view=graph` is set; the chain renderer and SSE stream are
+  unchanged.
+- **pivot_map rendering** — the one data gap in the existing graph.
+  `pivot_map` rows with `status='identified'` or `status='blocked'`
+  now render as dashed amber edges (red for blocked) from the source
+  host's foothold access node to a SUBNET/PIVOT node labeled with the
+  destination CIDR and method. `actioned` rows continue to materialize
+  as tunnel nodes via the existing tunnels pass. Legend updated with
+  the new "Pivot opportunity" entry.
+
+### Changed
+
+- **`operator/portal/templates/status.html`** — edge rendering supports
+  an optional `stroke-dasharray` so pivot_map edges can be visually
+  distinct from established tunnels; focus-graph CSS hides non-graph
+  chrome when the URL carries `?view=graph`.
+- **`operator/portal/templates/portal.html`** — new "Attack Graph" tab
+  between Status and C2/MSF Logs, pointing at `/status?view=graph`.
+
+### Verified
+
+- Headless Chromium smoke run: seeded `pivot_map` rows render as
+  expected (SUBNET headers, dashed edges, both `identified` and
+  `blocked` statuses). Body gets `focus-graph` class when the URL
+  param is set.
+
+
 ## 2026-10-09 (settings expansion — statusLine + SessionStart hooks)
 
 ### Added
