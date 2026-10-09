@@ -1,12 +1,13 @@
-"""Per-teammate token usage + roster/health.
+"""Team roster + per-teammate token usage.
 
-Token metrics come from the Claude Code transcripts the TeammateIdle hook
-copies to engagement/evidence/logs/<ts>-teammate-<name>-<sessionid>.jsonl —
-each line carries message.usage and message.model. The hook re-copies a
-growing transcript on every idle, so only the latest snapshot per session is
-counted. Roster/health enriches each teammate with live signals read from
-state.db (last activity, blocked items) and the AUP sentinel files the hook
-drops when a teammate's context is content-filtered.
+Roster-first view of the engagement's teammates. Token metrics come from the
+Claude Code transcripts the TeammateIdle hook copies to
+engagement/evidence/logs/<ts>-teammate-<name>-<sessionid>.jsonl — each line
+carries message.usage and message.model; only the latest snapshot per session
+is counted. Each teammate is enriched with live signals from state.db (its
+most recent state_events row = current/last activity, plus blocked-item count)
+and the AUP sentinel files the hook drops when a teammate's context is
+content-filtered.
 """
 
 from __future__ import annotations
@@ -82,16 +83,26 @@ def _parse_transcript(path: Path) -> dict | None:
 
 
 def _health_signals(db_path: Path) -> tuple[dict, dict, set]:
-    """Return (last_active_by_agent, blocked_count_by_agent, aup_flagged_names)."""
-    last_active: dict[str, str] = {}
+    """Return (last_event_by_agent, blocked_count_by_agent, aup_flagged_names).
+
+    last_event maps agent -> {summary, event_type, created_at} for its most
+    recent state_events row (its current/last activity).
+    """
+    last_event: dict[str, dict] = {}
     blocked: dict[str, int] = {}
     conn = state.get_db(db_path)
     if conn is not None:
         try:
             for r in state.rows(
-                conn, "SELECT agent, MAX(created_at) AS last FROM state_events "
-                "WHERE agent != '' GROUP BY agent"):
-                last_active[r["agent"]] = r["last"]
+                conn,
+                "SELECT se.agent, se.summary, se.event_type, se.created_at "
+                "FROM state_events se JOIN ("
+                "  SELECT agent, MAX(id) AS mid FROM state_events "
+                "  WHERE agent != '' GROUP BY agent) m ON se.id = m.mid"):
+                last_event[r["agent"]] = {
+                    "summary": r["summary"], "event_type": r["event_type"],
+                    "created_at": r["created_at"],
+                }
             for r in state.rows(
                 conn, "SELECT blocked_by, COUNT(*) AS n FROM blocked "
                 "WHERE blocked_by != '' GROUP BY blocked_by"):
@@ -106,7 +117,7 @@ def _health_signals(db_path: Path) -> tuple[dict, dict, set]:
             flagged.add(p.stem[len("aup-"):])
     except OSError:
         pass
-    return last_active, blocked, flagged
+    return last_event, blocked, flagged
 
 
 def _age_seconds(iso: str | None) -> float | None:
@@ -169,15 +180,17 @@ def build(db_path: Path) -> dict:
         a["sessions"] += 1
         a["models"] |= p["models"]
 
-    last_active, blocked, flagged = _health_signals(db_path)
+    last_event, blocked, flagged = _health_signals(db_path)
     roster = {"active": 0, "idle": 0, "flagged": 0, "alerts": []}
+    # status sort priority: flagged first (needs attention), then active, then idle
+    _rank = {"flagged": 0, "active": 1, "idle": 2}
 
     teammates = []
     for a in per.values():
         total = a["input"] + a["output"] + a["cache_write"] + a["cache_read"]
         name = a["name"]
-        la = last_active.get(name)
-        age = _age_seconds(la)
+        ev = last_event.get(name)
+        age = _age_seconds(ev["created_at"]) if ev else None
         is_flagged = name in flagged
         if is_flagged:
             status = "flagged"
@@ -191,10 +204,10 @@ def build(db_path: Path) -> dict:
             roster["idle"] += 1
         teammates.append({
             **a, "total": total, "models": sorted(a["models"]),
-            "status": status, "last_active": la, "blocked": blocked.get(name, 0),
-            "aup": is_flagged,
+            "status": status, "blocked": blocked.get(name, 0), "aup": is_flagged,
+            "last_activity": ev,  # {summary, event_type, created_at} or None
         })
-    teammates.sort(key=lambda x: x["total"], reverse=True)
+    teammates.sort(key=lambda x: (_rank.get(x["status"], 3), -x["total"]))
 
     keys = ("input", "output", "cache_write", "cache_read", "total", "turns", "tool_calls")
     totals = {k: sum(t[k] for t in teammates) for k in keys}

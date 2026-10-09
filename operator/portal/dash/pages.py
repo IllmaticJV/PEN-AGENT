@@ -18,7 +18,6 @@ PAGES = {
     "/status": load_template("status.html"),
     "/msf": load_template("msf.html"),
     "/objectives": load_template("objectives.html"),
-    "/tokens": load_template("tokens.html"),
     "/findings": load_template("findings.html"),
     "/activity": load_template("activity.html"),
 }

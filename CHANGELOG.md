@@ -7,12 +7,13 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
-- **Activity tab** — a live engagement timeline built from `state_events`.
-  Newest-first feed, each event category-iconed and colour-coded
-  (recon / access / credential / vuln / pivot / blocked), with agent tags,
-  relative timestamps, and category filter chips. Streams live over the
-  existing `/api/stream` SSE; `*_update` events are tagged and de-emphasised.
-  Backend: `dash/activity.py` → `/api/activity`.
+- **Activity tab** — a live engagement timeline built from `state_events`,
+  with the **teammate roster at the top**. Newest-first feed, each event
+  category-iconed and colour-coded (recon / access / credential / vuln /
+  pivot / blocked), with agent tags, relative timestamps, and category
+  filter chips. Streams live over the existing `/api/stream` SSE;
+  `*_update` events are tagged and de-emphasised. Backend:
+  `dash/activity.py` → `/api/activity`.
 - **Findings tab** — collapsible OffSec-style findings read from
   `engagement/findings/*.json`. Severity stat cards + filter chips +
   expand-all; each finding collapses to a one-line header (severity, id,
@@ -21,24 +22,29 @@ follows [Keep a Changelog](https://keepachangelog.com/).
   the verification oracle, remediation, references, and provenance. Handles
   both string and object `affected.targets`. Backend: `dash/findings.py` →
   `/api/findings`.
-- **Teammate roster / health** merged into the **Token Usage** tab (not a
-  separate tab): an AUP-flag alert banner (from the `aup-*.flag` sentinels
-  the TeammateIdle hook drops), an active/idle/flagged summary strip, and
-  per-teammate status badges with blocked-item counts. Health signals come
-  from `state_events` (last activity) and the `blocked` table.
+- **Team roster / health** at the top of the Activity tab (no separate tab):
+  one card per teammate leading with status (active / idle / flagged), its
+  current/last action (latest `state_events` row for that agent), model, and
+  flags — an AUP content-filter alert (from the `aup-*.flag` sentinels the
+  TeammateIdle hook drops) and blocked-item count. Per-teammate token spend
+  is demoted to a card footer (mini stacked bar + total) with a global
+  **Raw ↔ Billed-weight** toggle (input ×1, cache-write ×1.25, cache-read
+  ×0.1, output ×5). Flagged teammates pin to the top. Backend:
+  `dash/team.py` → `/api/team`.
 
 ### Changed
 
 - **Operator portal refactored into a package.** `operator/portal/server.py`
   shrank from ~1100 lines to the HTTP layer (routing, SSE, auth wiring,
   main); the data layer now lives in `operator/portal/dash/` — `config`,
-  `auth`, `pages`, `state`, `scope`, `objectives`, `tokens`, `findings`,
+  `auth`, `pages`, `state`, `scope`, `objectives`, `team`, `findings`,
   `activity`, `msf`, `shelllogs`. No behaviour change to existing endpoints;
   the package runs under the same `uv run python server.py`.
 - **`scripts/smoke.sh`** — the Python `py_compile` check now covers
   `operator/` in addition to `tools/`, so the portal package is syntax-checked
   in CI.
-- **`portal.html`** — "Activity" and "Findings" nav tabs added.
+- **`portal.html`** — "Activity" and "Findings" nav tabs added; the standalone
+  token/usage tab removed (roster folded into Activity), leaving 7 tabs.
 
 ### Verified
 

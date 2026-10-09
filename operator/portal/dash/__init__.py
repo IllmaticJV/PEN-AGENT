@@ -9,7 +9,7 @@ else lives here as cohesive modules:
   state       state.db readers (read-only)
   scope       objective & scope (file-based)
   objectives  objective tracker read + operator toggle
-  tokens      per-teammate token usage + roster/health (from JSONL transcripts)
+  team        teammate roster/health + per-teammate token usage (from transcripts)
   findings    confirmed findings (engagement/findings/*.json)
   activity    live activity feed (state_events)
   msf         Metasploit RPC read-side + file-based logs

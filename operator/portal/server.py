@@ -7,9 +7,9 @@ A single read-only server/port/login with one tab per sub-page:
   Objective Tracker  (/objectives) objectives.json (operator can toggle status)
   Status             (/status)     live engagement state from state.db
   Attack Graph       (/status?view=graph)
-  Activity           (/activity)   live state_events feed
+  Activity           (/activity)   teammate roster/health (top) + live state_events
+                                   feed (data: /api/team + /api/activity)
   Findings           (/findings)   engagement/findings/*.json (collapsible)
-  Token Usage        (/tokens)     per-teammate token usage + roster/health
   C2 / MSF Logs      (/msf)        live session/listener list + per-session logs
 
 Stdlib HTTP + SSE; the MSF tab uses pymetasploit3 to read the live session/job
@@ -38,7 +38,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote_plus, urlparse
 
-from dash import activity, auth, config, findings, msf, objectives, scope, shelllogs, state, tokens
+from dash import activity, auth, config, findings, msf, objectives, scope, shelllogs, state, team
 from dash.pages import LOGIN_HTML, PAGES
 
 
@@ -119,8 +119,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(objectives.build())
         elif path == "/api/state":
             self._json(state.build_state(self.db_path))
-        elif path == "/api/tokens":
-            self._json(tokens.build(self.db_path))
+        elif path == "/api/team":
+            self._json(team.build(self.db_path))
         elif path == "/api/findings":
             self._json(findings.build())
         elif path == "/api/activity":
