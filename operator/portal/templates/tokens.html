@@ -40,7 +40,14 @@ body{background:radial-gradient(1000px 500px at 85% -10%,rgba(79,140,255,.05),tr
   border:1px solid var(--border);box-shadow:var(--sh-md)}
 .hero::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
   background:linear-gradient(90deg,transparent,rgba(122,167,255,.5),transparent)}
-.hero .eyebrow{color:var(--fg-3);font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;margin-bottom:10px}
+.hero .eyebrow{color:var(--fg-3);font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase}
+.hero-eyebrow-row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}
+.modeswitch{display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:3px}
+.modeswitch .ms{appearance:none;background:transparent;border:none;color:var(--fg-3);
+  font-family:var(--ui);font-size:11px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;
+  transition:color .12s,background .12s;white-space:nowrap}
+.modeswitch .ms:hover{color:var(--fg)}
+.modeswitch .ms.active{color:var(--fg);background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--border-2)}
 .hero-top{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap}
 .total-num{font-size:46px;font-weight:750;font-family:var(--mono);letter-spacing:-.03em;line-height:1;color:var(--fg)}
 .total-num .u{font-size:17px;color:var(--fg-3);font-weight:600;margin-left:6px;font-family:var(--ui)}
@@ -117,13 +124,25 @@ const CATS=[
   {k:'cache_read',label:'Cache read',color:'var(--t-cr)',cls:'seg-cr'},
   {k:'output',label:'Output',color:'var(--t-out)',cls:'seg-out'},
 ];
+// Relative per-token cost weights (base = fresh input = 1). Output is ~5x input
+// across current Claude models; cache-write ~1.25x; cache-read ~0.1x. These give
+// a "billed-equivalent" unit so the bars reflect spend, not raw volume.
+const WEIGHTS={input:1,cache_write:1.25,cache_read:0.1,output:5};
+let tokensData=null;
+let mode='raw';  // 'raw' | 'billed'
+try{mode=localStorage.getItem('tokens-mode')||'raw';}catch(e){}
 
-function stackBar(o,total,cls){
+const wval=(o,k)=> mode==='billed' ? (o[k]||0)*WEIGHTS[k] : (o[k]||0);
+const wtotal=(o)=> CATS.reduce((s,c)=>s+wval(o,c.k),0);
+
+function stackBar(o,cls){
+  const total=wtotal(o);
   if(!total) return '<div class="'+cls+'"></div>';
   return '<div class="'+cls+'">'+CATS.map(c=>{
-    const v=o[c.k]||0; if(!v) return '';
+    const v=wval(o,c.k); if(!v) return '';
     const pct=(100*v/total).toFixed(3);
-    return `<span class="${c.cls}" style="width:${pct}%" title="${c.label}: ${v.toLocaleString()}"></span>`;
+    const raw=(o[c.k]||0).toLocaleString();
+    return `<span class="${c.cls}" style="width:${pct}%" title="${c.label}: ${raw} tokens"></span>`;
   }).join('')+'</div>';
 }
 
@@ -137,43 +156,55 @@ function render(d){
         aggregates token usage from them.</div>`;
     return;
   }
+  const billed=mode==='billed';
   const t=d.totals;
+  const grand=billed?wtotal(t):t.total;
+  const unit=billed?'billed-weight':'tokens total';
+  // teammates sorted by the active metric
+  const mates=d.teammates.slice().sort((a,b)=>wtotal(b)-wtotal(a));
+
+  const toggle=`<div class="modeswitch" role="group" aria-label="weighting">
+      <button class="ms ${billed?'':'active'}" onclick="setMode('raw')">Raw tokens</button>
+      <button class="ms ${billed?'active':''}" onclick="setMode('billed')">Billed-weight</button>
+    </div>`;
+
   let h='';
-  // Hero
   h+=`<div class="hero">
-    <div class="eyebrow">Token Usage &middot; ${t.teammates} teammate${t.teammates===1?'':'s'}</div>
+    <div class="hero-eyebrow-row">
+      <div class="eyebrow">Token Usage &middot; ${t.teammates} teammate${t.teammates===1?'':'s'}</div>
+      ${toggle}
+    </div>
     <div class="hero-top">
       <div>
-        <div class="total-num">${fmt(t.total)}<span class="u">tokens total</span></div>
+        <div class="total-num">${fmt(grand)}<span class="u">${unit}</span></div>
         <div class="total-sub">across ${t.turns.toLocaleString()} model turns and ${t.tool_calls.toLocaleString()} tool calls</div>
       </div>
       <div class="hero-stats">
         ${CATS.map(c=>`<div class="hs"><span class="k">${c.label}</span><span class="v" style="color:${c.color}">${fmt(t[c.k])}</span></div>`).join('')}
       </div>
     </div>
-    ${stackBar(t,t.total,'stack')}
+    ${stackBar(t,'stack')}
     <div class="legend">
       ${CATS.map(c=>`<span class="lg"><span class="sw" style="background:${c.color}"></span>${c.label}<span class="amt">${fmt(t[c.k])}</span></span>`).join('')}
     </div>
-    <div class="note"><b>Reading this:</b> cache-read tokens are the bulk but the cheapest
-      (prompt-cache hits, ~10% of input price). <b>Output</b> and <b>cache-write</b> are the
-      real cost drivers — scan those columns to find where spend concentrates.</div>
+    <div class="note">${billed
+      ? `<b>Billed-weight:</b> bars and totals are weighted by relative per-token cost (input ×1, cache-write ×1.25, cache-read ×0.1, output ×5) to approximate spend. Per-category numbers below stay as raw token counts.`
+      : `<b>Reading this:</b> cache-read tokens are the bulk but the cheapest (prompt-cache hits, ~10% of input price). <b>Output</b> and <b>cache-write</b> are the real cost drivers — switch to <b>Billed-weight</b> to rank by approximate spend.`}</div>
   </div>`;
 
-  // Per-teammate
-  h+=`<div class="sec-label">Where tokens go &middot; by teammate</div><div class="tlist">`;
-  d.teammates.forEach((tm,i)=>{
+  h+=`<div class="sec-label">Where tokens go &middot; by teammate${billed?' (by spend)':''}</div><div class="tlist">`;
+  mates.forEach((tm,i)=>{
     const models=tm.models&&tm.models.length
       ? `<div class="tm-models">${tm.models.map(m=>`<span class="mtag">${esc(m)}</span>`).join('')}</div>` : '';
-    const sess=tm.sessions>1?`<div class="mi"><b>${tm.sessions}</b> sessions</div><div class="sep"></div>`:'';
+    const tmTotal=billed?wtotal(tm):tm.total;
     h+=`<div class="tm">
       <div class="tm-head">
         <span class="rank">${i+1}</span>
         <span class="tm-name">${esc(tm.name)}</span>
         ${models}
-        <div class="tm-total"><div class="v">${fmt(tm.total)}</div><div class="k">tokens</div></div>
+        <div class="tm-total"><div class="v">${fmt(tmTotal)}</div><div class="k">${billed?'billed-wt':'tokens'}</div></div>
       </div>
-      ${stackBar(tm,tm.total,'tm-bar')}
+      ${stackBar(tm,'tm-bar')}
       <div class="tm-meta">
         ${CATS.map(c=>`<div class="mi"><span class="d" style="background:${c.color}"></span>${c.label} <b>${fmt(tm[c.k])}</b></div>`).join('<div class="sep"></div>')}
         <div class="sep"></div>
@@ -188,9 +219,15 @@ function render(d){
   document.getElementById('root').innerHTML=h;
 }
 
+function setMode(m){
+  mode=m;
+  try{localStorage.setItem('tokens-mode',m);}catch(e){}
+  if(tokensData) render(tokensData);
+}
+
 function load(){
   fetch('/api/tokens').then(r=>r.json())
-    .then(d=>{render(d);setConn(true,'live');})
+    .then(d=>{tokensData=d;render(d);setConn(true,'live');})
     .catch(()=>setConn(false,'disconnected'));
 }
 load();

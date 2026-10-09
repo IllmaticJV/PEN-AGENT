@@ -20,8 +20,11 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 - **`operator/portal/templates/tokens.html`** — engagement total + category
   breakdown with a stacked bar, then every teammate ranked by total tokens,
   each with a per-category stacked bar, turns, tool calls, and model tag(s).
-  A note flags that cache-read is the cheap bulk and output/cache-write are
-  the real cost drivers. Empty state when no transcripts exist yet.
+  A **Raw ↔ Billed-weight** toggle reweights the bars, totals, and teammate
+  ranking by relative per-token cost (input ×1, cache-write ×1.25, cache-read
+  ×0.1, output ×5) so spend is visible without cache-read swamping the view;
+  per-category numbers stay raw. Choice persists in localStorage. Empty state
+  when no transcripts exist yet.
 - **`operator/portal/templates/portal.html`** — "Token Usage" nav tab.
 
 ### Verified
