@@ -3,6 +3,39 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (skill-wiring audit)
+
+### Fixed
+
+- **Orchestrator skill-routing typo**: `skills/ctf/SKILL.md`'s net-enum
+  row listed `db-enumeration` in the Skills column — the actual skill
+  name is `database-enumeration`, so a routing decision that passed
+  the Skills-column value verbatim to `get_skill()` would fail.
+  Elsewhere in the same file (line 919) the service-port routing
+  already said `database-enumeration`, so this was just the summary
+  row drifting.
+
+### Added
+
+- `connectivity-probe` and `xmpp-enumeration` now listed in net-enum's
+  Skills column — they were existing skills with no explicit
+  teammate owner (semantic routing would have found them, but the
+  summary table missed them).
+- `smb-share-webshell` listed in smb-ops's Skills column with a
+  coordination note: SMB-write enables the technique (smb-ops
+  territory); if the webshell needs web-side tuning, hand to web-ops.
+  Previously the skill existed but no teammate explicitly claimed it.
+
+### Verification
+
+Full audit across `skills/` directory (90 skills) vs. orchestrator
+routing table + teammate explicit skill lists. Semantic routing via
+`search_skills(query)` + the catch-all phrases ("All web technique
+skills", "All AD technique skills", "All Linux privesc skills",
+"All Windows privesc skills") covers everything else. No dangling
+references (every name in the Skills column resolves to a real
+skill directory after this fix).
+
 ## 2026-10-09 (contract split rollout)
 
 ### Added
