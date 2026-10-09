@@ -22,6 +22,7 @@ tools:
   - netexec
   - targetedKerberoast.py
 opsec: medium
+classifier_risk: high
 ---
 
 # Kerberos Roasting

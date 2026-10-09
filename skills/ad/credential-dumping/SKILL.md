@@ -44,6 +44,7 @@ tools:
   - gMSADumper
   - sqlcmd
 opsec: medium
+classifier_risk: high
 ---
 
 # Credential Dumping

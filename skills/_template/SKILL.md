@@ -11,6 +11,12 @@ tools:
   - <tool1>
   - <tool2>
 opsec: <low|medium|high>
+classifier_risk: <low|medium|high>   # optional; omit → low. Set to high
+                                     # for skills with dense named exploit /
+                                     # AV-evasion / credential-dump
+                                     # terminology (>60 trigger words or
+                                     # density >0.11) so teammates load
+                                     # them with tier="lite" first.
 ---
 
 # <Skill Display Name>

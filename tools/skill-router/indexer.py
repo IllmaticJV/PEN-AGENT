@@ -155,6 +155,13 @@ def index_skills(skills_dir: Path, db_dir: Path) -> int:
         keywords = frontmatter.get("keywords", []) or []
         tools = frontmatter.get("tools", []) or []
         opsec = frontmatter.get("opsec", "medium")
+        # classifier_risk is independent from opsec: low | medium | high.
+        # Default low — authors set `high` on skills with dense named
+        # exploits / AV-evasion / credential-dumping terminology so
+        # teammates know to try tier="lite" first.
+        classifier_risk = str(frontmatter.get("classifier_risk", "low")).lower()
+        if classifier_risk not in ("low", "medium", "high"):
+            classifier_risk = "low"
 
         category = derive_category(skill_path, skills_dir)
         headers = extract_headers(content)
@@ -170,6 +177,7 @@ def index_skills(skills_dir: Path, db_dir: Path) -> int:
                     "path": str(skill_path),
                     "description": description,
                     "opsec": str(opsec),
+                    "classifier_risk": classifier_risk,
                 },
             }
         )

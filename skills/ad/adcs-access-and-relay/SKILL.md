@@ -29,6 +29,7 @@ tools:
   - PetitPotam
   - Rubeus
 opsec: medium
+classifier_risk: high
 ---
 
 # ADCS Access Control & Relay Attacks (ESC4 / ESC5 / ESC7 / ESC8 / ESC11)

@@ -41,6 +41,7 @@ tools:
   - netexec
   - dnstool.py
 opsec: high
+classifier_risk: high
 ---
 
 # Authentication Coercion & Relay
