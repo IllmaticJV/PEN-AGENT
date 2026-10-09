@@ -16,6 +16,7 @@ nav:
   - Home: index.md
   - Architecture: architecture.md
   - Installation: installation.md
+  - Dependencies: dependencies.md
   - Running an Engagement: running-an-engagement.md
   - Engagement State: engagement-state.md
   - MCP Servers: mcp-servers.md
