@@ -297,11 +297,33 @@ if [[ ! -f "$settings_file" ]]; then
       "mcp__metasploit-server__*"
     ],
     "deny": ["Bash(sudo *)", "Bash(rm -rf *)"]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash tools/hooks/status-line.sh"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "bash tools/hooks/session-start.sh" }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "bash tools/hooks/save-teammate-log.sh" }
+        ]
+      }
+    ]
   }
 }
 JSON
     echo ""
-    echo "Wrote ${settings_file} (agent-teams flag + MCP tool allowlist)."
+    echo "Wrote ${settings_file} (agent-teams flag, MCP allowlist, status line, SessionStart + TeammateIdle hooks)."
 else
     if ! grep -q '"enableAllProjectMcpServers"' "$settings_file"; then
         echo ""
@@ -319,7 +341,7 @@ fi
 # --- Summary ---
 echo ""
 echo "Installed ${native_count} native skill(s) to ${SKILLS_DST}/ (${MODE} mode)"
-echo "84 technique/discovery skills served via MCP skill-router (SSE on 127.0.0.1:8023 — shared)"
+echo "94 technique/discovery skills served via MCP skill-router (SSE on 127.0.0.1:8023 — shared)"
 echo "nmap MCP server ready (Dockerized nmap)"
 echo "shell MCP server ready (SSE on 127.0.0.1:8022 — shared sessions)"
 echo "state MCP server ready (SQLite engagement state)"
