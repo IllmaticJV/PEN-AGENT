@@ -3,6 +3,30 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (OSAI teammate wiring)
+
+### Fixed
+
+Follow-up to the OSAI skill-expansion PR — the four new skills were
+only wired into the orchestrator table, not into the ai-ops / ai-enum
+/ web-ops teammate templates where the existing AI skills ARE listed
+by name (established convention). Fixed:
+
+- `teammates/ai-ops.md`: "Your skills" list extended with
+  `model-extraction`, `training-data-extraction`, `adversarial-ml`.
+- `teammates/ai-enum.md`: suggested-skill menu in the HARD STOP
+  routing block extended with the same three; the vuln-class trigger
+  list now covers the new entry points (query-only API with
+  logprobs, fine-tuned model suspected of memorization, non-LLM
+  classifier reachable for adversarial-input testing).
+- `teammates/web-ops.md`: preamble now explicitly names
+  `supply-chain-attacks` as owned, with a reminder to read the
+  skill's scope section carefully since the blast radius extends
+  past the operator's targets.
+
+No orchestrator / routing-table change needed — those references
+landed in the prior PR.
+
 ## 2026-10-09 (OSAI skill expansion)
 
 ### Added

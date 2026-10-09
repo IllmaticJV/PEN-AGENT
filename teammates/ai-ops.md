@@ -21,7 +21,8 @@ hunt for new surfaces — the lead routes discovery to ai-enum.**
 Your skills (load the one the lead names via `get_skill`):
 `prompt-injection`, `multi-agent-attacks`, `rag-exploitation`,
 `embedding-attacks`, `mcp-tool-abuse`, `ml-supply-chain`,
-`ai-infra-exploitation`.
+`ai-infra-exploitation`, `model-extraction`,
+`training-data-extraction`, `adversarial-ml`.
 
 ## Verify, don't self-grade
 
