@@ -228,6 +228,56 @@ def _build_objectives() -> dict:
     }
 
 
+_VALID_OBJ_STATUS = ("pending", "in_progress", "done", "blocked", "skipped")
+_OBJ_WRITE_LOCK = threading.Lock()
+
+
+def _update_objective_from_portal(objective_id: int, status: str,
+                                  note: str | None = None) -> dict:
+    """Operator-driven objective toggle. Writes engagement/objectives.json
+    with the same schema the state-server MCP uses so the lead's live view
+    stays coherent.
+
+    Serialised through a module-level lock to avoid portal threads racing
+    each other; the lead's MCP writes are a separate process and lose
+    races by last-write-wins (acceptable for a one-operator tracker).
+    Atomic on-disk: writes to a sibling .tmp and renames into place.
+    """
+    if status not in _VALID_OBJ_STATUS:
+        return {"error": f"status must be one of {_VALID_OBJ_STATUS}"}
+    with _OBJ_WRITE_LOCK:
+        data: dict = {"objectives": [], "parsed_at": None}
+        if _OBJECTIVES_JSON.exists():
+            try:
+                parsed = json.loads(_OBJECTIVES_JSON.read_text(errors="replace"))
+                if isinstance(parsed, dict) and isinstance(parsed.get("objectives"), list):
+                    data = parsed
+            except (OSError, json.JSONDecodeError) as e:
+                return {"error": f"objectives.json unreadable: {e}"}
+        found = None
+        for obj in data.get("objectives", []):
+            if int(obj.get("id", 0)) == int(objective_id):
+                found = obj
+                break
+        if found is None:
+            return {"error": f"objective_id {objective_id} not found "
+                             "(portal only toggles already-parsed objectives — "
+                             "add new ones to scope.md and have the lead run "
+                             "init_objectives)"}
+        now = datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
+        found["status"] = status
+        if note is not None:
+            found["note"] = note
+        found["updated_at"] = now
+        try:
+            tmp = _OBJECTIVES_JSON.with_suffix(_OBJECTIVES_JSON.suffix + ".tmp")
+            tmp.write_text(json.dumps(data, indent=2) + "\n")
+            tmp.replace(_OBJECTIVES_JSON)
+        except OSError as e:
+            return {"error": f"save failed: {e}"}
+        return {"status": "updated", "objective": found}
+
+
 # ── State (state.db, read-only) ──────────────────────────────────────────────
 def _get_db(db_path: Path) -> sqlite3.Connection | None:
     if not db_path.exists():
@@ -824,6 +874,41 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
     def do_POST(self):
+        if self.path.startswith("/api/"):
+            if not self._is_authenticated():
+                self._json({"error": "unauthorized"}, 401)
+                return
+            # Simple CSRF guard: require the fetch-only header. Browsers
+            # won't attach it on a cross-site <form>-POST, and token-auth
+            # consumers (curl / portal JS) set it explicitly.
+            if self.headers.get("X-Requested-With") != "pen-agent-portal":
+                self._json({"error": "missing X-Requested-With"}, 400)
+                return
+            parsed = urlparse(self.path)
+            path = parsed.path
+            m = re.match(r"^/api/objectives/(\d+)$", path)
+            if m:
+                length = int(self.headers.get("Content-Length", 0) or 0)
+                raw = self.rfile.read(length).decode(errors="replace") if length else ""
+                try:
+                    body = json.loads(raw) if raw else {}
+                except json.JSONDecodeError:
+                    self._json({"error": "invalid json"}, 400)
+                    return
+                status = str(body.get("status", "")).strip()
+                note = body.get("note")
+                if note is not None and not isinstance(note, str):
+                    self._json({"error": "note must be a string"}, 400)
+                    return
+                if note is not None and len(note) > 500:
+                    self._json({"error": "note too long (max 500 chars)"}, 400)
+                    return
+                result = _update_objective_from_portal(int(m.group(1)), status, note)
+                self._json(result, 400 if result.get("error") else 200)
+                return
+            self._json({"error": "not found"}, 404)
+            return
+
         if self.path == "/login":
             if self.auth_token is None:
                 self.send_response(302)
