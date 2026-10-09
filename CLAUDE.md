@@ -238,15 +238,16 @@ elided.
 
 ### Operational Rules
 
-- **Stay in scope.** Only act against targets in `engagement/scope.md` /
-  `engagement/scope.allow`. The nmap and metasploit MCP servers
-  enforce `scope.allow` in code and will refuse out-of-scope targets.
-  **shell-server, browser-server, and rdp-server do NOT code-enforce
-  scope** — the operator-approval permission prompt is the only
-  gate there, so always check the target IP against scope.allow
-  yourself before `browser_open` / `rdp_connect` / `start_process`
-  against a new host. If a tool returns `OUT OF SCOPE`, do NOT work
-  around it. Stop and report to the lead; never edit `scope.allow`
+- **Stay in scope.** Only act against targets in `engagement/scope.md`
+  / `engagement/scope.allow`. All five target-touching MCP servers
+  code-enforce `scope.allow` and refuse out-of-scope targets:
+  nmap-server, metasploit-server, browser-server (`browser_open` /
+  `browser_navigate` extract the URL host), rdp-server (`rdp_connect`
+  checks `host=`), and shell-server (`start_process` pattern-matches
+  common CLI shapes — ssh, scp, impacket, evil-winrm, nxc).
+  Unparseable `start_process` commands fall through to the operator-
+  approval prompt. If a tool returns `OUT OF SCOPE`, do NOT work
+  around it — stop and report to the lead; never edit `scope.allow`
   to add a target yourself (operator decision only).
 - `date '+%Y-%m-%d %H:%M:%S'` for real timestamps — never placeholders
 - `curl --connect-timeout 5 --max-time 15` always

@@ -30,6 +30,8 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from scope import ScopeError, check_scope
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _LOGIN_WAIT = 8  # seconds to wait after connect for desktop to render
 
@@ -251,6 +253,12 @@ def create_server() -> FastMCP:
         from aardwolf.commons.iosettings import RDPIOSettings
         from asyauth.common.credentials import UniCredential
         from asyauth.common.constants import asyauthProtocol, asyauthSecret
+
+        # Scope guardrail — refuse hosts not in scope.allow
+        try:
+            check_scope(host, _PROJECT_ROOT)
+        except ScopeError as e:
+            return f"ERROR: {e}"
 
         session_id = str(uuid.uuid4())[:8]
 
