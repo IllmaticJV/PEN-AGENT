@@ -57,11 +57,13 @@ Semantic skill discovery and retrieval. Skills are indexed from YAML frontmatter
 
 | Tool | Description |
 |------|-------------|
-| `search_skills(query, n=5, category?, min_similarity=0.4)` | Semantic search across all indexed skills |
-| `get_skill(name)` | Load a skill's full SKILL.md content |
+| `search_skills(query, n=5, category?, min_similarity=0.4)` | Semantic search across all indexed skills. Result rows surface `opsec` and `classifier_risk` so the caller picks the right load tier before fetching. |
+| `get_skill(name, section?, tier?)` | Load a skill's SKILL.md. Default returns the core (methodology minus Troubleshooting). `section="full"` or `tier="full"` for everything; `section=<heading>` for a specific section; `tier="lite"` for the structural scaffolding only (scope / state / verification / routing — no attack-variant bodies). |
 | `list_skills(category?)` | List available skills, optionally filtered |
 
-**Indexing:** Run `uv run --directory tools/skill-router python indexer.py` after adding or modifying skills. The indexer extracts description, keywords, tools, and opsec fields from frontmatter and builds embedding documents. ChromaDB data lives at `tools/skill-router/.chromadb/`.
+**Indexing:** Run `uv run --directory tools/skill-router python indexer.py` after adding or modifying skills. The indexer extracts description, keywords, tools, opsec, and classifier_risk from frontmatter and builds embedding documents. ChromaDB data lives at `tools/skill-router/.chromadb/`.
+
+**Classifier-risk tiered loading:** skills carrying dense offensive terminology (named exploits, AMSI/ETW references, specific credential-dump tool CLIs) are tagged `classifier_risk: high` in their frontmatter — 9 skills currently qualify (`auth-coercion-relay`, `pass-the-hash`, `windows-credential-harvesting`, `adcs-access-and-relay`, `smb-exploitation`, `credential-dumping`, `av-edr-evasion`, `sccm-exploitation`, `kerberos-roasting`). Teammates load them with `tier="lite"` first and escalate to the default core only when running the technique. See [Writing Skills](writing-skills.md) for the authoring convention.
 
 ---
 
@@ -102,16 +104,18 @@ Runs nmap inside a Docker container with minimal capabilities — no sudo needed
 
 ## shell-server
 
-**Location:** `tools/shell-server/` · **7 tools** · **SSE transport (shared sessions)**
+**Location:** `tools/shell-server/` · **9 tools** · **SSE transport (shared sessions)**
 
 Manages TCP listeners, reverse shell sessions, and local interactive processes. Runs as a persistent SSE service on `127.0.0.1:8022` — all teammates share one instance, so sessions created by one teammate are visible to all others. Started automatically by `run.sh` before Claude Code launches.
 
 | Tool | Description |
 |------|-------------|
 | `start_listener(port, host="0.0.0.0", timeout=300, label?)` | Start TCP listener, return reverse shell payloads for Linux and Windows |
-| `start_process(command, label?, timeout=30, privileged=false)` | Spawn local interactive process in a persistent PTY |
-| `send_command(session_id, command, timeout=10, expect?)` | Send command to session, return output |
+| `start_process(command, label?, timeout=30, privileged=false)` | Spawn local interactive process in a persistent PTY. Pattern-matches common CLI shapes (ssh/scp/sftp/rsync `user@host`, impacket `*.py` and `impacket-*`, `evil-winrm -i`, `nxc <proto> host`) and runs each extracted host through `scope.allow`. |
+| `send_command(session_id, command, timeout=10, expect?)` | Send command to session, return output. **Refuses to run on an un-logged remote session** — scribe must have called `record_exploit` for the session first. |
 | `read_output(session_id, timeout=2)` | Read buffered output without sending a command |
+| `record_exploit(session_id, target, label, delivery, ...)` | Write the end-to-end re-trigger script for a reverse-shell session to `engagement/exploits/<ip>-[<hostname>-]<label>.sh` + `.md` sidecar. Called by scribe on `[record-exploit]`. Unlocks `send_command` on the session. Field contract: `tools/shell-server/RECORDING.md`. |
+| `record_non_session_exploit(target, label, body, ...)` | Same filename contract for non-session techniques (file-read RCE, prompt-injection extraction, DPAPI decrypt, API-only credential recovery). The `.sh` runs the body end-to-end and prints the proof to stdout. |
 | `stabilize_shell(session_id, method="auto")` | Upgrade raw shell to interactive PTY (Linux only, skips on Windows) |
 | `list_sessions()` | List all listeners, sessions, and detected platform |
 | `close_session(session_id, save_transcript=true)` | Close session and save transcript |
@@ -188,8 +192,9 @@ Tools: `start_handler`, `generate_payload`, `list_sessions`, `execute`,
 
 **Scope guardrail:** `run_module` (RHOSTS/RHOST) and `console_exec`
 (`set RHOSTS`) validate remote targets against `engagement/scope.allow` and
-refuse out-of-scope hosts. The nmap-server enforces the same allowlist on scan
-targets. See `scope.py`.
+refuse out-of-scope hosts. **All five target-touching MCP servers**
+(nmap, metasploit, shell, browser, rdp) use the same `scope.py` module.
+See the [Scope Enforcement in Code](architecture.md#scope-enforcement-in-code) section of the architecture doc for the per-server entry points.
 
 **Operator visibility:** the `operator/portal/` **MSF Logs** tab reads this
 same instance (`engagement/msfrpc.yaml`) — a live session/listener list plus
@@ -226,6 +231,31 @@ Headless Chromium automation via Playwright. Handles CSRF tokens, session cookie
 **Proxy support:** `browser_open(..., proxy="http://127.0.0.1:8080")` launches or reuses a Chromium instance bound to that upstream proxy, which makes it suitable for Burp capture. Different proxy values get separate browser instances; direct sessions stay isolated from proxied ones. If `proxy` is omitted, the server also checks `engagement/web-proxy.json` and uses the orchestrator-recorded Burp listener when enabled.
 
 **When to use browser vs curl:** Browser tools are the default for navigating sites and managing sessions. Use curl as fallback for precise payload control in injection testing.
+
+**Scope guardrail:** `browser_open` and `browser_navigate` extract the URL host via `urlsplit` and refuse any host not in `engagement/scope.allow` with `OUT OF SCOPE: ...`. Same `scope.py` module as nmap/metasploit/shell/rdp.
+
+---
+
+## rdp-server
+
+**Location:** `tools/rdp-server/` · **10 tools**
+
+Headless RDP automation via `aardwolf` (pure-Python RDP client — no X11, Xvfb, or xfreerdp needed). Used to bootstrap credential-based access on Windows targets while a reverse shell or WinRM is being established.
+
+| Tool | Description |
+|------|-------------|
+| `rdp_connect(host, user, password, domain?, port=3389, resolution="1920x1080")` | Open an RDP session + initial screenshot |
+| `rdp_screenshot(session_id, save_to?)` | Capture the current desktop |
+| `rdp_click(session_id, x, y, button="left")` / `rdp_double_click` | Mouse input |
+| `rdp_type(session_id, text)` / `rdp_key(session_id, key)` | Keyboard input (`key` accepts `Return`, `ctrl+l`, …) |
+| `rdp_execute(session_id, command)` | Win+R → command → Enter shortcut |
+| `rdp_scroll(session_id, direction, amount=3)` | Mouse-wheel scroll |
+| `rdp_close(session_id)` | Close session and free resources |
+| `list_rdp_sessions()` | List active sessions |
+
+**OPSEC caveat:** screenshots are the primary output and token-expensive. RDP is a bootstrap method — establish a reverse shell or enable WinRM ASAP, then switch to shell-server. Tips: `cmd /k <command>` with `rdp_execute` keeps output visible; `rdp_key('ctrl+l')` focuses address bars; for interactive work, `rdp_execute('cmd')` then `rdp_type` + `rdp_key('Return')`.
+
+**Scope guardrail:** `rdp_connect(host=...)` validates `host` against `engagement/scope.allow`. Same `scope.py` module as nmap/metasploit/shell/browser.
 
 ---
 

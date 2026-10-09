@@ -27,6 +27,7 @@ tools:
   - sqlmap
   - browser
 opsec: medium
+classifier_risk: low   # optional; omit → low
 ---
 ```
 
@@ -36,11 +37,22 @@ opsec: medium
 | `description` | What the skill does, 2-3 sentences | Semantic embedding |
 | `keywords` | Search terms — technique names, tool names, CVE IDs, protocol names | Exact match boost |
 | `tools` | Tools used by this skill | Tool-name lookup |
-| `opsec` | Detection risk: `low`, `medium`, `high` | Included in search results |
+| `opsec` | Target-detection risk: `low`, `medium`, `high` | Included in search results |
+| `classifier_risk` | Anthropic safety-classifier trigger risk: `low` (default), `medium`, `high` | Included in search results. `high` tells teammates to load with `tier="lite"` first |
 
 The MCP skill-router indexer builds embedding documents from these fields. `description` provides semantic context for natural-language queries, `keywords` provide exact-match terms, and `tools` enable "what skill uses nmap?" lookups.
 
 > **Description guidelines:** Focus on technique scope and when to use it. Don't include trigger phrases, negative conditions, or OPSEC details — those belong in `keywords` and `opsec` respectively.
+
+#### When to set `classifier_risk: high`
+
+`opsec` is about target-detection loudness (what the defender's AV/EDR/SIEM catches). `classifier_risk` is **independent** — it's about how densely the skill text names offensive terminology (AMSI/ETW, mimikatz/secretsdump, named CVEs, shellcode fragments) that can trip the Anthropic safety classifier at `get_skill` time.
+
+Rule of thumb: set `high` when the skill reads like a reference checklist of attack tool names and payload patterns:
+- **>60 verbatim offensive terms** in the body, OR
+- **density >0.11 trigger-words per line**
+
+Nine skills currently qualify (`auth-coercion-relay`, `pass-the-hash`, `windows-credential-harvesting`, `adcs-access-and-relay`, `smb-exploitation`, `credential-dumping`, `av-edr-evasion`, `sccm-exploitation`, `kerberos-roasting`). On a `classifier_risk: high` skill, teammates call `get_skill(name, tier="lite")` first — the lite response drops attack-variant bodies (Steps / Attack Variants / Exploitation / Troubleshooting / Payload / Shellcode sections) and keeps the scaffolding (scope, verification, routing, prerequisites). They escalate to the default core only when actually running the technique. See the [architecture doc](architecture.md#classifier-risk-tiered-loading) for the full flow.
 
 ### Body Structure
 

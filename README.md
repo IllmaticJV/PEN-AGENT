@@ -207,6 +207,22 @@ servers (nmap, metasploit, shell, browser, rdp) refuse any target not in it.
 Absent allowlist = enforcement off (and logged) — the orchestrator always
 writes one.
 
+**Preflight payload bake-off, mandatory at engagement init** (Metasploit
+backend). shell-mgr pre-generates ~13 common msfvenom payloads under
+`engagement/payloads/` and brings up a hot handler per entry — Windows
+`.exe` rows carry an OSEP-starter XOR loader when `mingw-w64` is
+installed. Teammates grab a baked payload with
+`tools/preflight/pick.py` instead of minting one mid-exploit. The
+baked files are trusted binary artifacts — never `Read`/`cat` them,
+the index.json is the only interface.
+
+**Classifier-risk tiered skill loading.** Nine skills with dense
+offensive terminology are tagged `classifier_risk: high` in frontmatter.
+Teammates load them with `get_skill(name, tier="lite")` first — the
+lite view keeps scope / verification / routing / prerequisites and
+drops attack-variant bodies — then escalate to the default core only
+when actually running the technique.
+
 **Findings are reproducible.** A confirmed vuln becomes an OffSec-style
 finding carrying the complete `steps_to_reproduce` command path (expected vs.
 observed, evidence) and a verification oracle (callback, exfiltrated canary,
