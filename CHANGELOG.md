@@ -3,6 +3,41 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (project-wide final audit)
+
+### Removed
+
+- **`scripts/bulk_skill_edit.py`** — one-off migration script from a
+  previous refactor. Carried a hardcoded `/home/kevin/claude/PEN-AGENT/
+  skills/` path, pointed at a `skills/orchestrator/` directory that was
+  renamed to `skills/ctf/`, and removed section patterns that were
+  retired during the earlier compression pass. Unreferenced
+  everywhere. Deleted the file and the now-empty `scripts/` directory.
+
+### Fixed
+
+- **`mkdocs.yml` nav** — `docs/dependencies.md` existed on disk and
+  was linked from `docs/installation.md`, but was missing from the
+  mkdocs navigation. Added it between Installation and Running an
+  Engagement so it appears on the built docs site.
+
+### Audit (no action needed)
+
+Everything else checked out:
+- `.gitignore` is proper; no committed venvs, caches, or `__pycache__`.
+- `.mcp.json` matches the live MCP server dirs.
+- All ingestor scripts (`tools/ingestors/*.py`) are referenced from
+  teammate templates or CLAUDE.md.
+- All five target-touching MCP servers code-enforce `scope.allow`.
+- All 94 skills carry required frontmatter; `classifier_risk` values
+  valid; 9 skills tagged `high`.
+- All 19 spawn templates carry the `Engagement context:` preamble.
+- Skill-count claims in README and docs match disk (94).
+- Zero dangling skill/teammate references in the orchestrator table
+  or teammate templates.
+- Full test suite: `tools/skill-router/tests/` 715 passed +
+  `tools/shell-server/tests/` 17 passed = 732 passed, 0 failed.
+
 ## 2026-10-09 (teammate-test realignment)
 
 ### Fixed
