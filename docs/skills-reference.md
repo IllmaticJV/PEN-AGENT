@@ -1,6 +1,6 @@
 # Skills Reference
 
-PEN-AGENT includes 91 technique skills across 10 categories (web, ad, privesc, network, credential, evasion, post-exploit, research, ai, supply-chain), plus the orchestrator and support skills. Each skill is a self-contained `SKILL.md` file under `skills/`. The `ai` category covers AI red teaming, mapped to the OffSec AI-300 (OSAI) syllabus.
+PEN-AGENT includes 94 technique skills across 11 categories (web, ad, privesc, network, credential, evasion, post-exploit, research, ai, supply-chain, client-side), plus the orchestrator and support skills. Each skill is a self-contained `SKILL.md` file under `skills/`. The `ai` category covers AI red teaming, mapped to the OffSec AI-300 (OSAI) syllabus; the OSCP (PEN-200) syllabus is covered across credential, evasion, client-side, research, web, privesc, network, and ad.
 
 ## Skill Types
 
@@ -133,6 +133,29 @@ All AD skills follow a **Kerberos-first authentication** convention — commands
 | Skill | Technique | OPSEC |
 |-------|-----------|-------|
 | `av-edr-evasion` | Custom payload compilation, AMSI bypass, ETW patching, LOLBins | high |
+
+### Credential (2 skills)
+
+| Skill | Technique | OPSEC |
+|-------|-----------|-------|
+| `password-spraying` | One password across many users; AD lockout-aware spray profile | medium |
+| `online-password-attacks` | Many passwords against few users on one service — Hydra / medusa / patator against SSH, FTP, RDP, SMB, HTTP form, Basic/Digest. OSCP Password Attacks module. | high |
+
+### Client-side (1 skill)
+
+Payload-delivery vehicles that fire on user action. OSCP Client-side Attacks module.
+
+| Skill | Technique | OPSEC |
+|-------|-----------|-------|
+| `client-side-attacks` | HTA, Office VBA macros, LNK, ISO container (MotW strip), HTML smuggling, CHM, OneNote side-load | high |
+
+### Research (3 skills)
+
+| Skill | Technique | OPSEC |
+|-------|-----------|-------|
+| `unknown-vector-analysis` | Reverse unknown artifacts (binaries, custom protocols) when no standard skill applies | low |
+| `source-code-review` | Review a web/service source dump for vulns the running tests missed | low |
+| `public-exploit-adaptation` | Locate / understand / patch / compile a public PoC (ExploitDB, GitHub) for the engagement's target. OSCP Locating-and-Fixing-Exploits modules. | medium |
 
 ### AI / AI Red Teaming — OffSec AI-300 (OSAI) (11 skills)
 

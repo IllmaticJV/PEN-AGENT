@@ -195,9 +195,10 @@ supply chain — mapped to the OffSec **AI-300 (OSAI)** syllabus).
 | Reporter | `tools/reporter/` — confirmed vulns → OffSec-style findings with reproducible exploit paths. |
 | Knowledge | `knowledge/lessons-learned.md` — persistent, cross-engagement lessons. |
 
-**91 skills** across 10 categories — web (37), AD (15), privesc (11), network
-(9), ai (11), supply-chain (1), credential/evasion/post-exploit/research
-(1 each) — plus the orchestrator and retrospective skills. Full list:
+**94 skills** across 11 categories — web (37), AD (15), privesc (11), network
+(9), ai (11), research (3), credential (2), supply-chain (1), client-side (1),
+evasion (1), post-exploit (1) — plus the orchestrator and retrospective
+skills. Covers the OSCP (PEN-200) and OSAI (AI-300) syllabi. Full list:
 [Skills Reference](docs/skills-reference.md).
 
 **Scope is enforced in code, not prompted.** The orchestrator writes
