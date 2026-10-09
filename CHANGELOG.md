@@ -3,6 +3,34 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (portal: Token Usage tab)
+
+### Added
+
+- **Token Usage tab** in the operator portal. Answers "where are the tokens
+  going?" per teammate/agent, parsed entirely from data already on disk — no
+  new instrumentation.
+- **`operator/portal/server.py`** — `_build_tokens()` reads the teammate
+  transcripts the `TeammateIdle` hook saves to `engagement/evidence/logs/
+  *.jsonl`, summing each turn's `message.usage` (input / cache-write /
+  cache-read / output) and `message.model` per teammate. The hook re-copies a
+  growing transcript on every idle, so only the latest snapshot per session is
+  counted (grouped by the in-file `sessionId`); results are cached by file
+  mtime+size. Served at `/api/tokens`.
+- **`operator/portal/templates/tokens.html`** — engagement total + category
+  breakdown with a stacked bar, then every teammate ranked by total tokens,
+  each with a per-category stacked bar, turns, tool calls, and model tag(s).
+  A note flags that cache-read is the cheap bulk and output/cache-write are
+  the real cost drivers. Empty state when no transcripts exist yet.
+- **`operator/portal/templates/portal.html`** — "Token Usage" nav tab.
+
+### Verified
+
+Aggregator tested against seeded Claude-Code-style transcripts (two snapshots
+per teammate): dedup keeps only the latest per session, teammates sort by
+total, token/turn/tool counts and model tags correct. Rendered through the
+live portal nav with no page errors.
+
 ## 2026-10-09 (portal: operator-console UI redesign)
 
 ### Changed
