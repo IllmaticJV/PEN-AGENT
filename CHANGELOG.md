@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (even later)
+
+### Added
+
+- **Operator can check/uncheck objectives from the Goals dashboard.**
+  Each objective card now has a clickable checkbox (checked = `done`,
+  unchecked = `pending`). The portal POSTs to a new
+  `/api/objectives/<id>` endpoint and writes `engagement/objectives.json`
+  with the same schema the state-server MCP's `update_objective` uses,
+  so the lead's live view and the operator's view stay coherent.
+  Atomic (tmp + rename), serialised through a module-level lock, and
+  CSRF-guarded via a required `X-Requested-With: pen-agent-portal`
+  header. The lead still owns `in_progress` / `blocked` / `skipped`
+  via MCP — the dashboard toggle only drives the common binary
+  done/pending flip operators actually want to click. Portal still
+  requires the same auth cookie it already does for reads.
+
 ## 2026-10-09 (later)
 
 ### Added

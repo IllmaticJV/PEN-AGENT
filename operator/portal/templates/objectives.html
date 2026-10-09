@@ -95,6 +95,20 @@ h2 .n{color:var(--fg-dim);font-weight:500;letter-spacing:0;text-transform:none;f
 .obj.blocked::before{background:var(--red);box-shadow:0 0 10px rgba(248,81,73,.4)}
 .obj.skipped::before{background:var(--purple)}
 .obj-head{display:flex;align-items:center;gap:10px}
+.obj-check{appearance:none;-webkit-appearance:none;width:20px;height:20px;flex-shrink:0;
+   border:1.5px solid var(--border-strong);border-radius:5px;background:var(--bg3);
+   cursor:pointer;position:relative;transition:border-color .12s,background .12s,
+   box-shadow .12s;margin:0}
+.obj-check:hover{border-color:var(--accent)}
+.obj-check:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.obj-check:checked{background:var(--green);border-color:var(--green);
+   box-shadow:0 0 8px rgba(63,185,80,.35)}
+.obj-check:checked::after{content:'';position:absolute;left:5px;top:1px;width:6px;height:11px;
+   border:solid #0a0c10;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.obj-check:disabled{opacity:.5;cursor:wait}
+.obj.in_progress .obj-check:not(:checked){border-color:var(--accent)}
+.obj.blocked .obj-check:not(:checked){border-color:var(--red)}
+.obj.skipped .obj-check:not(:checked){border-color:var(--purple)}
 .obj-id{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--accent);
    padding:3px 9px;border-radius:6px;background:var(--accent-glow);
    border:1px solid rgba(79,140,255,.3);font-variant-numeric:tabular-nums;line-height:1}
@@ -151,7 +165,7 @@ h2 .n{color:var(--fg-dim);font-weight:500;letter-spacing:0;text-transform:none;f
   <h1><span class="k">GOALS</span> &middot; Objective Tracker</h1>
   <span id="status">loading&hellip;</span>
   <span style="flex:1"></span>
-  <span class="attach">lead marks progress via <code>mcp__state__update_objective</code></span>
+  <span class="attach">click the box to toggle done &middot; lead marks any status via <code>mcp__state__update_objective</code></span>
 </header>
 <main>
   <h2>Progress</h2>
@@ -252,8 +266,14 @@ function renderList(d){
     const note = o.note ? `<div class="obj-note"><span class="k">operator note</span>${esc(o.note)}</div>` : '';
     const ts = o.updated_at ? `updated ${esc(o.updated_at)}` : 'never updated';
     const unsync = o.unsynced ? ` · <span class="unsync">unsynced</span>` : '';
-    return `<div class="obj ${s}">
+    const checked = s === 'done' ? 'checked' : '';
+    const title = s === 'done'
+      ? 'Click to mark pending'
+      : 'Click to mark done';
+    return `<div class="obj ${s}" data-id="${esc(o.id)}" data-status="${esc(s)}">
       <div class="obj-head">
+        <input type="checkbox" class="obj-check" ${checked}
+               title="${esc(title)}" aria-label="toggle objective ${esc(o.id)} done">
         <span class="obj-id">#${esc(o.id)}</span>
         <span class="badge ${s}">${esc(s.replace('_',' '))}</span>
       </div>
@@ -262,6 +282,45 @@ function renderList(d){
       <div class="obj-foot">${ts}${unsync}</div>
     </div>`;
   }).join('') + '</div>';
+  for (const box of list.querySelectorAll('.obj-check')) {
+    box.addEventListener('change', onToggle);
+  }
+}
+
+async function onToggle(ev){
+  const box = ev.currentTarget;
+  const card = box.closest('.obj');
+  const id = parseInt(card.dataset.id, 10);
+  const was = card.dataset.status || 'pending';
+  const next = box.checked ? 'done' : 'pending';
+  box.disabled = true;
+  try {
+    const r = await fetch(`/api/objectives/${id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'pen-agent-portal',
+      },
+      body: JSON.stringify({
+        status: next,
+        note: `toggled from portal (${new Date().toISOString()})`,
+      }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(()=>({error:'request failed'}));
+      box.checked = (was === 'done');  // revert
+      setStatus(false, `write failed: ${err.error || r.statusText}`);
+    } else {
+      // Give the server a tick to settle, then reload the whole view so
+      // the counts/bar/stats update together.
+      await load();
+    }
+  } catch (e) {
+    box.checked = (was === 'done');
+    setStatus(false, `write failed: ${e}`);
+  } finally {
+    box.disabled = false;
+  }
 }
 
 function load(){

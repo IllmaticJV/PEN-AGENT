@@ -79,13 +79,19 @@ Code inside `tmux`.
 
 ## Operator portal
 
-One read-only web view (`operator/portal/`, port `8099`) with three tabs.
+One mostly-read-only web view (`operator/portal/`, port `8099`) with four tabs.
 `run.sh` **auto-starts it in a tmux session** (`pen-portal`) on launch — open
 `http://127.0.0.1:8099`, or `tmux attach -t pen-portal` to see its log. To run
 it standalone: `bash operator/portal/start.sh`. The three tabs:
 
 - **Objective & Scope** — the engagement objective + rules of engagement
   (`engagement/scope.md`), the in-scope allowlist (`scope.allow`), and status.
+- **Goals** — the parsed `OBJECTIVES:` list with per-objective status cards
+  and a progress hero. The **operator can toggle each objective done /
+  pending from the dashboard** (checkbox on the card) — this writes
+  `engagement/objectives.json` directly, same schema the lead's
+  `mcp__state__update_objective` uses, so both views stay in sync. The
+  lead still owns `in_progress` / `blocked` / `skipped` via MCP.
 - **Status** — live engagement state from `state.db`: the access-chain graph,
   targets, creds, access, vulns, pivots, tunnels, event timeline.
 - **MSF Logs** — the live session + listener/job list, a **per-session command
