@@ -3,6 +3,56 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (teammate-test realignment)
+
+### Fixed
+
+The 65 pre-existing failures in `tests/test_teammates.py` (noted
+as a follow-up in #85) — stale structural assertions left over
+from the contract-split PRs (#76-#78) that moved protocol
+examples out of each teammate template and into shared docs
+(`CLAUDE.md § State Writes`, `tools/state-server/WRITES.md`,
+`tools/shell-server/RECORDING.md`).
+
+The tests were asserting template-level DUPLICATION of content
+that is now canonically in one place. Rewritten to check
+AWARENESS (teammate routes writes through state-mgr using the
+structured protocol) instead of literal `[add-vuln]` /
+`[add-cred]` / `[add-access]` strings in every teammate.
+
+Specific test changes:
+- Added `INFRA` set (shell-mgr, shell-mgr-metasploit,
+  shell-mgr-shell-server, scribe) and `APPENDICES` set for
+  skip logic that handles the compressed templates correctly.
+- `test_has_how_tasks_work` → `test_has_workflow_section`:
+  infrastructure teammates match any of (How Tasks Work /
+  How Messages Work / How It Works / Workflow); domain
+  teammates must point at `CLAUDE.md § Teammate Protocol`
+  (shared workflow). Appendices skipped (inherit from parent).
+- `test_has_scope_boundaries` → case-insensitive match on
+  "Scope Boundary|Boundaries"; appendices skipped.
+- `test_has_communication` → skips scribe (its outbound protocol
+  lives in RECORDING.md) and appendices.
+- `test_has_operational_notes` **removed** — "Operational Notes"
+  was a legacy section; operational rules live canonically in
+  `CLAUDE.md § Operational Rules`.
+- `test_has_add_*_protocol` (3 tests) → single
+  `test_routes_writes_through_state_mgr`: checks for `state-mgr`
+  mention + reference to the structured `[action]` protocol
+  (either the literal `[action]`, `[add-`, or `[update-` tag
+  families). No longer requires every teammate to duplicate the
+  canonical examples in CLAUDE.md.
+- `TestNoSkillDiscovery`: extended the negative-context list to
+  include "no \`search_skills" / "no \`list_skills" so the
+  legitimate shell-mgr line "No `search_skills()`." no longer
+  trips.
+- New `test_has_authorization_preamble` test: every spawn
+  template must open with `Engagement context:` (classifier-
+  risk mitigation from PR #75/#76). Appendices skipped.
+
+Full `tools/skill-router/tests/` now **715 passed, 56 skipped,
+0 failed** (was 65 failed before this PR).
+
 ## 2026-10-09 (classifier-risk tiered loading)
 
 ### Added
