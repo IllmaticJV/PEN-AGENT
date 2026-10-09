@@ -3,6 +3,41 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (portal: operator-console UI redesign)
+
+### Changed
+
+Reworked the operator portal onto one cohesive design system (shared tokens,
+Inter/JetBrains-Mono stack, unified shadow/radius scale). The top navigation
+bar remains on every tab (iframe shell unchanged).
+
+- **`portal.html`** — restyled shell/nav: pill-style tabs with active
+  background, refreshed brand/ribbon, darker surface palette.
+- **`scope.html`** — full redesign. Dossier hero (engagement name, live-pulse
+  status badge, objective line, metadata strip) over three icon-headed
+  panels: in-scope allowlist, out-of-scope, and rules of engagement. The
+  latter two are parsed client-side from `scope.md` headings (graceful
+  fallback when a section is absent). Raw `scope.md` moved to a collapsible
+  disclosure. Data wiring (`/api/scope`) unchanged.
+- **`objectives.html`** — full redesign. Gradient progress ring, status chips,
+  objectives grouped by status (in-progress → blocked → pending → skipped →
+  done) with left accent bars. Filter chips, checkbox toggle POST
+  (`/api/objectives/<id>`), and SSE refresh preserved.
+- **`msf.html`** — restyled to match (header, sidebar sections, tables, log
+  viewer, pills). JS/behavior unchanged.
+- **`status.html`** — the Attack Graph tab (`?view=graph`) gains a toolbar
+  (zoom −/Fit/1:1/+, node-type filter chips, search, live indicator), a
+  glassy floating legend, and a minimap with a viewport box that tracks
+  pan/zoom. Zoom/fit, filters (`data-ntype` on node groups), search-dim, and
+  minimap are functionally wired. The normal Status view is unchanged —
+  the chrome only appears in focus-graph mode.
+
+### Verified
+
+Headless Chromium through the live portal nav on a seeded engagement: all
+five tabs render, the nav bar is present on each, the graph toolbar/minimap
+work, and no page errors. Sample data uses masked secrets.
+
 ## 2026-10-09 (portal: Attack Graph tab + pivot_map rendering)
 
 ### Added
