@@ -146,7 +146,7 @@ your PATH points. Run `bash preflight.sh` to verify.
 
 | Tool | Skills | Install |
 |------|--------|---------|
-| mingw-w64 | av-edr-evasion, windows-service-dll-abuse, linux-file-path-abuse | `sudo apt install mingw-w64` |
+| mingw-w64 | av-edr-evasion, windows-service-dll-abuse, linux-file-path-abuse, preflight XOR exe loader (OSEP-starter obfuscation on `.exe` payloads; falls back to plain msfvenom when missing) | `sudo apt install mingw-w64` |
 | Go compiler | av-edr-evasion | `sudo apt install golang-go` |
 | msfvenom | smb-exploitation, windows-kernel-exploits, windows-service-dll-abuse, windows-uac-bypass | Part of `metasploit-framework` |
 

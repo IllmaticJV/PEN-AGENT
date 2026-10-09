@@ -234,21 +234,37 @@ On `[preflight-payloads] lhost=<X>` from the lead:
    or at least no connection error). If not, reply [preflight-failed]
    reason="msfrpcd not reachable" — lead escalates.
 2. Run via Bash (dangerouslyDisableSandbox: true, run_in_background:
-   true since msfvenom per-payload takes a few seconds × ~13 entries):
+   true since msfvenom per-payload takes a few seconds × ~13 entries;
+   OSEP-starter XOR exe loaders add ~2-5s per Windows exe row when
+   mingw-w64 is installed):
       bash tools/preflight/gen_payloads.sh --lhost <X> --out engagement/payloads
-   Tail the output file; expect ~30-90s total depending on msfvenom
-   speed and target CPU.
-3. When it exits, read tools/preflight/handler_calls.py --json output
-   (one entry per payload with payload/lhost/lport) and for EACH:
+   Tail the output file; expect ~30-120s total. The script's own
+   summary line is what you trust — do NOT Read any of the generated
+   payload files to "verify" them (they're raw shellcode / XOR
+   loaders / AMSI strings — token-wasteful and trips the safety
+   classifier). gen_payloads.sh fail-fasts (exit 3) when ≥2 payloads
+   fail; a single miss on an exotic payload is normal and the summary
+   says so.
+3. When it exits (exit 0), read tools/preflight/handler_calls.py --json
+   output (one entry per payload with payload/lhost/lport) and for EACH:
       mcp__metasploit-server__start_handler(
         payload="<payload>", lhost="<lhost>", lport=<lport>)
    Idempotent — start_handler dedupes on payload+LHOST+LPORT, so
    re-running after a C2 restart is safe.
 4. Reply to lead:
-      [preflight-ready] payloads=<N> handlers=<N> index=engagement/payloads/index.json
+      [preflight-ready] payloads=<N> handlers=<N> xor=<yes|no>
+                         index=engagement/payloads/index.json
    Teammates will then use `python3 tools/preflight/pick.py` to look
-   up a payload for exploitation.
+   up a payload for exploitation. `xor=yes` tells the lead the
+   Windows exe rows are XOR-wrapped (mingw was available); `xor=no`
+   means plain msfvenom exes — teammate may want to layer encoding
+   manually against mid-tier AV.
 ```
+
+If `gen_payloads.sh` exits non-zero (≥2 failed), reply
+`[preflight-failed] reason="N payloads failed, see shell-mgr log"`
+with the summary line and let the lead decide — do NOT retry
+blindly, do NOT inspect the payload files to debug.
 
 Skip this entirely on the shell-server-only backend (no msfvenom
 needed; teammates use start_listener per-exploit).

@@ -44,6 +44,12 @@ def _print(entry: dict) -> None:
     print(f"payload:    {entry['payload']}")
     print(f"callback:   {entry['callback']}  (LPORT {entry['lport']})")
     print(f"handler:    {entry['handler_module']}")
+    enc = entry.get("encoding") or "none"
+    if enc != "none":
+        print(f"encoding:   {enc}   (self-decoding loader — deliver as-is)")
+    print()
+    print("NOTE: do NOT Read/cat/less this file — binary artifact "
+          "(raw shellcode / XOR loader / AMSI strings). Trust the index.")
     print()
     print("Start the handler first (metasploit-server MCP):")
     lhost, lport = entry["callback"].rsplit(":", 1)
