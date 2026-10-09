@@ -3,6 +3,39 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (settings expansion — statusLine + SessionStart hooks)
+
+### Added
+
+Two new Claude Code hooks give operators continuous engagement visibility
+without reading state.db by hand.
+
+- **`tools/hooks/status-line.sh`** — `statusLine` hook. Fires on every
+  prompt submission and emits a one-liner to the status bar:
+  `[pen-agent] eng=<name> · tgts=N · creds=M · access=K · vulns=xC/yH/zM · <scope|ENF-OFF>`.
+  One SQLite read-only call pulls every count, so prompt latency is
+  unaffected. Zero-count vuln severities and long engagement names are
+  trimmed to keep the line readable.
+- **`tools/hooks/session-start.sh`** — `SessionStart` hook. Prints a
+  multi-line engagement-context banner once per session: scope.allow
+  entry count + preview (⚠ warns when missing — scope enforcement is
+  OFF across all MCP servers), C2 backend (metasploit vs shell-server),
+  operator portal URL (from `~/.config/pen-agent/portal-access.txt`),
+  and preflight payload status (baked count / xor flag / NOT YET RUN
+  reminder when msfrpc.yaml exists but gen_payloads hasn't run).
+
+### Changed
+
+- **`install.sh`** — `.claude/settings.json` template extended with
+  `statusLine` and the SessionStart hook (TeammateIdle was already
+  wired). Operators get both hooks on a fresh install without manual
+  config. Also fixed a stale `84 technique/discovery skills` →  `94`.
+- **`README.md`** — Permissions section's example settings JSON matches
+  the installer's new template; prose lists all four things it sets.
+- **`tools/hooks/README.md`** — documents status-line.sh and
+  session-start.sh alongside save-teammate-log.sh; configuration
+  example reflects the full `.claude/settings.json` block.
+
 ## 2026-10-09 (docs sync)
 
 ### Changed

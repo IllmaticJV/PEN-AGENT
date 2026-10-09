@@ -53,13 +53,31 @@ if missing:
       "mcp__metasploit-server__*"
     ],
     "deny": ["Bash(sudo *)", "Bash(rm -rf *)"]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash tools/hooks/status-line.sh"
+  },
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "", "hooks": [
+        { "type": "command", "command": "bash tools/hooks/session-start.sh" } ]}
+    ],
+    "TeammateIdle": [
+      { "matcher": "", "hooks": [
+        { "type": "command", "command": "bash tools/hooks/save-teammate-log.sh" } ]}
+    ]
   }
 }
 ```
 
-This does two things: enables the agent-teams flag the orchestrator requires,
-and pre-approves every MCP tool PEN-AGENT uses so standard permission mode
-doesn't prompt for every call. If `claude` reports agent-teams unavailable,
+Four things in there: the agent-teams flag the orchestrator requires;
+a pre-approved allowlist for every MCP tool PEN-AGENT uses so standard
+permission mode doesn't prompt for every call; a live engagement status
+line (vuln / cred / access counts + scope-enforcement indicator); and
+two hooks — `SessionStart` prints an engagement banner (scope, C2
+backend, portal URL, preflight state), and `TeammateIdle` snapshots
+each teammate's JSONL transcript to `engagement/evidence/logs/`. If `claude` reports agent-teams unavailable,
 confirm the file has `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` set and that you
 started a **fresh** session after it was written — the flag is read at
 process start, so `claude --resume` on an older session won't pick it up.
