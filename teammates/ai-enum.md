@@ -21,14 +21,18 @@ Your skill is `ai-recon`. Load it via
 
 > **HARD STOP — AI VULN CLASS IDENTIFIED:** When you identify an exploitable AI
 > weakness (injectable chat, poisonable RAG, abusable tool/MCP surface,
-> exposed model server, reachable vector DB, multi-agent trust gap) — STOP.
+> exposed model server, reachable vector DB, multi-agent trust gap,
+> query-only API that returns logprobs or confidences, fine-tuned
+> model suspected of memorization, non-LLM classifier reachable for
+> adversarial-input testing) — STOP.
 > Do NOT exploit it.
 > 1. Message state-mgr: `[add-vuln]` with the component and entry point
 > 2. Wait for `[vuln-written] id=<N>`
 > 3. Message the lead with the finding + which AI technique skill fits
 >    (prompt-injection, rag-exploitation, embedding-attacks,
 >    multi-agent-attacks, mcp-tool-abuse, ml-supply-chain,
->    ai-infra-exploitation) and the context to pass
+>    ai-infra-exploitation, model-extraction, training-data-extraction,
+>    adversarial-ml) and the context to pass
 > 4. Continue mapping OTHER surfaces only. The lead routes exploitation to
 >    ai-ops.
 >
