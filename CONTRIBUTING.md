@@ -57,6 +57,16 @@ Two rules that keep templates spawn-safe:
    template that runs every turn. The classifier evaluates each
    message independently, so an on-demand skill fetch is a different
    evaluation surface than the spawn template.
+3. **Infrastructure teammates: use a contract doc for message
+   protocols.** When a teammate's job is to receive structured
+   messages and call one or two MCP tools in response (scribe,
+   state-mgr), move the full message shape — field lists, HEREDOC
+   examples, inbound/outbound forms — into a reference doc next to
+   the tool it drives (e.g. `tools/shell-server/RECORDING.md` for
+   scribe). The template says "load this at activation and
+   reference it"; the dense content loads once and stays in context,
+   outside the ride-every-turn spawn surface. This is how scribe
+   got from density 0.28 → 0.15.
 
 ## Skill File Format
 

@@ -3,6 +3,33 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (scribe contract split)
+
+### Added
+
+- **`tools/shell-server/RECORDING.md`** — the message-protocol contract
+  for session-recording. Holds the field lists, HEREDOC syntax,
+  inbound forms (session-producing and non-session), lead nudges,
+  outbound replies, and the filename contract. Scribe loads this at
+  activation and references it; the tool docstrings in
+  `tools/shell-server/server.py` remain the normative source for
+  per-field semantics.
+
+### Changed
+
+- **`teammates/scribe.md` slimmed** from 215 → 91 lines by moving the
+  dense message-protocol examples into the new `RECORDING.md`
+  contract. Density dropped from 0.28 → 0.15 — scribe's spawn
+  surface is no longer the highest-density teammate template.
+  Behavior is unchanged (scribe still parses the same messages,
+  calls the same tools, replies the same way); the HEREDOC-heavy
+  examples just live in a load-on-demand doc instead of riding
+  every turn. Pattern documented in `CONTRIBUTING.md` under
+  "Teammate template authorship" as the recommended approach for
+  message-protocol-heavy infrastructure teammates.
+- `CLAUDE.md` points at `tools/shell-server/RECORDING.md` so
+  exploiting teammates know where the full contract lives.
+
 ## 2026-10-09 (preamble rollout)
 
 ### Changed
