@@ -94,6 +94,32 @@ body{background:radial-gradient(1000px 500px at 85% -10%,rgba(79,140,255,.05),tr
 .tm-meta .mi b{color:var(--fg-2);font-weight:600}
 .tm-meta .sep{width:1px;height:12px;background:var(--border-2);align-self:center}
 
+/* roster / health */
+.alert{display:flex;align-items:center;gap:11px;margin-top:14px;padding:12px 15px;border-radius:12px;
+  background:var(--red-soft);border:1px solid rgba(240,86,77,.35);color:#f6a79f;font-size:12.5px;line-height:1.45}
+.alert .ic{width:22px;height:22px;flex-shrink:0;color:var(--red)}
+.alert b{color:#ffd9d4;font-weight:700}
+.roster-strip{display:flex;gap:10px;flex-wrap:wrap;margin:18px 2px 0}
+.rs{display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:10px;
+  background:var(--bg3);border:1px solid var(--border);font-size:11.5px;font-weight:600;color:var(--fg-2)}
+.rs .dot{width:8px;height:8px;border-radius:50%}
+.rs .n{font-family:var(--mono);font-size:13px;font-weight:700}
+.rs.active .dot{background:var(--green);box-shadow:0 0 6px var(--green)} .rs.active .n{color:var(--green)}
+.rs.idle .dot{background:var(--fg-3)} .rs.idle .n{color:var(--fg-2)}
+.rs.flagged .dot{background:var(--red);box-shadow:0 0 6px var(--red)} .rs.flagged .n{color:var(--red)}
+.st{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:6px;font-size:9.5px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;font-family:var(--ui);white-space:nowrap}
+.st .dot{width:7px;height:7px;border-radius:50%}
+.st.active{color:var(--green);background:var(--green-soft);border:1px solid rgba(63,185,80,.35)}
+.st.active .dot{background:var(--green);box-shadow:0 0 5px var(--green)}
+.st.idle{color:var(--fg-3);background:var(--bg3);border:1px solid var(--border)}
+.st.idle .dot{background:var(--fg-3)}
+.st.flagged{color:var(--red);background:var(--red-soft);border:1px solid rgba(240,86,77,.4)}
+.st.flagged .dot{background:var(--red);box-shadow:0 0 5px var(--red)}
+.blk{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;font-family:var(--mono);
+  color:var(--amber);background:var(--amber-soft);border:1px solid rgba(214,165,51,.35);border-radius:5px;padding:2px 7px}
+.tm.flagged{border-color:rgba(240,86,77,.4)}
+
 .empty-card{background:linear-gradient(180deg,var(--surface-2),var(--surface));border:1px solid var(--border);
   border-radius:16px;padding:40px 24px;text-align:center;color:var(--fg-3);font-size:13px;margin-top:4px}
 .empty-card .big{font-size:15px;font-weight:600;color:var(--fg-2);margin-bottom:8px}
@@ -189,18 +215,34 @@ function render(d){
     </div>
     <div class="note">${billed
       ? `<b>Billed-weight:</b> bars and totals are weighted by relative per-token cost (input ×1, cache-write ×1.25, cache-read ×0.1, output ×5) to approximate spend. Per-category numbers below stay as raw token counts.`
-      : `<b>Reading this:</b> cache-read tokens are the bulk but the cheapest (prompt-cache hits, ~10% of input price). <b>Output</b> and <b>cache-write</b> are the real cost drivers — switch to <b>Billed-weight</b> to rank by approximate spend.`}</div>
-  </div>`;
+      : `<b>Reading this:</b> cache-read tokens are the bulk but the cheapest (prompt-cache hits, ~10% of input price). <b>Output</b> and <b>cache-write</b> are the real cost drivers — switch to <b>Billed-weight</b> to rank by approximate spend.`}</div>`;
+
+  // Roster / health
+  const r=d.roster||{};
+  if(r.alerts&&r.alerts.length){
+    h+=`<div class="alert">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.2 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.2a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+      <div><b>AUP flag:</b> ${r.alerts.map(esc).join(', ')} tripped a content filter (sentinel in engagement/evidence/). Likely context-poisoned — dismiss &amp; respawn with a clean context.</div></div>`;
+  }
+  h+=`<div class="roster-strip">
+    <span class="rs active"><span class="dot"></span><span class="n">${r.active||0}</span> active</span>
+    <span class="rs idle"><span class="dot"></span><span class="n">${r.idle||0}</span> idle</span>
+    ${r.flagged?`<span class="rs flagged"><span class="dot"></span><span class="n">${r.flagged}</span> flagged</span>`:''}
+  </div></div>`;
 
   h+=`<div class="sec-label">Where tokens go &middot; by teammate${billed?' (by spend)':''}</div><div class="tlist">`;
   mates.forEach((tm,i)=>{
     const models=tm.models&&tm.models.length
       ? `<div class="tm-models">${tm.models.map(m=>`<span class="mtag">${esc(m)}</span>`).join('')}</div>` : '';
     const tmTotal=billed?wtotal(tm):tm.total;
-    h+=`<div class="tm">
+    const stat=tm.status||'idle';
+    const statusBadge=`<span class="st ${stat}"><span class="dot"></span>${stat}</span>`;
+    const blk=tm.blocked?`<span class="blk" title="blocked items raised by this teammate">⚠ ${tm.blocked} blocked</span>`:'';
+    h+=`<div class="tm ${stat==='flagged'?'flagged':''}">
       <div class="tm-head">
         <span class="rank">${i+1}</span>
         <span class="tm-name">${esc(tm.name)}</span>
+        ${statusBadge}${blk}
         ${models}
         <div class="tm-total"><div class="v">${fmt(tmTotal)}</div><div class="k">${billed?'billed-wt':'tokens'}</div></div>
       </div>

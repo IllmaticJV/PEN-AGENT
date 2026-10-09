@@ -47,7 +47,7 @@ while IFS= read -r f; do
         printf '  py_compile: %s\n' "$f"
         failed=1
     fi
-done < <(find tools -name "*.py" \
+done < <(find tools operator -name "*.py" \
     -not -path "*/.venv/*" \
     -not -path "*/node_modules/*" \
     -not -path "*/__pycache__/*")

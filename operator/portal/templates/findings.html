@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PEN-AGENT &middot; Findings</title>
+<style>
+:root{
+  --bg:#090b0f;--bg2:#0e1217;--bg3:#161b22;
+  --surface:#12161c;--surface-2:#161c24;
+  --border:#1e242e;--border-2:#2a323e;
+  --fg:#eef2f6;--fg-2:#aab4c0;--fg-3:#6a7482;
+  --accent:#4f8cff;--accent-2:#7aa7ff;--accent-soft:rgba(79,140,255,.12);
+  --green:#3fb950;--green-soft:rgba(63,185,80,.1);
+  --red:#f0564d;--red-soft:rgba(240,86,77,.08);
+  --amber:#d6a533;--amber-soft:rgba(214,165,51,.1);--purple:#a371f7;
+  --crit:#a371f7;--high:#f0564d;--med:#d6a533;--low:#5b93d6;--info:#6a7482;
+  --sh-sm:0 1px 2px rgba(0,0,0,.4);
+  --sh-md:0 2px 4px rgba(0,0,0,.3),0 6px 16px rgba(0,0,0,.25);
+  --ui:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:radial-gradient(1000px 500px at 85% -10%,rgba(79,140,255,.05),transparent 60%),var(--bg);
+  color:var(--fg);font-family:var(--ui);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;min-height:100vh;padding:28px 32px 64px}
+.wrap{max-width:1120px;margin:0 auto}
+.conn{position:fixed;top:14px;right:18px;font-size:10.5px;font-weight:600;letter-spacing:.04em;
+  padding:4px 11px;border-radius:999px;border:1px solid var(--border-2);color:var(--fg-3);
+  display:inline-flex;align-items:center;gap:6px;background:var(--bg3);z-index:20}
+.conn::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--fg-3)}
+.conn.ok{color:var(--green);border-color:rgba(63,185,80,.35);background:var(--green-soft)}
+.conn.ok::before{background:var(--green);box-shadow:0 0 6px var(--green)}
+.conn.bad{color:var(--red);border-color:rgba(240,86,77,.4);background:var(--red-soft)}
+.conn.bad::before{background:var(--red)}
+
+.hero{position:relative;padding:24px 28px;border-radius:18px;overflow:hidden;
+  background:linear-gradient(140deg,rgba(79,140,255,.07),rgba(79,140,255,0) 48%),
+             linear-gradient(180deg,var(--surface-2),var(--surface));
+  border:1px solid var(--border);box-shadow:var(--sh-md);
+  display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.hero::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(122,167,255,.5),transparent)}
+.hero .eyebrow{color:var(--fg-3);font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;margin-bottom:8px}
+.hero h1{font-size:22px;font-weight:650;letter-spacing:-.02em;color:var(--fg)}
+.hero .sub{color:var(--fg-2);font-size:12.5px;margin-top:6px}
+.sevstats{display:flex;gap:10px;flex-wrap:wrap}
+.sv{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 14px;border-radius:11px;
+  background:var(--bg3);border:1px solid var(--border);min-width:66px}
+.sv .n{font-family:var(--mono);font-size:20px;font-weight:700;line-height:1}
+.sv .l{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3)}
+.sv.critical .n{color:var(--crit)} .sv.high .n{color:var(--high)} .sv.medium .n{color:var(--med)}
+.sv.low .n{color:var(--low)} .sv.info .n{color:var(--info)}
+
+.filters{display:flex;gap:7px;margin:24px 2px 14px;flex-wrap:wrap;align-items:center}
+.fc{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;
+  background:var(--bg3);border:1px solid var(--border);color:var(--fg-2);
+  font-family:var(--ui);font-size:11.5px;font-weight:600;cursor:pointer;transition:all .12s}
+.fc:hover{border-color:var(--border-2);color:var(--fg)}
+.fc.active{color:var(--fg);background:var(--accent-soft);border-color:rgba(79,140,255,.45)}
+.fc .n{font-family:var(--mono);font-size:11px;color:var(--fg-3)}
+.spread{flex:1}
+.exp{font-family:var(--ui);font-size:11px;font-weight:600;color:var(--fg-3);cursor:pointer;
+  background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 11px;transition:color .12s}
+.exp:hover{color:var(--fg)}
+
+.flist{display:flex;flex-direction:column;gap:9px}
+details.fnd{background:linear-gradient(180deg,var(--surface-2),var(--surface));border:1px solid var(--border);
+  border-radius:13px;overflow:hidden;box-shadow:var(--sh-sm);transition:border-color .12s}
+details.fnd:hover{border-color:var(--border-2)}
+details.fnd[open]{border-color:var(--border-2)}
+summary.fhead{list-style:none;cursor:pointer;padding:14px 16px;display:flex;align-items:center;gap:13px}
+summary.fhead::-webkit-details-marker{display:none}
+.chev{color:var(--fg-3);transition:transform .2s;flex-shrink:0;display:flex}
+details[open] .chev{transform:rotate(90deg)}
+.sevpill{font-family:var(--ui);font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:4px 9px;border-radius:6px;flex-shrink:0;min-width:64px;text-align:center}
+.sevpill.critical{color:var(--crit);background:rgba(163,113,247,.12);border:1px solid rgba(163,113,247,.4)}
+.sevpill.high{color:var(--high);background:var(--red-soft);border:1px solid rgba(240,86,77,.4)}
+.sevpill.medium{color:var(--med);background:var(--amber-soft);border:1px solid rgba(214,165,51,.4)}
+.sevpill.low{color:var(--low);background:rgba(91,147,214,.12);border:1px solid rgba(91,147,214,.4)}
+.sevpill.info{color:var(--info);background:var(--bg3);border:1px solid var(--border)}
+.fid{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--fg-3);flex-shrink:0}
+.ftitle{font-size:13.5px;font-weight:600;color:var(--fg);line-height:1.35;flex:1;min-width:0}
+.fmeta{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+.vbadge{font-family:var(--ui);font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 8px;border-radius:5px;white-space:nowrap}
+.vbadge.confirmed{color:var(--green);background:var(--green-soft);border:1px solid rgba(63,185,80,.4)}
+.vbadge.plausible{color:var(--amber);background:var(--amber-soft);border:1px solid rgba(214,165,51,.4)}
+.tgt{font-family:var(--mono);font-size:10.5px;color:var(--fg-3);background:var(--bg3);border:1px solid var(--border);
+  border-radius:5px;padding:2px 7px;white-space:nowrap}
+
+.fbody{padding:2px 18px 18px 18px;border-top:1px solid var(--border)}
+.fsec{margin-top:15px}
+.fsec>.k{font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--fg-3);margin-bottom:7px;
+  display:flex;align-items:center;gap:7px}
+.fsec>.k::before{content:'';width:3px;height:11px;border-radius:2px;background:var(--accent)}
+.fsec p{color:var(--fg-2);font-size:12.5px;line-height:1.6}
+.steps{counter-reset:st;display:flex;flex-direction:column;gap:8px;list-style:none}
+.steps li{counter-increment:st;position:relative;padding:10px 13px 10px 40px;border-radius:9px;
+  background:var(--bg3);border:1px solid var(--border);font-size:12.5px;color:var(--fg)}
+.steps li::before{content:counter(st);position:absolute;left:11px;top:10px;width:20px;height:20px;border-radius:6px;
+  background:var(--accent-soft);border:1px solid rgba(79,140,255,.25);color:var(--accent);
+  font-family:var(--mono);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.steps .cmd{display:block;font-family:var(--mono);font-size:11.5px;color:var(--accent-2);background:var(--bg);
+  border:1px solid var(--border);border-radius:6px;padding:6px 9px;margin-top:6px;white-space:pre-wrap;word-break:break-all}
+.steps .er{font-family:var(--mono);font-size:11px;color:var(--fg-3);margin-top:5px}
+.oracle{background:var(--green-soft);border:1px solid rgba(63,185,80,.25);border-radius:9px;padding:11px 13px;
+  font-size:12px;color:var(--fg-2);line-height:1.55}
+.oracle .ot{font-family:var(--mono);font-size:10px;color:var(--green);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;display:block}
+.reflist{display:flex;flex-direction:column;gap:4px}
+.reflist a,.reflist span{color:var(--accent-2);font-size:12px;font-family:var(--mono);word-break:break-all;text-decoration:none}
+.foot{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);
+  font-family:var(--mono);font-size:10.5px;color:var(--fg-3)}
+.foot b{color:var(--fg-2);font-weight:600}
+.empty-card{background:linear-gradient(180deg,var(--surface-2),var(--surface));border:1px solid var(--border);
+  border-radius:16px;padding:40px 24px;text-align:center;color:var(--fg-3);font-size:13px;margin-top:4px}
+.empty-card .big{font-size:15px;font-weight:600;color:var(--fg-2);margin-bottom:8px}
+.empty-card code{color:var(--amber);background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-family:var(--mono)}
+@media (max-width:760px){body{padding:18px 16px 40px}.hero{padding:20px}.ftitle{flex-basis:100%;order:3}}
+</style></head>
+<body>
+<span class="conn" id="conn">loading&hellip;</span>
+<div class="wrap" id="root"><div class="empty-card">Loading findings&hellip;</div></div>
+
+<script>
+const connEl=document.getElementById('conn');
+function setConn(ok,msg){connEl.textContent=msg;connEl.className='conn '+(ok?'ok':'bad');}
+function esc(s){return (s??'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+const SEVS=['critical','high','medium','low','info'];
+let data=null, filter='all', allOpen=false;
+try{filter=localStorage.getItem('findings-filter')||'all';}catch(e){}
+
+function sevClass(s){s=(s||'').toLowerCase();return SEVS.includes(s)?s:'info';}
+function tgtLabel(t){
+  if(t==null) return '';
+  if(typeof t==='string') return t;
+  // object form: {host, port, url, component}
+  if(t.host) return t.host + (t.port?(':'+t.port):'');
+  if(t.url) return t.url;
+  if(t.component) return t.component;
+  return JSON.stringify(t);
+}
+
+function finding(f){
+  const sev=sevClass(f.severity);
+  const v=f.verification||{};
+  const vstatus=(v.status||'').toLowerCase();
+  const vbadge=vstatus?`<span class="vbadge ${vstatus==='confirmed'?'confirmed':'plausible'}">${esc(v.status)}</span>`:'';
+  const tgts=((f.affected||{}).targets)||[];
+  const tgthtml=tgts.slice(0,3).map(t=>`<span class="tgt">${esc(tgtLabel(t))}</span>`).join('');
+  const steps=(f.steps_to_reproduce||[]).map(s=>{
+    const cmd=s.command?`<span class="cmd">${esc(s.command)}</span>`:'';
+    const exp=s.expected_result?`<div class="er">→ expected: ${esc(s.expected_result)}</div>`:'';
+    return `<li>${esc(s.instruction||s.step||'')}${cmd}${exp}</li>`;
+  }).join('');
+  const refs=(f.references||[]).map(r=>{
+    const u=typeof r==='string'?r:(r.url||r.title||'');
+    return /^https?:/.test(u)?`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>`:`<span>${esc(u)}</span>`;
+  }).join('');
+  const oracle=v.oracle?`<div class="fsec"><div class="k">Verification</div>
+      <div class="oracle"><span class="ot">${esc(v.oracle_type||v.status||'oracle')}</span>${esc(v.oracle)}</div></div>`:'';
+  const sec=(label,val)=> val?`<div class="fsec"><div class="k">${label}</div><p>${esc(val)}</p></div>`:'';
+  return `<details class="fnd" data-sev="${sev}" ${allOpen?'open':''}>
+    <summary class="fhead">
+      <span class="chev"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+      <span class="sevpill ${sev}">${esc(f.severity||'info')}</span>
+      <span class="fid">${esc(f.id||f._file||'')}</span>
+      <span class="ftitle">${esc(f.title||'(untitled finding)')}</span>
+      <span class="fmeta">${tgthtml}${vbadge}</span>
+    </summary>
+    <div class="fbody">
+      ${sec('Summary',f.summary)}
+      ${sec('Impact',f.impact)}
+      ${sec('Prerequisites',f.prerequisites)}
+      ${steps?`<div class="fsec"><div class="k">Steps to reproduce</div><ol class="steps">${steps}</ol></div>`:''}
+      ${oracle}
+      ${sec('Remediation',f.remediation)}
+      ${refs?`<div class="fsec"><div class="k">References</div><div class="reflist">${refs}</div></div>`:''}
+      <div class="foot">
+        ${f.confidence?`<span>confidence <b>${esc(f.confidence)}</b></span>`:''}
+        ${f.cvss?`<span>CVSS <b>${esc(f.cvss)}</b></span>`:''}
+        ${f.discovered_by?`<span>found by <b>${esc(f.discovered_by)}</b></span>`:''}
+        ${f.state_vuln_id?`<span>vuln <b>#${esc(f.state_vuln_id)}</b></span>`:''}
+      </div>
+    </div>
+  </details>`;
+}
+
+function render(d){
+  if(!d.available){
+    document.getElementById('root').innerHTML=
+      `<div class="empty-card"><div class="big">No findings yet</div>
+        ${esc(d.reason||'')}<br><br>
+        Teammates export one OffSec-style JSON per confirmed vuln to
+        <code>engagement/findings/</code> (see <code>tools/reporter</code>).</div>`;
+    return;
+  }
+  const c=d.counts||{};
+  const items=d.findings.filter(f=> filter==='all' || sevClass(f.severity)===filter);
+  const chips=['all'].concat(SEVS).map(s=>{
+    const n= s==='all'? d.total : (c[s]||0);
+    if(s!=='all' && !n) return '';
+    const lbl=s==='all'?'All':s[0].toUpperCase()+s.slice(1);
+    return `<span class="fc${s===filter?' active':''}" data-f="${s}">${lbl}<span class="n">${n}</span></span>`;
+  }).join('');
+  let h=`<div class="hero">
+    <div><div class="eyebrow">Findings</div>
+      <h1>${d.total} finding${d.total===1?'':'s'}</h1>
+      <div class="sub">${d.confirmed} confirmed with an independent oracle · ${d.total-d.confirmed} plausible</div></div>
+    <div class="sevstats">
+      ${SEVS.map(s=>`<div class="sv ${s}"><span class="n">${c[s]||0}</span><span class="l">${s}</span></div>`).join('')}
+    </div>
+  </div>
+  <div class="filters">${chips}<span class="spread"></span>
+    <span class="exp" id="exp">${allOpen?'Collapse all':'Expand all'}</span></div>
+  <div class="flist">${items.map(finding).join('')||'<div class="empty-card">No findings at this severity.</div>'}</div>`;
+  document.getElementById('root').innerHTML=h;
+  for(const chip of document.querySelectorAll('.fc')){
+    chip.onclick=()=>{filter=chip.dataset.f;try{localStorage.setItem('findings-filter',filter);}catch(e){};render(data);};
+  }
+  const exp=document.getElementById('exp');
+  if(exp) exp.onclick=()=>{allOpen=!allOpen;render(data);};
+}
+
+function load(){
+  fetch('/api/findings').then(r=>r.json())
+    .then(d=>{data=d;render(d);setConn(true,'live');})
+    .catch(()=>setConn(false,'disconnected'));
+}
+load();
+setInterval(load,8000);
+</script>
+</body></html>

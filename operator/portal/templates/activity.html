@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PEN-AGENT &middot; Activity</title>
+<style>
+:root{
+  --bg:#090b0f;--bg2:#0e1217;--bg3:#161b22;
+  --surface:#12161c;--surface-2:#161c24;
+  --border:#1e242e;--border-2:#2a323e;
+  --fg:#eef2f6;--fg-2:#aab4c0;--fg-3:#6a7482;
+  --accent:#4f8cff;--accent-2:#7aa7ff;--accent-soft:rgba(79,140,255,.12);
+  --green:#3fb950;--green-soft:rgba(63,185,80,.1);
+  --red:#f0564d;--red-soft:rgba(240,86,77,.08);
+  --amber:#d6a533;--purple:#a371f7;--slate:#8b97a6;--blue:#5b93d6;
+  --c-recon:#5b93d6;--c-vuln:#f0564d;--c-credential:#8b97a6;--c-access:#3fb950;
+  --c-pivot:#d6a533;--c-blocked:#e06b4d;--c-other:#6a7482;
+  --sh-sm:0 1px 2px rgba(0,0,0,.4);
+  --sh-md:0 2px 4px rgba(0,0,0,.3),0 6px 16px rgba(0,0,0,.25);
+  --ui:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:radial-gradient(1000px 500px at 85% -10%,rgba(79,140,255,.05),transparent 60%),var(--bg);
+  color:var(--fg);font-family:var(--ui);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;min-height:100vh;padding:28px 32px 64px}
+.wrap{max-width:1000px;margin:0 auto}
+.conn{position:fixed;top:14px;right:18px;font-size:10.5px;font-weight:600;letter-spacing:.04em;
+  padding:4px 11px;border-radius:999px;border:1px solid var(--border-2);color:var(--fg-3);
+  display:inline-flex;align-items:center;gap:6px;background:var(--bg3);z-index:20}
+.conn::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--fg-3)}
+.conn.ok{color:var(--green);border-color:rgba(63,185,80,.35);background:var(--green-soft)}
+.conn.ok::before{background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2.4s infinite}
+.conn.bad{color:var(--red);border-color:rgba(240,86,77,.4);background:var(--red-soft)}
+.conn.bad::before{background:var(--red)}
+@keyframes pulse{0%{opacity:1}50%{opacity:.4}100%{opacity:1}}
+
+.hero{position:relative;padding:22px 26px;border-radius:18px;overflow:hidden;
+  background:linear-gradient(140deg,rgba(79,140,255,.07),rgba(79,140,255,0) 48%),
+             linear-gradient(180deg,var(--surface-2),var(--surface));
+  border:1px solid var(--border);box-shadow:var(--sh-md)}
+.hero::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(122,167,255,.5),transparent)}
+.hero .eyebrow{color:var(--fg-3);font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase}
+.hero h1{font-size:22px;font-weight:650;letter-spacing:-.02em;color:var(--fg);margin-top:6px}
+.hero .sub{color:var(--fg-2);font-size:12.5px;margin-top:5px}
+.filters{display:flex;gap:7px;margin:20px 2px 16px;flex-wrap:wrap}
+.fc{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
+  background:var(--bg3);border:1px solid var(--border);color:var(--fg-2);
+  font-family:var(--ui);font-size:11.5px;font-weight:600;cursor:pointer;transition:all .12s}
+.fc:hover{border-color:var(--border-2);color:var(--fg)}
+.fc.active{color:var(--fg);background:var(--accent-soft);border-color:rgba(79,140,255,.45)}
+.fc .dot{width:8px;height:8px;border-radius:3px}
+.fc .n{font-family:var(--mono);font-size:11px;color:var(--fg-3)}
+
+/* Feed timeline */
+.feed{position:relative;padding-left:4px}
+.feed::before{content:'';position:absolute;left:19px;top:6px;bottom:6px;width:2px;
+  background:linear-gradient(180deg,var(--border-2),var(--border) 40%,transparent);pointer-events:none}
+.ev{position:relative;display:flex;gap:15px;padding:9px 0;align-items:flex-start}
+.ev .node{position:relative;z-index:1;width:32px;height:32px;border-radius:9px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--border-2)}
+.ev .node svg{width:15px;height:15px}
+.ev.cat-recon .node{color:var(--c-recon);border-color:rgba(91,147,214,.4)}
+.ev.cat-vuln .node{color:var(--c-vuln);border-color:rgba(240,86,77,.4)}
+.ev.cat-credential .node{color:var(--c-credential);border-color:rgba(139,151,166,.4)}
+.ev.cat-access .node{color:var(--c-access);border-color:rgba(63,185,80,.4)}
+.ev.cat-pivot .node{color:var(--c-pivot);border-color:rgba(214,165,51,.4)}
+.ev.cat-blocked .node{color:var(--c-blocked);border-color:rgba(224,107,77,.4)}
+.ev.cat-other .node{color:var(--c-other)}
+.ev .body{flex:1;min-width:0;background:var(--surface-2);border:1px solid var(--border);border-radius:11px;
+  padding:11px 14px;box-shadow:var(--sh-sm);transition:border-color .12s}
+.ev:hover .body{border-color:var(--border-2)}
+.ev.upd .body{background:var(--surface);opacity:.82}
+.ev .top{display:flex;align-items:center;gap:9px;margin-bottom:3px}
+.ev .cat{font-family:var(--ui);font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.ev.cat-recon .cat{color:var(--c-recon)} .ev.cat-vuln .cat{color:var(--c-vuln)}
+.ev.cat-credential .cat{color:var(--c-credential)} .ev.cat-access .cat{color:var(--c-access)}
+.ev.cat-pivot .cat{color:var(--c-pivot)} .ev.cat-blocked .cat{color:var(--c-blocked)} .ev.cat-other .cat{color:var(--c-other)}
+.ev .updtag{font-family:var(--ui);font-size:8.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--fg-3);background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+.ev .agent{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--accent-2)}
+.ev .time{font-family:var(--mono);font-size:10px;color:var(--fg-3);white-space:nowrap}
+.ev .summary{font-size:13px;color:var(--fg);line-height:1.45;word-break:break-word}
+.ev.flash .body{animation:flash 1.4s ease-out}
+@keyframes flash{0%{border-color:var(--accent);box-shadow:0 0 16px var(--accent-soft)}100%{}}
+.empty-card{background:linear-gradient(180deg,var(--surface-2),var(--surface));border:1px solid var(--border);
+  border-radius:16px;padding:40px 24px;text-align:center;color:var(--fg-3);font-size:13px;margin-top:4px}
+.empty-card .big{font-size:15px;font-weight:600;color:var(--fg-2);margin-bottom:8px}
+@media (max-width:760px){body{padding:18px 16px 40px}.ev .agent{margin-left:0}}
+</style></head>
+<body>
+<span class="conn" id="conn">loading&hellip;</span>
+<div class="wrap">
+  <div id="hero-slot"></div>
+  <div class="filters" id="filters"></div>
+  <div id="feed"></div>
+</div>
+
+<script>
+const connEl=document.getElementById('conn');
+function setConn(ok,msg){connEl.textContent=msg;connEl.className='conn '+(ok?'ok':'bad');}
+function esc(s){return (s??'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+const CATS=[['recon','Recon'],['access','Access'],['credential','Creds'],['vuln','Vulns'],['pivot','Pivots'],['blocked','Blocked']];
+const ICONS={
+  recon:'<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+  vuln:'<path d="M10.3 3.2 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.2a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+  credential:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  access:'<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5M15 12H3"/>',
+  pivot:'<path d="M4 7h11l-3-3M20 17H9l3 3"/>',
+  blocked:'<circle cx="12" cy="12" r="9"/><path d="m5.5 5.5 13 13"/>',
+  other:'<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>',
+};
+let seen=new Set(), events=[], filter='all';
+try{filter=localStorage.getItem('activity-filter')||'all';}catch(e){}
+
+function relTime(iso){
+  if(!iso) return '';
+  const t=Date.parse(iso.endsWith('Z')?iso:iso+'Z');
+  if(isNaN(t)) return esc(iso);
+  const s=Math.max(0,(Date.now()-t)/1000);
+  if(s<60) return Math.floor(s)+'s ago';
+  if(s<3600) return Math.floor(s/60)+'m ago';
+  if(s<86400) return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+function icon(cat){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[cat]||ICONS.other}</svg>`;}
+
+function evRow(e,flash){
+  const cat=e.category||'other';
+  return `<div class="ev cat-${cat}${e.is_update?' upd':''}${flash?' flash':''}" data-cat="${cat}">
+    <div class="node">${icon(cat)}</div>
+    <div class="body">
+      <div class="top">
+        <span class="cat">${esc(cat)}</span>
+        ${e.is_update?'<span class="updtag">update</span>':''}
+        ${e.agent?`<span class="agent">${esc(e.agent)}</span>`:'<span class="agent"></span>'}
+        <span class="time" title="${esc(e.created_at||'')}">${relTime(e.created_at)}</span>
+      </div>
+      <div class="summary">${esc(e.summary||'')}</div>
+    </div>
+  </div>`;
+}
+
+function renderHero(){
+  const counts={};
+  for(const e of events){const c=e.category||'other';counts[c]=(counts[c]||0)+1;}
+  document.getElementById('hero-slot').innerHTML=`<div class="hero">
+    <div class="eyebrow">Activity Feed</div>
+    <h1>${events.length} event${events.length===1?'':'s'}</h1>
+    <div class="sub">Live engagement timeline — newest first, streaming via <span style="color:var(--accent);font-family:var(--mono)">/api/stream</span></div>
+  </div>`;
+  const chips=[['all','All']].concat(CATS).map(([k,l])=>{
+    const n= k==='all'? events.length : events.filter(e=>(e.category||'other')===k).length;
+    if(k!=='all' && !n) return '';
+    const dot= k==='all'?'':`<span class="dot" style="background:var(--c-${k})"></span>`;
+    return `<span class="fc${k===filter?' active':''}" data-f="${k}">${dot}${l}<span class="n">${n}</span></span>`;
+  }).join('');
+  const bar=document.getElementById('filters');
+  bar.innerHTML=chips;
+  for(const c of bar.querySelectorAll('.fc')){
+    c.onclick=()=>{filter=c.dataset.f;try{localStorage.setItem('activity-filter',filter);}catch(e){};renderFeed();renderHero();};
+  }
+}
+function renderFeed(flashIds){
+  const feed=document.getElementById('feed');
+  const items=events.filter(e=> filter==='all' || (e.category||'other')===filter);
+  if(!items.length){feed.innerHTML='<div class="empty-card"><div class="big">No activity yet</div>State changes appear here as teammates work.</div>';return;}
+  feed.innerHTML='<div class="feed">'+items.map(e=>evRow(e,flashIds&&flashIds.has(e.id))).join('')+'</div>';
+}
+
+function ingest(list,flash){
+  const newIds=new Set();
+  for(const e of list){
+    if(seen.has(e.id)) continue;
+    seen.add(e.id); events.push(e); if(flash) newIds.add(e.id);
+  }
+  events.sort((a,b)=>b.id-a.id);
+  if(events.length>500) events=events.slice(0,500);
+  renderHero(); renderFeed(flash?newIds:null);
+}
+
+function load(){
+  fetch('/api/activity').then(r=>r.json()).then(d=>{
+    if(!d.available){
+      document.getElementById('hero-slot').innerHTML='';
+      document.getElementById('feed').innerHTML=`<div class="empty-card"><div class="big">No activity yet</div>${esc(d.reason||'')}</div>`;
+      setConn(true,'live');return;
+    }
+    ingest(d.events||[],false); setConn(true,'live');
+  }).catch(()=>setConn(false,'disconnected'));
+}
+load();
+
+// Live updates via the shared state stream.
+try{
+  const es=new EventSource('/api/stream');
+  es.onmessage=(m)=>{
+    const d=JSON.parse(m.data);
+    if(d.type==='events' && d.payload) ingest(d.payload,true);
+    else if(d.type==='state' && d.payload && d.payload.events) ingest(d.payload.events,true);
+    setConn(true,'live');
+  };
+  es.onerror=()=>setConn(false,'reconnecting');
+}catch(e){ setInterval(load,6000); }
+// Refresh relative times periodically.
+setInterval(()=>{ if(events.length) renderFeed(); },30000);
+</script>
+</body></html>
