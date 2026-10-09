@@ -23,6 +23,7 @@ tools:
   - dpapi.py
   - secretsdump.py
 opsec: low
+classifier_risk: high
 ---
 
 # Windows Credential Harvesting

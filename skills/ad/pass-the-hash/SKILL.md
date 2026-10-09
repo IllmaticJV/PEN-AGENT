@@ -23,6 +23,7 @@ tools:
   - netexec
   - evil-winrm
 opsec: medium
+classifier_risk: high
 ---
 
 # Pass the Hash / Over-Pass-the-Hash / Pass the Key / Pass the Ticket

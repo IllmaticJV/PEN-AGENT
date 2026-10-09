@@ -23,6 +23,7 @@ tools:
   - python3
   - go (optional)
 opsec: high
+classifier_risk: high
 ---
 
 # AV/EDR Evasion

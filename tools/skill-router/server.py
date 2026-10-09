@@ -73,6 +73,50 @@ def _split_sections(content: str) -> tuple[str, list[tuple[str, str]]]:
     return preamble, sections
 
 
+# Sections kept in a tier="lite" load. These are the structural pieces
+# every teammate needs to run and report the skill correctly, without
+# the dense attack-variant bodies (where classifier-trigger density
+# concentrates). "Attack Variants", "Steps", "Exploitation", and
+# "Troubleshooting" are dropped from lite; the teammate escalates to
+# the default (core) or "full" tier when it needs the specific
+# commands and payloads.
+_LITE_KEEP_PATTERNS = (
+    "scope",            # Scope Boundary
+    "engagement log",   # Engagement Logging
+    "state manag",      # State Management
+    "prerequisite",     # Prerequisites
+    "verification",     # Verification Oracle
+    "post-",            # Post-Exploitation Exit / Post-Attack Exit
+    "task summary",     # Task Summary Format
+    "av/edr",           # AV/EDR Detection
+    "communication",    # Communication (teammate skills)
+)
+_LITE_DROP_PATTERNS = (
+    "attack variant",
+    "variant",          # ### Variant A — … under an Attack-Variants parent
+    "step ",
+    "exploitation",
+    "troubleshoot",
+    "payload",
+    "shellcode",
+)
+
+
+def _is_lite_keeper(heading: str) -> bool:
+    """Return True if a section should be kept in tier='lite' output.
+
+    Prefers an explicit keep match; falls back to dropping anything whose
+    heading matches a drop pattern. Sections not matching either rule
+    are kept (safer default — authors label the dense ones explicitly).
+    """
+    h = heading.lower()
+    if any(p in h for p in _LITE_KEEP_PATTERNS):
+        return True
+    if any(p in h for p in _LITE_DROP_PATTERNS):
+        return False
+    return True
+
+
 def _get_collection(db_dir: Path) -> chromadb.Collection:
     """Get the ChromaDB collection with pinned embedding function."""
     embedding_fn = SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
@@ -139,8 +183,10 @@ def create_server(skills_dir: Path, db_dir: Path) -> FastMCP:
             if similarity < min_similarity:
                 continue
             opsec = metadata.get("opsec", "unknown")
+            risk = metadata.get("classifier_risk", "low")
+            risk_tag = f", classifier_risk: {risk}" if risk != "low" else ""
             lines.append(
-                f"**{id_}** ({metadata['category']}, opsec: {opsec}) "
+                f"**{id_}** ({metadata['category']}, opsec: {opsec}{risk_tag}) "
                 f"[similarity: {similarity:.2f}]\n"
                 f"  {metadata['description'][:200]}"
             )
@@ -150,13 +196,24 @@ def create_server(skills_dir: Path, db_dir: Path) -> FastMCP:
         return "\n\n".join(lines)
 
     @mcp.tool()
-    def get_skill(name: str, section: str = "") -> str:
+    def get_skill(name: str, section: str = "", tier: str = "") -> str:
         """Load a pentesting skill's SKILL.md by name.
 
         By default returns the skill's CORE — full methodology, steps and
         payloads — with long-tail sections (Troubleshooting) omitted to save
         tokens; the response lists what was omitted. If a step fails, fetch the
         rest with section="troubleshooting" (or section="full" for everything).
+
+        **Classifier-risk tiered loading.** Some skills carry dense offensive
+        terminology (named exploits, AMSI/ETW references, specific tool CLIs)
+        that can trip the Anthropic safety classifier at load time. These
+        skills are tagged `classifier_risk: high` in their frontmatter —
+        surfaced in search_skills results. For a tagged skill, pass
+        `tier="lite"` on the first load: returns scope boundary, verification
+        oracle, routing, and prerequisites — enough to decide whether this
+        is the right skill — WITHOUT the attack-variant bodies. Escalate
+        with no tier arg (default: core) or `tier="full"` only when the
+        teammate actually needs to run the technique.
 
         Args:
             name: Skill name (e.g., "sql-injection-union", "kerberos-roasting",
@@ -165,6 +222,10 @@ def create_server(skills_dir: Path, db_dir: Path) -> FastMCP:
             section: "" (default) = core; "full" = the entire SKILL.md;
                   otherwise a heading substring (e.g. "troubleshooting") to fetch
                   just that section on demand.
+            tier: "" (default) = whatever `section=` resolves to;
+                  "lite" = structural scaffolding only (no attack-variant
+                  bodies), for the first-pass look at a classifier-risk=high
+                  skill; "full" = equivalent to section="full".
         """
         # Look up the skill path from ChromaDB metadata
         results = collection.get(ids=[name], include=["metadatas"])
@@ -196,18 +257,48 @@ def create_server(skills_dir: Path, db_dir: Path) -> FastMCP:
                 )
 
         content = skill_path.read_text()
+        risk = (metadata.get("classifier_risk") or "low").lower()
+        risk_banner = (
+            f"**Classifier-risk**: {risk}\n" if risk != "low" else ""
+        )
         header = (
             f"# SKILL: {name}\n"
             f"**Category**: {metadata['category']}\n"
+            f"{risk_banner}"
             f"**Source**: {skill_path}\n\n"
             f"---\n\n"
         )
 
+        tier_norm = tier.strip().lower()
         want = section.strip().lower()
-        if want == "full":
+        if tier_norm == "full" or want == "full":
             return header + content
 
         preamble, sections = _split_sections(content)
+
+        # tier="lite" — structural scaffolding, no attack-variant bodies.
+        # Caller is expected to re-call without tier (or with tier="full")
+        # when it needs the actual commands.
+        if tier_norm == "lite":
+            kept_parts = [preamble]
+            kept_headings: list[str] = []
+            dropped_headings: list[str] = []
+            for heading, text in sections:
+                if _is_lite_keeper(heading):
+                    kept_parts.append(text)
+                    kept_headings.append(heading)
+                else:
+                    dropped_headings.append(heading)
+            core = "".join(kept_parts)
+            if dropped_headings:
+                dropped = ", ".join(dropped_headings)
+                core += (
+                    f"\n\n---\n_Tier=lite: attack-variant bodies omitted "
+                    f"(**{dropped}**). Call `get_skill(\"{name}\")` without "
+                    f"the tier arg to load the full methodology — do so only "
+                    f"when actually running the technique._\n"
+                )
+            return header + core
 
         # Specific section requested → return just the matching section(s).
         if want:

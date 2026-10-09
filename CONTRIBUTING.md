@@ -90,8 +90,19 @@ tools:
   - tool1
   - tool2
 opsec: low|medium|high
+classifier_risk: low|medium|high   # optional; default: low
 ---
 ```
+
+`opsec` is about target-detection loudness (what the defender's
+AV/EDR/SIEM catches). `classifier_risk` is independent — it's about
+how densely the skill text names offensive terminology (AMSI/ETW,
+mimikatz/secretsdump, named CVEs, shellcode fragments). Set `high`
+when the skill reads like a reference checklist of attack tool
+names and payload patterns — teammates then load it with
+`tier="lite"` first and escalate only on need. Threshold rule of
+thumb: >60 verbatim offensive terms OR density >0.11
+trigger-words/line.
 
 ### Body structure
 

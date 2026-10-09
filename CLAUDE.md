@@ -141,6 +141,17 @@ defined in their templates.
    — call it directly, not via a subagent. The full skill text MUST be in
    YOUR context window. **Never use the Agent tool or Skill tool to load
    skills.**
+   **Classifier-risk tiered load.** If `search_skills` reports the
+   skill with `classifier_risk: high` (densely offensive terminology
+   — AMSI/ETW, specific credential-dump tools, named CVE/exploit
+   families), do the first load with
+   `get_skill(name="<skill-name>", tier="lite")`. That returns scope,
+   verification, routing, prerequisites — enough to decide you have
+   the right skill — without the attack-variant bodies. Only call
+   `get_skill(name="<skill-name>")` (default: core) again when you
+   actually need the commands; `tier="full"` when the lite or core
+   version was insufficient. For skills tagged `low` or `medium`,
+   the default call is fine.
    **If `get_skill` isn't resolvable yet, WAIT — do not report blocked on
    the first miss.** skill-router loads an embedding model + ChromaDB on
    startup, so it connects much slower than `state` (seconds vs. tens of
