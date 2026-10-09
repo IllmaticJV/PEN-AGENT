@@ -1,8 +1,19 @@
 # Dashboard & Monitoring
 
-PEN-AGENT provides real-time visibility into teammate execution through Claude Code agent teams and the state dashboard.
+PEN-AGENT provides real-time visibility through two complementary surfaces: the operator **web portal** for state and progress at a glance, and **tmux split-panes** for watching teammates live.
 
-## Agent Teams (Primary)
+## Operator portal (`http://127.0.0.1:8099`)
+
+Mostly read-only web view started automatically by `run.sh` in a tmux session (`pen-portal`). Four tabs:
+
+- **Objective & Scope** — the engagement objective + rules of engagement (`engagement/scope.md`), the in-scope allowlist (`scope.allow`), and engagement meta.
+- **Goals** — the parsed `OBJECTIVES:` list rendered as per-objective status cards + a progress hero (`N% complete · M of total done`). **The operator can toggle each objective done / pending straight from the dashboard** (checkbox on the card) — this writes `engagement/objectives.json` directly with the same schema the lead's `mcp__state__update_objective` tool uses, so both views stay coherent. The lead still owns `in_progress` / `blocked` / `skipped` via MCP; the dashboard toggle is the common binary done↔pending flip. Auto-appended note: `"toggled from portal (<iso-ts>)"`.
+- **Status** — live engagement state from `state.db`: targets + ports, credentials, access, vulns, pivots, tunnels, event timeline, and the access-chain graph.
+- **MSF Logs** — the live Metasploit session + listener/job list, a per-session command log (every command an agent ran, operator-reserved sessions badged), and a Module Calls list showing every `start_handler` / `run_module` / `start_socks_proxy` / `upgrade_to_meterpreter` / `generate_payload` call with options + result. Jobs rows link to the matching module-setup log by `job_id`.
+
+Binds `127.0.0.1` only by default; `bash operator/portal/generate-token.sh` writes an HMAC token to `~/.config/pen-agent/viewer-token`, after which the server binds `0.0.0.0` and requires the token on login (session cookie or `Authorization: Bearer`). Portal writes are CSRF-guarded by a required `X-Requested-With: pen-agent-portal` header.
+
+## Agent Teams (teammate live view)
 
 PEN-AGENT uses [Claude Code agent teams](https://code.claude.com/docs/en/agent-teams) for teammate coordination and visibility. Each teammate runs in its own tmux pane, giving the operator a live view of all parallel work.
 

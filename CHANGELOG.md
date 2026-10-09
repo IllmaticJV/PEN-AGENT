@@ -3,6 +3,44 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (docs sync)
+
+### Changed
+
+Documentation refresh across README + 5 docs pages to reflect
+everything that landed over the recent sprint.
+
+- **`README.md`** — adds the preflight payload bake-off blurb
+  (mandatory at init, OSEP XOR loader, never-read trust rule) and
+  the classifier-risk tiered skill loading blurb (9 tagged skills
+  loaded `tier="lite"` first).
+- **`docs/architecture.md`** — fixed the stale "67+ skills" claim
+  (now 94); teammate ↔ MCP table extended with shell-mgr, scribe,
+  smb-ops, ai-enum, ai-ops rows; added "Scope Enforcement in Code"
+  section with the per-server entry-point table; added
+  "Classifier-Risk Tiered Loading" section with the auth-coercion-
+  relay example (884 → 128 lines, 86% reduction); contract-doc
+  pattern (RECORDING.md, SESSIONS.md, WRITES.md) called out.
+- **`docs/mcp-servers.md`** — skill-router `get_skill` tool now
+  documents the `tier=` arg; added the 9-skill classifier_risk
+  list; `shell-server` section updated to 9 tools (adds
+  `record_exploit` + `record_non_session_exploit`), with the
+  `send_command` refusal gate noted; `start_process` scope-pattern
+  behavior documented; new `rdp-server` section (10 tools with
+  OPSEC caveat + scope guardrail); browser-server scope guardrail
+  noted.
+- **`docs/writing-skills.md`** — frontmatter table carries the new
+  `classifier_risk` row with the threshold rule-of-thumb
+  (>60 trigger words OR density >0.11); new subsection "When to
+  set classifier_risk: high" with the 9 currently-tagged skills.
+- **`docs/dashboard-and-monitoring.md`** — new section leading
+  with the operator portal (4 tabs), including the operator-driven
+  objective toggle on the Goals tab and the CSRF guard.
+- **`docs/index.md`** — Key capabilities list rewritten: 94 skills
+  across 11 categories, OSCP + OSAI syllabi; code-enforced scope
+  across 5 servers; preflight payload bake-off; reproducible
+  findings; RDP automation (aardwolf).
+
 ## 2026-10-09 (project-wide final audit)
 
 ### Removed

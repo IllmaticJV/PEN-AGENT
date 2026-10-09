@@ -14,11 +14,14 @@ An **orchestrator** (team lead) runs in your main conversation. You give it targ
 
 **Key capabilities:**
 
-- **Skill-driven methodology** — 67 skills covering web exploitation, Active Directory attacks, privilege escalation, network recon, evasion, and credential recovery. Each skill embeds payloads, tool commands, troubleshooting, and OPSEC guidance.
+- **Skill-driven methodology** — 94 skills across 11 categories, covering the full **OSCP (PEN-200)** and **OSAI (AI-300)** syllabi: web exploitation, Active Directory attacks, privilege escalation, network recon, SMB, evasion, credential recovery, client-side attacks, public-exploit adaptation, software supply chain, and AI red teaming (prompt injection, agents, RAG, model/training-data extraction, adversarial ML).
 - **Persistent shell sessions** — Reverse shells and interactive tools (evil-winrm, psexec.py, ssh, msfconsole) maintain state across teammate tasks via the shell MCP server.
-- **Headless browser automation** — Playwright-backed browser sessions handle CSRF tokens, JavaScript-rendered forms, and multi-step auth flows that curl can't.
-- **Semantic skill routing** — ChromaDB + sentence-transformer embeddings match attack scenarios to the right skill via natural language search.
-- **Engagement state tracking** — SQLite database tracks targets, credentials, access, vulnerabilities, pivot paths, and blocked techniques. Drives automated chaining.
+- **Headless browser + RDP automation** — Playwright for web; `aardwolf` for pure-Python RDP (no X11 / Xvfb).
+- **Semantic skill routing** — ChromaDB + sentence-transformer embeddings match attack scenarios to the right skill via natural language search. `search_skills` surfaces `opsec` and `classifier_risk` so teammates pick the right load tier.
+- **Code-enforced scope** — All five target-touching MCP servers (nmap, metasploit, shell, browser, rdp) read `engagement/scope.allow` and refuse out-of-scope targets. Scope is not a prompted request; it's a guarantee.
+- **Preflight payload bake-off** — At engagement init, shell-mgr pre-generates ~13 msfvenom payloads (Windows exes get an OSEP-starter XOR loader when `mingw-w64` is installed) and brings up a hot handler per entry. Teammates grab a baked payload with `tools/preflight/pick.py` instead of running msfvenom mid-exploit.
+- **Engagement state tracking** — SQLite database tracks targets, credentials, access, vulnerabilities, pivot paths, tunnels, and timeline events. One writer (state-mgr), many readers.
+- **Reproducible findings** — Every confirmed vuln becomes an OffSec-style finding with a complete command-by-command `steps_to_reproduce` path, a verification oracle, and evidence refs. `export_report.py --strict` rejects anything self-graded or unreproducible.
 - **Retrospectives** — Post-engagement analysis identifies skill gaps and routing mistakes for continuous improvement.
 
 ## Quick start
