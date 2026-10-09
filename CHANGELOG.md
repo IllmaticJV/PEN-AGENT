@@ -3,6 +3,60 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (OSCP skill expansion)
+
+### Added
+
+Three new technique skills closing gaps against the OSCP (PEN-200)
+syllabus. Skill count: 91 → 94, categories: 10 → 11.
+
+- **`skills/credential/online-password-attacks`** — many passwords
+  against few users on one service: Hydra / medusa / patator /
+  ffuf against SSH, FTP, RDP, SMB, HTTP form login, Basic/Digest,
+  POP3/IMAP, MSSQL, MySQL. Distinct from `password-spraying`
+  (one-pwd-many-users profile with different lockout curve).
+  Covers OSCP's Password Attacks module. **Hard rule**: honor
+  lockout policy — confirm `LockoutThreshold` via null-session
+  or known-good policy read before attacking any AD service;
+  hand off to `password-spraying` if `>0`.
+- **`skills/client-side/client-side-attacks`** — new `client-side/`
+  category. HTA, Office VBA macros (DOCM/XLSM, remote-template
+  injection), LNK + ISO container (MotW strip), HTML smuggling,
+  CHM, OneNote side-load. Covers OSCP's Client-side Attacks
+  module. **Hard rule**: benign canary payloads only in
+  untargeted channels; real callback payloads only against an
+  authorized test user who agreed to click or a controlled lab.
+- **`skills/research/public-exploit-adaptation`** — locate the
+  right PoC for a CVE (ExploitDB, GitHub, vendor advisories),
+  read it adversarially (external connections, shellcode decode,
+  file writes outside `$TMPDIR`), patch the usual breakage
+  (python2→3, stale offsets, hard-coded IPs, dependency drift),
+  compile offline, and ship. Pre-step is always
+  `tools/exploit-index/lookup.py` for the local MSF-module hint;
+  this skill is the fallback when MSF has no module. Covers
+  OSCP's "Locating Public Exploits" and "Fixing Exploits"
+  modules.
+
+### Changed
+
+Teammate wiring (same convention as the OSAI expansion):
+- `teammates/spray.md`: preamble now names both skills — one-pwd-
+  many-users vs. many-pwd-few-users — with the lockout-risk
+  tradeoff explicit.
+- `teammates/bypass.md`: preamble names both skills — payload
+  rebuild for a specific AV detection vs. delivery-vehicle
+  crafting (HTA / macro / LNK / ISO / HTML smuggling).
+- `teammates/research.md`: preamble names all three research
+  skills with their task shapes and the pre-step pointer to
+  `tools/exploit-index/lookup.py`.
+- Orchestrator skill-routing table (`skills/ctf/SKILL.md`)
+  extended for spray, bypass, and research rows.
+- `docs/skills-reference.md`: three new sections (Credential 1→2,
+  Client-side, Research — formerly embedded). Preamble notes the
+  OSCP coverage.
+- `README.md`: 91→94 skills, 10→11 categories; explicit mention
+  of OSCP + OSAI syllabus coverage.
+
 ## 2026-10-09 (OSAI teammate wiring)
 
 ### Fixed

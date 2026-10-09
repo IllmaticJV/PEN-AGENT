@@ -205,10 +205,10 @@ Read spawn templates from `teammates/` at runtime via the Read tool.
 
 | Template | Name | Domain | Model | Skills |
 |----------|------|--------|-------|--------|
-| `teammates/bypass.md` | bypass | AV/EDR bypass | sonnet | av-edr-evasion |
-| `teammates/spray.md` | spray | Password spraying | haiku | password-spraying |
+| `teammates/bypass.md` | bypass | AV/EDR bypass + client-side payload delivery | sonnet | av-edr-evasion, client-side-attacks |
+| `teammates/spray.md` | spray | Password spraying + online password guessing | haiku | password-spraying, online-password-attacks |
 | `teammates/recover.md` | recover | Offline recovery | haiku | credential-recovery |
-| `teammates/research.md` | research | Deep analysis | **ask operator** | unknown-vector-analysis |
+| `teammates/research.md` | research | Deep analysis + public-exploit adaptation | **ask operator** | unknown-vector-analysis, source-code-review, public-exploit-adaptation |
 
 **Research model choice:** When spawning a research teammate, ask the operator:
 `AskUserQuestion: "Research task: <description>. Model?"` with options
