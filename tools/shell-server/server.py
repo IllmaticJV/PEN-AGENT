@@ -54,6 +54,43 @@ from starlette.responses import JSONResponse
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 from callback import _linux_payload, _resolve_callback_ip, _windows_payload
+from scope import ScopeError, check_scope
+
+
+# Extract target host(s) from a start_process command line for scope
+# checking. Only matches patterns we're confident about — ssh/scp/sftp
+# user@host, impacket user:pass@host, evil-winrm -i host. Returns the
+# list of distinct hosts seen (may be empty if nothing recognized).
+_START_PROCESS_HOST_PATTERNS = [
+    # ssh user@host or ssh host (bare); flag chunks like `-i key` skipped
+    re.compile(r"\bssh\s+(?:-\S+\s+(?:\S+\s+)?)*(?:[\w.-]+@)?([\w.-]+)"),
+    # scp / sftp / rsync REQUIRE user@host (host-only form means local file)
+    re.compile(r"\b(?:scp|sftp|rsync)\b[^@]*[\w.-]+@([\w.-]+)"),
+    # impacket user[:pass]@host — matches both the Debian/Kali wrapper
+    # names (`impacket-wmiexec`) and the raw `wmiexec.py` form.
+    re.compile(r"(?:impacket-|^|\s)(?:psexec|wmiexec|smbexec|dcomexec|smbclient|mssqlclient|atexec|rpcdump|GetUserSPNs|getTGT|secretsdump|lookupsid|rpcclient)(?:\.py)?\s+\S*@([\w.-]+)"),
+    # evil-winrm -i host
+    re.compile(r"\bevil-winrm[^\n]*?-i\s+([\w.-]+)"),
+    # nxc / crackmapexec protocol host
+    re.compile(r"\b(?:nxc|crackmapexec|netexec)\s+\S+\s+([\w.-]+)"),
+]
+
+
+def _extract_targets(command: str) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for pat in _START_PROCESS_HOST_PATTERNS:
+        for m in pat.finditer(command):
+            host = m.group(1).strip().lower().rstrip(".")
+            # Skip localhost-ish and non-host-looking captures
+            if host in ("", "localhost", "127.0.0.1", "::1", "0.0.0.0"):
+                continue
+            if host.startswith("-"):  # a captured flag, not a host
+                continue
+            if host not in seen:
+                seen.add(host)
+                out.append(host)
+    return out
 from docker_shell import (
     DOCKER_STAGE_DIR,
     SHELL_DOCKER_IMAGE,
@@ -483,6 +520,16 @@ def create_server() -> FastMCP:
                        for tools needing raw sockets.
                        Requires the pen-agent-shell Docker image.
         """
+        # Scope guardrail — refuse hosts not in scope.allow when the
+        # command's target can be extracted. Unparseable commands fall
+        # through to the operator-approval prompt; this is defense in
+        # depth for the common cases (ssh/impacket/evil-winrm/nxc).
+        try:
+            for host in _extract_targets(command):
+                check_scope(host, _PROJECT_ROOT)
+        except ScopeError as e:
+            return f"ERROR: {e}"
+
         session_id = str(uuid.uuid4())[:8]
         effective_label = label or command.split()[0].split("/")[-1]
 

@@ -36,6 +36,8 @@ from urllib.parse import urlsplit, urlunsplit
 from markdownify import markdownify
 from mcp.server.fastmcp import FastMCP
 
+from scope import ScopeError, check_scope
+
 # Resolve engagement directory relative to the project root, not the server's
 # own directory.  uv run --directory changes cwd to tools/browser-server/, so
 # bare Path("engagement/...") would land artifacts inside the tools tree.
@@ -218,6 +220,16 @@ def create_server() -> FastMCP:
             proxy: Optional upstream proxy listener, e.g.
                    "http://127.0.0.1:8080" for Burp Suite.
         """
+        # Scope guardrail — refuse URLs whose host isn't in scope.allow
+        try:
+            host = urlsplit(url).hostname
+            if host:
+                check_scope(host, _PROJECT_ROOT)
+        except ScopeError as e:
+            return f"ERROR: {e}"
+        except ValueError:
+            return f"ERROR: could not parse URL {url!r}"
+
         session_id = str(uuid.uuid4())[:8]
         context = None
 
@@ -288,6 +300,16 @@ def create_server() -> FastMCP:
         if session_id not in sessions:
             available = ", ".join(sessions.keys()) if sessions else "none"
             return f"ERROR: Session '{session_id}' not found. Available: {available}"
+
+        # Scope guardrail — refuse URLs whose host isn't in scope.allow
+        try:
+            host = urlsplit(url).hostname
+            if host:
+                check_scope(host, _PROJECT_ROOT)
+        except ScopeError as e:
+            return f"ERROR: {e}"
+        except ValueError:
+            return f"ERROR: could not parse URL {url!r}"
 
         page = sessions[session_id]["page"]
 

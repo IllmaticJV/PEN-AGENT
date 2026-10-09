@@ -3,6 +3,34 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (scope-enforcement expansion)
+
+### Added
+
+- **`scope.allow` enforcement wired into shell-server, browser-server,
+  and rdp-server** — closes the coverage gap noted in the previous
+  multi-audit. The identical `scope.py` module (same one nmap-server
+  and metasploit-server use) is now copied into each of the three
+  servers, imported, and called at every target-touching tool entry
+  point:
+  - **browser-server**: `browser_open` and `browser_navigate` extract
+    the URL host via `urlsplit` and call `check_scope(host)`.
+    Out-of-scope URLs return `OUT OF SCOPE: ...` without touching
+    the browser.
+  - **rdp-server**: `rdp_connect` checks `host=` before opening the
+    aardwolf connection.
+  - **shell-server**: `start_process` pattern-matches the command
+    for common CLI shapes (ssh / scp / sftp / rsync `user@host`,
+    impacket `wmiexec.py` / `impacket-wmiexec` and friends,
+    `evil-winrm -i host`, `nxc <proto> host`) and runs each
+    extracted host through `check_scope`. Unparseable commands fall
+    through to the operator-approval prompt — defense in depth, not
+    a replacement for the permission gate. 13-case extraction smoke
+    test added at `tools/shell-server/tests/test_scope_extraction.py`;
+    all 17 existing shell-server tests still pass.
+- Updated the "Stay in scope" rule in `CLAUDE.md` — now says all five
+  target-touching servers enforce (not just two).
+
 ## 2026-10-09 (multi-audit sweep)
 
 Five audits run across the project. Three came back clean, two found
