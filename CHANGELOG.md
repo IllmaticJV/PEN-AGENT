@@ -3,6 +3,43 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (contract split rollout)
+
+### Added
+
+- **`tools/shell-server/SESSIONS.md`** — the session-lifecycle message
+  contract (inbound tags, outbound replies, lead notifications,
+  preflight responses). Loaded by shell-mgr on activation. The MCP
+  tool docstrings on shell-server / metasploit-server remain the
+  normative source for per-field semantics.
+- **`tools/state-server/WRITES.md`** — the state-write message
+  contract (inbound tags for all 13 message types state-mgr handles,
+  outbound confirmations, lead notifications, agent-attribution
+  rules, write-tool call signatures, validation rules). Loaded by
+  state-mgr on activation. Fixes earlier drift between
+  `teammates/state-mgr.md` (defined 13 message types) and
+  `CLAUDE.md` (listed only 9).
+
+### Changed
+
+- **`teammates/shell-mgr.md`** slimmed 405 → 337 lines by replacing
+  its "Message Protocol" section (inbound/outbound/lead messages)
+  with a pointer to `SESSIONS.md` plus a one-line inbound-tag
+  reference table. Behavior unchanged.
+- **`teammates/state-mgr.md`** slimmed 407 → 295 lines by replacing
+  its "Message Protocol" + "State Tool Reference" + validation
+  blocks with pointers to `WRITES.md`. Behavior unchanged; the
+  dedup / graph-coherence / flow-graph judgment sections (which are
+  what state-mgr actually DOES) stay in the template.
+- **`CLAUDE.md` § Finding Reports** compressed ~30 → ~20 lines by
+  pointing at the schema and example files for the full field list
+  and keeping only the two judgment-call invariants (independent
+  verification oracle; record steps as you go). Token win across
+  every teammate turn since CLAUDE.md rides them all.
+- `CONTRIBUTING.md` "Teammate template authorship" updated — the
+  contract-doc pattern now lists all three applications (scribe,
+  shell-mgr, state-mgr).
+
 ## 2026-10-09 (scribe contract split)
 
 ### Added

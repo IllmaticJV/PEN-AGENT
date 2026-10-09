@@ -182,40 +182,29 @@ message to any teammate.
 
 ### Finding Reports (OffSec-style, reproducible)
 
-A vuln row in state.db is the attack graph, not the deliverable. The moment you
-**confirm** a vuln (it becomes `actioned`), you — the teammate that found it —
-MUST also write an OffSec-style finding to `engagement/findings/<id>.json`
-conforming to `tools/reporter/finding.schema.json`. Copy the worked example at
-`tools/reporter/examples/finding-prompt-injection.json` and fill it in.
+A vuln row in state.db is the attack graph, not the deliverable. The
+moment you **confirm** a vuln (it becomes `actioned`), you — the
+teammate that found it — MUST also write an OffSec-style finding to
+`engagement/findings/<id>.json`.
 
-Jumpstart: `python3 tools/reporter/new_finding.py <vuln_id>` writes
-`engagement/findings/<vuln_id>.json` pre-populated from state.db
-(target, title, severity, affected, classification hints, finding id).
-Open it and fill the TODO fields — `steps_to_reproduce`, the
-`verification` oracle, `impact`, `placeholders.ATTACKBOX`. Flip
-`confidence` / `verification.status` to `confirmed` only when the
-oracle actually fires.
+- **Schema (contract):** `tools/reporter/finding.schema.json` — the
+  normative source for required fields, enums, and shape. The
+  exporter (`tools/reporter/export_report.py --strict`) rejects any
+  finding that misses a required field or lacks a reproduction path.
+- **Worked example:** `tools/reporter/examples/finding-prompt-injection.json`
+- **Jumpstart:** `python3 tools/reporter/new_finding.py <vuln_id>`
+  pre-populates `engagement/findings/<vuln_id>.json` from state.db.
+  Fill the TODO fields — `steps_to_reproduce`, `verification`,
+  `impact`, `placeholders.ATTACKBOX` — and the exporter will accept it.
 
-Non-negotiable contents (the exporter enforces these):
+Two invariants that don't live in the schema (judgment calls):
 
-- **`steps_to_reproduce`** — the COMPLETE, ordered exploit path: every command
-  you actually ran to reach the objective, copy-pasteable, each with
-  `expected_result`, `actual_result`, and an `evidence_ref` to the saved raw
-  output. UI/chat actions give the literal `payload`. Record steps as you go so
-  the path is real, not reconstructed from memory.
-- **`verification`** — how success was PROVEN independently of your own opinion
-  (out-of-band callback, exfiltrated canary, code execution, concrete state
-  change). Never mark `status: confirmed` on model judgement alone; use
-  `plausible` instead.
-- **`placeholders`** — operator-specific values (e.g. `ATTACKBOX`) used in
-  commands, so every step is runnable as-is.
-- severity, impact, affected target(s), remediation, taxonomy (CWE / OWASP LLM /
-  MITRE ATLAS / AI-300 module).
-
-Save the raw output of each exploit step to `engagement/evidence/` and point
-`evidence_ref` at it. The lead runs `tools/reporter/export_report.py --strict`
-at reporting; a finding with no reproducible command path or no oracle is
-rejected and is not considered done.
+- **`verification.status: confirmed`** requires an independent oracle
+  (out-of-band callback, exfiltrated canary, concrete state change).
+  Never mark `confirmed` on model judgement alone — use `plausible`.
+- **Record `steps_to_reproduce` as you go.** The path must be real,
+  not reconstructed from memory; point every step's `evidence_ref`
+  at a saved file under `engagement/evidence/`.
 
 ### Tool Execution
 
