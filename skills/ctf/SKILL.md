@@ -183,7 +183,7 @@ Read spawn templates from `teammates/` at runtime via the Read tool.
 
 | Template | Naming | Domain | Model | Skills |
 |----------|--------|--------|-------|--------|
-| `teammates/net-enum.md` | net-enum, net-enum-\<target\> | Network recon + service enum | haiku | network-recon, smb-enumeration, db-enumeration, remote-access-enumeration, infrastructure-enumeration |
+| `teammates/net-enum.md` | net-enum, net-enum-\<target\> | Network recon + service enum (initial 139/445 sweep only — deep SMB goes to smb-ops) | haiku | network-recon, db-enumeration, remote-access-enumeration, infrastructure-enumeration |
 | `teammates/web-enum.md` | web-enum-\<site\> | Web app discovery | sonnet | web-discovery |
 | `teammates/ad-enum.md` | ad-enum | AD discovery | sonnet | ad-discovery |
 | `teammates/lin-enum.md` | lin-enum-\<host\> | Linux host discovery | haiku | linux-discovery |
@@ -196,6 +196,7 @@ Read spawn templates from `teammates/` at runtime via the Read tool.
 |----------|--------|--------|-------|--------|
 | `teammates/web-ops.md` | web-ops, web-ops-\<target\> | Web techniques | sonnet | All web technique skills |
 | `teammates/ad-ops.md` | ad-ops | AD techniques | sonnet | All AD technique skills |
+| `teammates/smb-ops.md` | smb-ops, smb-ops-\<target\> | SMB enum, lateral movement, exploits, relay, share loot | sonnet | smb-enumeration, smb-exploitation, pass-the-hash, auth-coercion-relay (SMB-sink leg), credential-dumping (post-admin) |
 | `teammates/lin-ops.md` | lin-ops-\<host\> | Linux privesc | sonnet | All linux privesc skills, container-escapes |
 | `teammates/win-ops.md` | win-ops-\<host\> | Windows privesc | sonnet | All windows privesc skills |
 | `teammates/ai-ops.md` | ai-ops, ai-ops-\<target\> | AI exploitation | sonnet | All AI technique skills (prompt-injection, rag-exploitation, embedding-attacks, multi-agent-attacks, mcp-tool-abuse, ml-supply-chain, ai-infra-exploitation) |
@@ -914,16 +915,24 @@ the shell request.
 Route by discovered ports — run in parallel across teammates:
 
 ```
-ports 139,445        → net-enum: smb-enumeration
+ports 139,445        → smb-ops-<target>: smb-enumeration + onward (deep enum, loot, lateral, exploits)
 ports 1433,3306,...  → net-enum: database-enumeration
 ports 21,22,3389,... → net-enum: remote-access-enumeration
 ports 53,25,161,...  → net-enum: infrastructure-enumeration
 ports 80,443,...     → web-enum-<target>: web-discovery (after proxy setup)
-ports 88+389+445     → ad-enum: ad-discovery
+ports 88+389+445     → ad-enum: ad-discovery   (smb-ops still owns the 445 attack surface; ad-enum focuses on LDAP/Kerberos/BloodHound)
 AI/ML service ports  → ai-enum-<target>: ai-recon
   (11434 Ollama, 8000 vLLM/Triton, 8081 TorchServe, 8265 Ray, 5000 MLflow,
    8888 Jupyter, 7860 Gradio, 8501 Streamlit, 6333/19530 vector DBs)
 ```
+
+**SMB routing** — net-enum reports port 139/445 open and stops there.
+Spawn `smb-ops-<target>` for every host (or `/24`) with SMB exposed; it
+owns deep enum (shares, users, policy, signing), share loot, SMB-based
+lateral movement, SMB protocol exploits (MS17-010, SMBGhost), and the
+SMB-sink leg of Responder/ntlmrelayx. Candidate credentials still go to
+`spray` for fleet-wide testing (smb-ops hands them over with lockout
+policy context).
 
 **Multiple web services:** If a target has web on multiple ports (80, 443, 8080,
 8443) or multiple targets each have web services, spawn a web-enum per distinct

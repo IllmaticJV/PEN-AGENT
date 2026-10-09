@@ -3,6 +3,28 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09
+
+### Added
+
+- **New teammate: `smb-ops`.** Dedicated SMB specialist that owns the
+  445/139 attack surface end-to-end — deep enum (shares, users, policy,
+  signing posture), share loot (SYSVOL/GPP/backups/kdbx/cpassword),
+  SMB-based lateral movement (wmiexec → dcomexec → smbexec → psexec in
+  that quietness order; pass-the-hash via all four), SMB protocol
+  exploits (MS17-010 EternalBlue, SMBGhost / CVE-2020-0796, null-session
+  RCE), and the SMB-sink leg of Responder + ntlmrelayx (with signing-posture
+  relay-list check and the shared port-445 hygiene check). Loads
+  `smb-enumeration`, `smb-exploitation`, `pass-the-hash`,
+  `auth-coercion-relay`, and `credential-dumping`.
+- Orchestrator service-port routing now sends 139/445 to `smb-ops-<target>`
+  rather than net-enum (net-enum still owns the initial sweep that
+  surfaces the open port). ad-enum keeps LDAP/Kerberos/BloodHound;
+  smb-ops still owns 445 even in AD environments and coordinates with
+  ad-ops when a relay has multiple sinks.
+- `teammates/README.md` lists the new ops teammate; `teammates/net-enum.md`
+  gains a one-line peer-handoff note.
+
 ## 2026-10-06 (standardization pass, cont.)
 
 ### Changed

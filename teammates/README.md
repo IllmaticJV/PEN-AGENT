@@ -45,6 +45,7 @@ or agent definitions — they're prompt templates.
 |------|--------|--------|-------|
 | `web-ops.md` | web-ops, web-ops-\<target\> | Web technique execution | sonnet |
 | `ad-ops.md` | ad-ops | AD technique execution | sonnet |
+| `smb-ops.md` | smb-ops, smb-ops-\<target\> | SMB enum + lateral movement + exploits + relay + share loot | sonnet |
 | `lin-ops.md` | lin-ops-\<host\> | Linux privesc techniques | sonnet |
 | `win-ops.md` | win-ops-\<host\> | Windows privesc techniques | sonnet |
 | `ai-ops.md` | ai-ops, ai-ops-\<target\> | AI exploitation (LLM/agent/RAG/MCP/infra) | sonnet |

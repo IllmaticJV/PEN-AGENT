@@ -47,6 +47,8 @@ message lead:      IMMEDIATELY for:
                    Mid-task findings should be messaged AS FOUND — do not
                    batch into the final report.
 message teammate:  credential found → ad/web teammate; new subnet → pivoting
+                   port 139/445 open on a host → the lead spawns smb-ops-<host>
+                   for deep SMB enum + onward (you only report the open ports)
 ```
 
 ## Nmap via MCP
