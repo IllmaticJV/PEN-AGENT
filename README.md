@@ -195,15 +195,16 @@ supply chain — mapped to the OffSec **AI-300 (OSAI)** syllabus).
 | Reporter | `tools/reporter/` — confirmed vulns → OffSec-style findings with reproducible exploit paths. |
 | Knowledge | `knowledge/lessons-learned.md` — persistent, cross-engagement lessons. |
 
-**84 skills** across 9 categories — web (37), AD (15), privesc (11), network
-(9), ai (8), credential/evasion/post-exploit/research (1 each) — plus the
-orchestrator and retrospective skills. Full list:
+**91 skills** across 10 categories — web (37), AD (15), privesc (11), network
+(9), ai (11), supply-chain (1), credential/evasion/post-exploit/research
+(1 each) — plus the orchestrator and retrospective skills. Full list:
 [Skills Reference](docs/skills-reference.md).
 
 **Scope is enforced in code, not prompted.** The orchestrator writes
-`engagement/scope.allow` at engagement start; the nmap and metasploit MCP
-servers refuse any target not in it. Absent allowlist = enforcement off (and
-logged) — the orchestrator always writes one.
+`engagement/scope.allow` at engagement start; all five target-touching MCP
+servers (nmap, metasploit, shell, browser, rdp) refuse any target not in it.
+Absent allowlist = enforcement off (and logged) — the orchestrator always
+writes one.
 
 **Findings are reproducible.** A confirmed vuln becomes an OffSec-style
 finding carrying the complete `steps_to_reproduce` command path (expected vs.

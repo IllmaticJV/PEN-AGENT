@@ -3,6 +3,55 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (OSAI skill expansion)
+
+### Added
+
+Four new technique skills expanding OSAI/AI-300 coverage and the
+general software supply chain. Skill count: 87 → 91.
+
+- **`skills/ai/model-extraction`** — model theft via query-only
+  access. Covers knockoff-model training, logit/logprob extraction,
+  model fingerprinting (base + fine-tune via refusals, tokenization,
+  trivia, latency), and system-prompt extraction (direct ask,
+  role-play, completion continuation, divergence attack, translation
+  gambit). OWASP LLM10, MITRE ATLAS AML.T0024.
+- **`skills/ai/training-data-extraction`** — memorization-based
+  training-data recovery. Covers verbatim completion from high-
+  entropy prefixes (Carlini family), canary queries, PII sweep,
+  divergence / repeat-token attack, and membership inference as
+  the fallback. OWASP LLM06, MITRE ATLAS AML.T0057.
+- **`skills/ai/adversarial-ml`** — evasion attacks against non-LLM
+  classifiers. Covers white-box PGD / Carlini-Wagner (CV), grey-box
+  query-based attacks (SquareAttack with logits), black-box transfer
+  attacks via substitute models, physical patch attacks (face
+  recognition, stop signs), and non-CV modalities (speech-to-text
+  Carlini audio, NLP via textattack, tabular IDS/fraud evasion).
+  OWASP ML01 (Input Manipulation).
+- **`skills/supply-chain/supply-chain-attacks`** — general software
+  supply chain, separate from `ml-supply-chain`. Covers dependency
+  confusion (private name on public registry), typosquatting,
+  lockfile poisoning, CI/CD workflow injection (GitHub Actions
+  `pull_request_target`, interpolated `${{ github.event.* }}` in
+  `run:` blocks), action-pin bypass, and build-plugin / entry-point
+  abuse. CWE-1357, OWASP A08, MITRE ATT&CK T1195 / T1554. New
+  category directory `skills/supply-chain/`. Hard rule in the
+  skill: never publish a working exploit to a shared registry —
+  benign canary callbacks only, yanked immediately after test.
+
+### Changed
+
+- Orchestrator skill-routing table in `skills/ctf/SKILL.md`: ai-ops
+  Skills column extended with the three new AI skills; web-ops
+  Skills column notes `supply-chain-attacks` (web-ops owns the
+  common primitives — npm/pypi dep confusion is web-adjacent).
+- `docs/skills-reference.md`: AI/OSAI section expanded from 8 → 11
+  skills (grouped by AI-300 module); new "Software Supply Chain"
+  section for the general software supply chain skill.
+- `README.md`: 84 → 91 skills, 9 → 10 categories. Scope-enforcement
+  blurb updated to say all five target-touching MCP servers enforce
+  (reflecting PR #81's expansion).
+
 ## 2026-10-09 (scope-enforcement expansion)
 
 ### Added

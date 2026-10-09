@@ -194,12 +194,12 @@ Read spawn templates from `teammates/` at runtime via the Read tool.
 
 | Template | Naming | Domain | Model | Skills |
 |----------|--------|--------|-------|--------|
-| `teammates/web-ops.md` | web-ops, web-ops-\<target\> | Web techniques | sonnet | All web technique skills |
+| `teammates/web-ops.md` | web-ops, web-ops-\<target\> | Web techniques + general software supply chain | sonnet | All web technique skills, supply-chain-attacks |
 | `teammates/ad-ops.md` | ad-ops | AD techniques | sonnet | All AD technique skills |
 | `teammates/smb-ops.md` | smb-ops, smb-ops-\<target\> | SMB enum, lateral movement, exploits, relay, share loot | sonnet | smb-enumeration, smb-exploitation, pass-the-hash, auth-coercion-relay (SMB-sink leg), credential-dumping (post-admin), smb-share-webshell (SMB-write → web execution — coordinate with web-ops when the webshell needs web-side tuning) |
 | `teammates/lin-ops.md` | lin-ops-\<host\> | Linux privesc | sonnet | All linux privesc skills, container-escapes |
 | `teammates/win-ops.md` | win-ops-\<host\> | Windows privesc | sonnet | All windows privesc skills |
-| `teammates/ai-ops.md` | ai-ops, ai-ops-\<target\> | AI exploitation | sonnet | All AI technique skills (prompt-injection, rag-exploitation, embedding-attacks, multi-agent-attacks, mcp-tool-abuse, ml-supply-chain, ai-infra-exploitation) |
+| `teammates/ai-ops.md` | ai-ops, ai-ops-\<target\> | AI exploitation | sonnet | All AI technique skills (prompt-injection, rag-exploitation, embedding-attacks, multi-agent-attacks, mcp-tool-abuse, ml-supply-chain, ai-infra-exploitation, model-extraction, training-data-extraction, adversarial-ml) |
 
 **On-demand teammates** (spawn for task, dismiss after):
 

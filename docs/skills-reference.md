@@ -1,6 +1,6 @@
 # Skills Reference
 
-PEN-AGENT includes 84 technique skills across 9 categories (web, ad, privesc, network, credential, evasion, post-exploit, research, ai), plus the orchestrator and support skills. Each skill is a self-contained `SKILL.md` file under `skills/`. The `ai` category covers AI red teaming, mapped to the OffSec AI-300 (OSAI) syllabus.
+PEN-AGENT includes 91 technique skills across 10 categories (web, ad, privesc, network, credential, evasion, post-exploit, research, ai, supply-chain), plus the orchestrator and support skills. Each skill is a self-contained `SKILL.md` file under `skills/`. The `ai` category covers AI red teaming, mapped to the OffSec AI-300 (OSAI) syllabus.
 
 ## Skill Types
 
@@ -134,11 +134,11 @@ All AD skills follow a **Kerberos-first authentication** convention — commands
 |-------|-----------|-------|
 | `av-edr-evasion` | Custom payload compilation, AMSI bypass, ETW patching, LOLBins | high |
 
-### AI / AI Red Teaming — OffSec AI-300 (OSAI) (8 skills)
+### AI / AI Red Teaming — OffSec AI-300 (OSAI) (11 skills)
 
 Maps to the AI-300 syllabus (modules 1–10; the module 11 capstone is the
 orchestrator's job). Targets LLM apps, agents, RAG, embeddings, tool/MCP layers,
-the ML supply chain, and AI infrastructure.
+non-LLM ML classifiers, the ML supply chain, and AI infrastructure.
 
 | Skill | Technique | AI-300 Module | OPSEC |
 |-------|-----------|---------------|-------|
@@ -150,6 +150,18 @@ the ML supply chain, and AI infrastructure.
 | `mcp-tool-abuse` | Tool/MCP abuse, tool-arg injection, excessive agency, confused deputy | 7 | medium |
 | `ml-supply-chain` | Malicious model files (pickle RCE), backdoored adapters, typosquatting | 8 | medium |
 | `ai-infra-exploitation` | Exposed model servers / ML platforms (Ray, MLflow, Triton, Jupyter) | 9 | medium |
+| `model-extraction` | Model theft via query-only access — knockoff training, logprob extraction, fingerprinting, system-prompt extraction (OWASP LLM10) | 2, 10 | medium |
+| `training-data-extraction` | Memorization-based training-data recovery — verbatim completion, canary queries, PII sweep, divergence attack, membership inference (OWASP LLM06) | 3, 6 | low |
+| `adversarial-ml` | Evasion attacks against non-LLM classifiers — white-box PGD/CW, grey-box query attacks (SquareAttack), transfer attacks, physical patches; CV / audio / NLP / tabular | 10 | medium |
+
+### Software Supply Chain (1 skill)
+
+General software supply chain (separate from `ai/ml-supply-chain` which
+targets ML artifacts specifically).
+
+| Skill | Technique | OPSEC |
+|-------|-----------|-------|
+| `supply-chain-attacks` | Dependency confusion, typosquatting, lockfile poisoning, CI/CD workflow injection, action-pin bypass, build-plugin / entry-point abuse | high |
 
 ### Utility (2 skills)
 
