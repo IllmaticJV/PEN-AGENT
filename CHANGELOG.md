@@ -3,6 +3,36 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (CI smoke tests)
+
+### Added
+
+First GitHub Actions workflow for the repo. Prevents merge-breaks on the
+pieces most prone to silent regression: shell/JSON/Python syntax, the
+installer's `.claude/settings.json` heredoc, and the finding-schema example.
+
+- **`.github/workflows/smoke.yml`** — runs on every push to main and every
+  pull request. Sets up Python 3.11, installs `jsonschema`, calls
+  `scripts/smoke.sh`.
+- **`scripts/smoke.sh`** — five sequential checks, each collecting every
+  failure in its group before failing so one bad file doesn't hide the
+  rest. Also runs locally (`bash scripts/smoke.sh`) with no CI needed.
+  Checks:
+  1. All `.sh` files parse (`bash -n`), excluding `.venv/` and `.git/`.
+  2. All `.py` files under `tools/` compile (`python3 -m py_compile`),
+     excluding `.venv/` and `__pycache__/`.
+  3. All committed `.json` files parse (`git ls-files '*.json'` → `json.tool`).
+  4. The heredoc inside `install.sh` that writes `.claude/settings.json`
+     is extracted with `awk` and parsed — catches the exact class of bug
+     the settings-expansion PR could have shipped (a stray comma in the
+     template, undetectable until a fresh install).
+  5. `tools/reporter/examples/finding-prompt-injection.json` validates
+     against `$defs/finding` in `tools/reporter/finding.schema.json`
+     (Draft 2020-12), confirming the example and schema stay in sync.
+
+Negative-tested: injecting a stray comma into the installer template fails
+check 4 with the exact line/column, and reverts to green on restore.
+
 ## 2026-10-09 (settings expansion — statusLine + SessionStart hooks)
 
 ### Added
