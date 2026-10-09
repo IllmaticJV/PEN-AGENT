@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (preamble rollout)
+
+### Changed
+
+- **Authorization-context preamble rolled out to every remaining
+  teammate template** so no spawn-time surface is missing it:
+  `ad-enum`, `ai-enum`, `ai-ops`, `lin-enum`, `lin-ops`, `net-enum`,
+  `recover`, `research`, `scribe`, `spray`, `state-mgr`, `web-enum`,
+  `web-ops`, `win-enum`. Combined with the earlier pass this gives
+  the full teammate fleet a stated authorization frame at the top of
+  the spawn message — the classifier evaluates each spawn against
+  that frame instead of raw technique language. Appendices
+  (`shell-mgr-metasploit`, `shell-mgr-shell-server`) and the directory
+  `README.md` are intentionally skipped — they ride under their
+  parent's context.
+
 ## 2026-10-09 (yet later)
 
 ### Changed
