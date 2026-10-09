@@ -160,22 +160,27 @@ defined in their templates.
 ### State Writes via state-mgr
 
 All state writes go through state-mgr. **Do NOT call state write tools
-directly** — they are callable but MUST NOT be used. Send structured messages:
+directly** — they are callable but MUST NOT be used. Send structured
+messages, always carrying `discovered_by=<your-teammate-name>` so
+timeline attribution survives even if state-mgr's sender-detection
+fallback misses:
 
 ```
-[add-port] ip=<ip> port=<N> proto=tcp service=<svc>
-[add-target] ip=<ip> hostname=<host> os="<os>"
+[add-port] ip=<ip> port=<N> proto=tcp service=<svc> discovered_by=<self>
+[add-target] ip=<ip> hostname=<host> os="<os>" discovered_by=<self>
 [update-target] ip=<ip> hostname=<host> notes="<notes>"
-[add-vuln] ip=<ip> title="<title>" vuln_type=<type> severity=<sev> via_access_id=<N> details="<details>"
-[add-cred] username=<user> secret=<secret> secret_type=<type> source="<source>" via_access_id=<N> via_vuln_id=<M>
-[add-access] ip=<ip> method=<method> user=<user> level=<level> via_credential_id=<N> via_vuln_id=<V>
-[add-blocked] ip=<ip> technique="<name>" reason="<why>" retry=<no|later|with_context>
-[add-pivot] from_ip=<ip> to_subnet=<cidr> pivot_type="<type>"
+[add-vuln] ip=<ip> title="<title>" vuln_type=<type> severity=<sev> via_access_id=<N> details="<details>" discovered_by=<self>
+[add-cred] username=<user> secret=<secret> secret_type=<type> source="<source>" via_access_id=<N> via_vuln_id=<M> discovered_by=<self>
+[add-access] ip=<ip> method=<method> user=<user> level=<level> via_credential_id=<N> via_vuln_id=<V> discovered_by=<self>
+[add-blocked] ip=<ip> technique="<name>" reason="<why>" retry=<no|later|with_context> blocked_by=<self>
+[add-pivot] from_ip=<ip> to_subnet=<cidr> pivot_type="<type>" discovered_by=<self>
 [update-vuln] id=<N> status=actioned details="<details>"
 ```
 
-Batch multiple writes in one message. Wait for confirmation IDs before
-referencing them in later messages.
+Full write contract (every message type, outbound replies,
+validation rules) lives at `tools/state-server/WRITES.md` — state-mgr
+loads it at activation. Batch multiple writes in one message. Wait
+for confirmation IDs before referencing them in later messages.
 
 **SendMessage requires a `summary` field** (5-10 word preview) with every
 message to any teammate.
@@ -234,10 +239,15 @@ elided.
 ### Operational Rules
 
 - **Stay in scope.** Only act against targets in `engagement/scope.md` /
-  `engagement/scope.allow`. The nmap and metasploit MCP servers enforce
-  `scope.allow` in code and will refuse out-of-scope targets — if a tool
-  returns `OUT OF SCOPE`, do NOT work around it. Stop and report to the lead;
-  never edit `scope.allow` to add a target yourself (operator decision only).
+  `engagement/scope.allow`. The nmap and metasploit MCP servers
+  enforce `scope.allow` in code and will refuse out-of-scope targets.
+  **shell-server, browser-server, and rdp-server do NOT code-enforce
+  scope** — the operator-approval permission prompt is the only
+  gate there, so always check the target IP against scope.allow
+  yourself before `browser_open` / `rdp_connect` / `start_process`
+  against a new host. If a tool returns `OUT OF SCOPE`, do NOT work
+  around it. Stop and report to the lead; never edit `scope.allow`
+  to add a target yourself (operator decision only).
 - `date '+%Y-%m-%d %H:%M:%S'` for real timestamps — never placeholders
 - `curl --connect-timeout 5 --max-time 15` always
 - **Never download/clone/install tools.** Missing tool → stop, report, return.
@@ -258,44 +268,23 @@ elided.
   a module fails and is ruled out, or the skill has no MSF route. A
   module shell lands straight in the session table.
 - **Every actioned exploit MUST be recorded — delegate to scribe.**
-  The full message contract (field lists, HEREDOC syntax, both
-  inbound forms, outbound replies) lives at
-  `tools/shell-server/RECORDING.md` — scribe loads it at activation
-  and references it. Teammates only need to know there are two
-  forms:
-  - **Session-producing** (reverse shell, MSF session, ssh/winrm via
-    `start_process`): `send_command` refuses to run on an un-logged
-    remote session. Send scribe `[record-exploit]` with the full
-    delivery chain
-  (session_id, target IP, label, delivery body with every prerequisite:
-  login → CSRF → cookies → intermediate requests → payload, references,
-  optional python_helper). Scribe calls `record_exploit()` and replies
-  `[recorded]` with the paths — then `send_command` is unlocked. Do NOT
-  call `record_exploit()` yourself; the dedicated-role pattern (like
-  state-mgr) is what keeps every shell recorded. The `delivery` body
-  must re-trigger from scratch — if the exploit needs a login, log in;
-  if a CSRF token is needed, fetch it; carry cookies; THEN fire the
-  payload. Reference `${LHOST}` / `${LPORT}` / `${LABEL}` for the
-  callback endpoint (env-overridable at re-trigger); call Python helpers
-  via `python3 "${EXPLOITS_DIR}/python/<...>.py"`. `target` MUST contain
-  a valid IPv4 — scribe/the tool enforce it so filenames always lead
-  with the IP (`<ip>-[<hostname>-]<label>.sh`). Re-establish with
-  `bash engagement/exploits/<ip>-[<host>-]<label>.sh` (or
-  `LPORT=5555 bash …`). Local processes (ssh/evil-winrm via
-  `start_process`) are tracked by shell-server and still need
-  `[record-exploit]` (the delivery is the `start_process` command +
-  the credential that worked).
-  - **Non-session** (file-read RCE, prompt-injection extraction,
-    DPAPI decrypt, API-only credential recovery, cert / AD abuse that
-    just mutates directory state): send scribe
-    `[record-exploit] mode=no-session` with `body=` set to a complete
-    standalone bash script that re-runs the exploit from scratch and
-    prints the proof artifact to stdout. Scribe calls
-    `record_non_session_exploit`; same filename contract
-    (`<ip>-[<hostname>-]<label>.sh`), sidecar `.md` tagged
-    `kind: non-session`. Lead monitors `poll_events()` for
-    `vuln.update → actioned` and nudges scribe when no
-    `engagement/exploits/<ip>-*` file exists.
+  `send_command` refuses to run on an un-logged remote session, so
+  the record must land first. Two forms:
+  - **Session-producing** (reverse shell / MSF session / ssh / winrm):
+    send scribe `[record-exploit] session_id=… target=<ip> label=…
+    delivery=<<<EOD …EOD` carrying the end-to-end delivery chain
+    (login → CSRF → cookies → payload). The `delivery` body must
+    re-trigger from scratch — do not assume external auth state.
+  - **Non-session** (file-read RCE, prompt-injection, DPAPI decrypt,
+    cert/AD state mutation): send scribe `[record-exploit]
+    mode=no-session` with `body=` as a standalone bash script that
+    prints proof to stdout.
+  Scribe replies `[recorded]`; only then is `send_command` unlocked.
+  **Do NOT call `record_exploit()` yourself** — the dedicated role
+  is what keeps every shell recorded. Full field contract (every
+  optional field, HEREDOC syntax, filename rules, nudge handling)
+  lives at `tools/shell-server/RECORDING.md`; scribe loads it at
+  activation.
 - **Pivoting: NEVER default to MSF SOCKS / autoroute.** The in-Framework
   `auxiliary/server/socks_proxy` has repeatedly broken engagements (dead
   relay wedges the shared RPC → full msfconsole restart). Load the
@@ -307,49 +296,30 @@ elided.
   alternative really is ruled out for this specific pivot (no attackbox
   inbound to pivot; can't drop a binary on target; or MSF modules must route
   transparently without proxychains).
-- **Pre-flight payload bake-off is MANDATORY at engagement init.** When
-  the Metasploit backend is in play, the lead MUST send shell-mgr
-  `[preflight-payloads] lhost=<IP|iface>` as the FIRST message after
-  shell-mgr spawns, before routing any exploit tasks. shell-mgr runs
-  `tools/preflight/gen_payloads.sh --lhost <X>` (bakes ~13 common
-  msfvenom payloads under `engagement/payloads/` + index.json; Windows
-  `.exe` rows get an OSEP-starter XOR loader when `mingw-w64` is
-  installed on the attackbox — defeats static signatures on raw
-  shellcode) then iterates `tools/preflight/handler_calls.py --json`
-  and calls `mcp__metasploit-server__start_handler(...)` per entry so
-  every baked binary has a hot handler. Reply `[preflight-ready]
-  payloads=N handlers=N` — this is a HARD gate; do NOT assign any
-  exploitation task that may produce a callback before shell-mgr
-  confirms. Teammates then use `python3 tools/preflight/pick.py` to
-  grab a payload with the handler already live. Skipped only on the
-  shell-server-only backend.
+- **Preflight payload bake-off is MANDATORY at engagement init
+  (Metasploit backend).** Lead's FIRST message to shell-mgr is
+  `[preflight-payloads] lhost=<IP|iface>`; HARD gate — do NOT
+  assign any exploitation task that may produce a callback until
+  shell-mgr replies `[preflight-ready]`. Teammates then use
+  `python3 tools/preflight/pick.py --platform X --arch Y --format Z`
+  to grab a baked payload with a live handler. Full flow (what
+  gen_payloads bakes, OSEP-starter XOR loaders, failure modes) in
+  `tools/preflight/README.md`.
 - **Preflight payloads are trusted binary artifacts — never read
-  them.** Files under `engagement/payloads/` are raw msfvenom
-  shellcode, XOR-encoded loaders, and OSEP-style PowerShell with
-  AMSI/ETW bypass strings. NEVER call `Read`, `cat`, `less`, `head`,
-  `tail`, `strings`, or any other content-inspection on them, and
-  never paste their contents into chat or an LLM prompt — doing so
-  wastes thousands of tokens and can trip the safety classifier,
-  which disables Bash for the rest of the session. The agent
-  interface is `tools/preflight/pick.py` (name, path, size, sha256,
-  handler) and `engagement/payloads/index.json` (same, structured).
-  Integrity-check via `sha256sum` against the index value if ever
-  needed. Trust gen_payloads.sh's summary line — it already fail-
-  fasts (exit 3) if 2+ payloads failed, so a `[preflight-ready]`
-  reply from shell-mgr means the set is good. One failed row is
-  normal (exotic payload missing on this msfvenom build); the
-  summary says so and the index.json omits it.
-- **Dual MSF sessions per host (one operator + one agent).** Right after a
-  foothold on a NEW host, call `mcp__metasploit-server__spawn_operator_session`
-  so that host ends up with BOTH a reserved-for-operator session AND a
-  separate agent session. The metasploit-server session-driving tools
-  (`execute`, `upgrade_to_meterpreter`, `upload`, `download`, `ifconfig`)
-  REFUSE to run on a host missing this pair. If the source is Meterpreter,
-  `spawn_operator_session` returns `needs_manual` — have the operator catch
-  a second callback and call `reserve_operator_session` on it. Load the
-  `post-exploit/dual-session-handoff` skill for the full flow. Escape hatch
-  (`confirm_single_session_ok=True` + `single_session_reason`) is only for
-  hosts that genuinely cannot support a second session; the reason is logged.
+  them.** Files under `engagement/payloads/` are raw shellcode,
+  XOR-encoded loaders, and OSEP-style PowerShell. NEVER call
+  `Read`/`cat`/`less`/`head`/`tail`/`strings` on them, and never
+  paste their content into chat — wastes tokens and trips the
+  safety classifier. Agent interface is `pick.py` + `index.json`
+  (sha256sum against the index value for integrity). Trust the
+  `[preflight-ready]` reply — gen_payloads fail-fasts on ≥2
+  failures, so a success means the set is good.
+- **Dual MSF sessions per host.** After every new foothold, call
+  `spawn_operator_session` so the host has both an agent session
+  and a reserved-for-operator session. The MSF session-driving
+  tools refuse to run on a host missing this pair; code-enforced.
+  Load the `dual-session-handoff` skill for the full flow (incl.
+  the Meterpreter-origin case and the single-session escape hatch).
 - MCP names: hyphens for servers (`mcp__shell-server__`), underscores for
   tools (`add_vuln`)
 

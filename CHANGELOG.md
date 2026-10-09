@@ -3,6 +3,54 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (multi-audit sweep)
+
+Five audits run across the project. Three came back clean, two found
+real issues; one planned follow-up noted.
+
+### Clean (verified, no action needed)
+
+- **Dead-link audit.** Every path reference across `.md` files that
+  points at the repo (tools/, teammates/, skills/, docs/, operator/,
+  knowledge/) resolves to a real file. Historical mentions in
+  CHANGELOG of removed layouts (`operator/msf-console/`,
+  `operator/state-viewer/`) are correct to keep as history.
+- **Skill frontmatter audit.** All 90 skills carry the required
+  frontmatter (`name`, `description`, `keywords`, `tools`, `opsec`);
+  all `opsec` values are from the valid enum; dir name == frontmatter
+  name except for `skills/ctf/` → `name: pen-agent-ctf` (intentional
+  — `install.sh` copies to `~/.claude/skills/pen-agent-ctf/`).
+
+### Fixed
+
+- **CLAUDE.md token budget.** 434 → 404 lines (−30) by compressing
+  four Operational-Rules bullets whose details now live in dedicated
+  contract docs:
+  - Scribe handoff (−25 lines) → the full field contract already
+    lives at `tools/shell-server/RECORDING.md`.
+  - Preflight bake-off + "never read payloads" trust rule (−15 lines)
+    → details already in `tools/preflight/README.md`.
+  - Dual MSF sessions (−7 lines) → full flow is the
+    `dual-session-handoff` skill, code-enforced by the MCP.
+  Behavior unchanged — the compressions only remove detail that
+  reinforced what already lives in a load-on-demand surface.
+- **Attribution brittleness in state writes.** CLAUDE.md's brief
+  state-write examples didn't carry `discovered_by=`, so every
+  teammate was relying on state-mgr's "take sender from SendMessage"
+  fallback. If a message is forwarded through an intermediary or
+  SendMessage sender detection ever fails, attribution breaks
+  silently. Updated the brief examples to show
+  `discovered_by=<self>` on every write — belt-and-suspenders;
+  state-mgr's fallback stays as the safety net.
+- **Scope-enforcement coverage gap documented.** Only `nmap-server`
+  and `metasploit-server` code-enforce `scope.allow`. shell-server,
+  browser-server, and rdp-server do NOT — teammates must check
+  target IP against scope.allow themselves before `browser_open` /
+  `rdp_connect` / `start_process` against a new host. Updated the
+  "Stay in scope" rule in CLAUDE.md to be honest about which servers
+  enforce vs don't. Follow-up: wire scope.allow enforcement into
+  those three MCP servers in a dedicated PR.
+
 ## 2026-10-09 (skill-wiring audit)
 
 ### Fixed
