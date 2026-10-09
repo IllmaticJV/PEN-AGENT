@@ -59,14 +59,18 @@ Two rules that keep templates spawn-safe:
    evaluation surface than the spawn template.
 3. **Infrastructure teammates: use a contract doc for message
    protocols.** When a teammate's job is to receive structured
-   messages and call one or two MCP tools in response (scribe,
-   state-mgr), move the full message shape — field lists, HEREDOC
-   examples, inbound/outbound forms — into a reference doc next to
-   the tool it drives (e.g. `tools/shell-server/RECORDING.md` for
-   scribe). The template says "load this at activation and
-   reference it"; the dense content loads once and stays in context,
-   outside the ride-every-turn spawn surface. This is how scribe
-   got from density 0.28 → 0.15.
+   messages and call one or two MCP tools in response, move the
+   full message shape — field lists, HEREDOC examples,
+   inbound/outbound forms, validation rules — into a reference doc
+   next to the tool it drives. The template says "load this at
+   activation and reference it"; the dense content loads once at
+   spawn and stays in context, outside the ride-every-turn
+   surface. Pattern already applied to:
+   - `scribe` → `tools/shell-server/RECORDING.md`
+   - `shell-mgr` → `tools/shell-server/SESSIONS.md`
+   - `state-mgr` → `tools/state-server/WRITES.md`
+   Scribe went from density 0.28 → 0.15 this way; state-mgr lost
+   ~110 lines of ride-every-turn template.
 
 ## Skill File Format
 

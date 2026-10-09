@@ -68,98 +68,30 @@ documented in `knowledge/lessons-learned.md`). See the Metasploit appendix
 for when the MSF fallback is appropriate and the "never un-scoped autoroute"
 rule that applies when it is.
 
-## Message Protocol
+## Message Contract — load on demand
 
-### Inbound (from teammates)
+The full message protocol (inbound forms from teammates, outbound
+replies, outbound notifications to the lead) lives at
+**`tools/shell-server/SESSIONS.md`**. Read it with the Read tool at
+activation and keep it in context for the engagement. The MCP tool
+docstrings on shell-server and metasploit-server are the normative
+source for individual field semantics.
 
-```
-[shell-established] session_id=<id> ip=<target> platform=<linux|windows>
-  delivery="<working payload that produced this shell>"
-  label="<label>"
-  Teammate has a working shell. Take ownership: stabilize, upgrade if C2
-  configured, and notify the lead.
+Quick-reference — the inbound message tags you handle:
 
-[setup-process] command="<cmd>" label="<label>" privileged=<bool> startup_delay=<N>
-  Spawn a local interactive process (evil-winrm, ssh, psexec.py, etc.).
-  These are credential-based — no delivery payload involved.
+| Inbound tag | What you do |
+|---|---|
+| `[shell-established]` | Take ownership, stabilize, upgrade if C2, notify lead |
+| `[setup-process]` | Spawn a local interactive process (credential-based) |
+| `[shell-dropped]` | Load `shell-recovery` skill, replay recorded `.sh` |
+| `[setup-pivot]` | Pick a tunnel method per backend/access, respond with `[pivot-ready]` or `[pivot-failed]` |
+| `[close-session]` | Close + optionally save transcript |
+| `[list-sessions]` | Return your tracked sessions |
+| `[preflight-payloads]` | Run the preflight bake-off (see § Preflight Payloads below) |
 
-[shell-dropped] session_id=<id>
-  A teammate's shell died. Re-establish by REPLAYING the recorded
-  engagement/exploits/<host>-<label>.sh — load the `shell-recovery`
-  skill. Notify the teammate with [session-restored] on success.
-
-[setup-pivot] host=<ip> target_subnet=<cidr> via_access_id=<N>
-  Set up a tunnel to reach target_subnet through host. You decide the
-  method based on your backend, available sessions, and access type.
-  Respond with [pivot-ready] or [pivot-failed].
-
-[close-session] session_id=<id> save_transcript=<bool>
-  Close a session and optionally save transcript.
-
-[list-sessions]
-  Return all active sessions you're tracking.
-
-[preflight-payloads] lhost=<IP|iface>
-  (Metasploit backend only) Pre-generate the common msfvenom payloads
-  AND bring up a handler per entry so later exploits can grab a
-  ready-made binary + a hot handler without round-trips. One-time at
-  engagement init. See the Preflight Payloads flow below.
-```
-
-### Outbound (to requesting teammate)
-
-```
-[session-ready] session_id=<id> backend=<shell-server|metasploit> platform=<linux|windows>
-  <MCP interaction instructions — backend-specific, see appendix>
-  — Shell is stabilized (or upgraded to C2). Other teammates can now
-    connect via the MCP tool above.
-
-[process-ready] session_id=<id> backend=shell-server platform=<linux|windows>
-  — Interactive process is up. Use send_command for interaction.
-
-[session-restored] session_id=<id> backend=<backend>
-  — Dropped shell re-established. Resume interaction with new session_id.
-
-[session-dead] session_id=<id> ip=<target>
-  — Re-establishment failed after multiple attempts.
-
-[session-closed] session_id=<id> transcript=<path>
-  — Session closed. Transcript saved.
-
-[pivot-ready] host=<ip> target_subnet=<cidr> tunnel_type=<type> endpoint=<socks5://127.0.0.1:port>
-  transparent=<yes|no> proxychains_line="<socks5 127.0.0.1 port>"
-  — Tunnel established. Include this context in all tasks targeting hosts
-    behind the tunnel.
-
-[pivot-failed] host=<ip> target_subnet=<cidr> reason="<why>"
-  — Tunnel setup failed.
-```
-
-### Outbound (notifications to lead)
-
-```
-[backend-down] backend=<name> error="<details>"
-  — Shell backend is unreachable. Notify operator.
-
-[session-ready] session_id=<id> ip=<target> platform=<platform> for=<teammate>
-  — Shell stabilized/upgraded and ready for enum teammates.
-
-[session-lost] session_id=<id> ip=<target>
-  — A shell dropped. Attempting re-establishment.
-
-[session-restored] session_id=<id> ip=<target>
-  — Dropped shell re-established.
-
-[session-dead] session_id=<id> ip=<target>
-  — Re-establishment failed. Need alternative access path.
-
-[pivot-ready] host=<ip> target_subnet=<cidr> tunnel_type=<type> endpoint=<endpoint>
-  transparent=<yes|no> proxychains_line="<line>"
-  — Tunnel to internal subnet established. Ready for recon.
-
-[pivot-failed] host=<ip> target_subnet=<cidr> reason="<why>"
-  — Pivot setup failed. May need alternative access or manual intervention.
-```
+Outbound replies and lead notifications are documented in
+`SESSIONS.md` (`[session-ready]`, `[process-ready]`,
+`[session-restored]`, `[pivot-ready]`, `[preflight-ready]`, …).
 
 ## Shell Ownership Flow
 
