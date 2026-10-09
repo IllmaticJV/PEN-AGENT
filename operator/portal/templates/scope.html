@@ -4,160 +4,247 @@
 <title>PEN-AGENT &middot; Objective &amp; Scope</title>
 <style>
 :root{
-  --bg:#0a0c10;--bg2:#11151b;--bg3:#1c222b;
-  --surface-2:#161b22;--border:#222935;--border-strong:#2f3744;
-  --fg:#e6edf3;--fg-muted:#9aa5b1;--fg-dim:#6b7682;
-  --accent:#4f8cff;--accent-2:#7aa7ff;--accent-glow:rgba(79,140,255,.16);
-  --green:#3fb950;--red:#f85149;--amber:#d6a533;--orange:#d6a533;
-  --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
-  --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+  --bg:#090b0f;--bg2:#0e1217;--bg3:#161b22;
+  --surface:#12161c;--surface-2:#161c24;
+  --border:#1e242e;--border-2:#2a323e;
+  --fg:#eef2f6;--fg-2:#aab4c0;--fg-3:#6a7482;
+  --accent:#4f8cff;--accent-2:#7aa7ff;--accent-soft:rgba(79,140,255,.12);
+  --green:#3fb950;--green-soft:rgba(63,185,80,.1);
+  --red:#f0564d;--red-soft:rgba(240,86,77,.08);
+  --amber:#d6a533;--amber-soft:rgba(214,165,51,.1);
+  --sh-sm:0 1px 2px rgba(0,0,0,.4);
+  --sh-md:0 2px 4px rgba(0,0,0,.3),0 6px 16px rgba(0,0,0,.25);
+  --ui:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--fg);font-family:var(--ui);font-size:13px;
-     -webkit-font-smoothing:antialiased;height:100vh;display:flex;flex-direction:column}
-header.chrome{padding:8px 18px;min-height:50px;border-bottom:1px solid var(--border);
-     display:flex;align-items:center;gap:10px 14px;flex-shrink:0;flex-wrap:wrap;
-     background:linear-gradient(180deg,var(--surface-2),var(--bg2))}
-header.chrome h1{font-size:13px;margin:0;color:var(--fg);font-weight:600;letter-spacing:.03em}
-header.chrome h1 .k{color:var(--accent)}
-#status{font-size:11px;font-weight:600;letter-spacing:.03em;padding:3px 10px;border-radius:999px;
-     border:1px solid var(--border-strong);color:var(--fg-dim);display:inline-flex;align-items:center;gap:6px}
-#status::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--fg-dim)}
-#status.ok{color:var(--green);border-color:rgba(63,185,80,.5);background:rgba(63,185,80,.08)}
-#status.ok::before{background:var(--green);box-shadow:0 0 6px var(--green)}
-#status.bad{color:var(--red);border-color:rgba(248,81,73,.5);background:rgba(248,81,73,.08)}
-#status.bad::before{background:var(--red);box-shadow:0 0 6px var(--red)}
-.attach{font-size:11px;color:var(--fg-dim);font-family:var(--ui)}
-.attach code{color:var(--orange);font-family:var(--mono);background:var(--bg3);
-     border:1px solid var(--border);border-radius:5px;padding:2px 6px;margin-left:4px}
+body{background:radial-gradient(1000px 500px at 85% -10%,rgba(79,140,255,.05),transparent 60%),var(--bg);
+  color:var(--fg);font-family:var(--ui);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;min-height:100vh;padding:28px 32px 64px}
+.wrap{max-width:1180px;margin:0 auto}
+.conn{position:fixed;top:14px;right:18px;font-size:10.5px;font-weight:600;letter-spacing:.04em;
+  padding:4px 11px;border-radius:999px;border:1px solid var(--border-2);color:var(--fg-3);
+  display:inline-flex;align-items:center;gap:6px;background:var(--bg3);z-index:20}
+.conn::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--fg-3)}
+.conn.ok{color:var(--green);border-color:rgba(63,185,80,.35);background:var(--green-soft)}
+.conn.ok::before{background:var(--green);box-shadow:0 0 6px var(--green)}
+.conn.bad{color:var(--red);border-color:rgba(240,86,77,.4);background:var(--red-soft)}
+.conn.bad::before{background:var(--red)}
 
-main{flex:1;overflow-y:auto;padding:20px 24px 40px;max-width:1400px;width:100%;margin:0 auto}
+.hero{position:relative;padding:28px 30px;border-radius:18px;overflow:hidden;
+  background:linear-gradient(140deg,rgba(79,140,255,.07),rgba(79,140,255,0) 48%),
+             linear-gradient(180deg,var(--surface-2),var(--surface));
+  border:1px solid var(--border);box-shadow:var(--sh-md)}
+.hero::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(122,167,255,.5),transparent)}
+.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+.eyebrow{display:flex;align-items:center;gap:8px;color:var(--fg-3);font-size:10px;font-weight:600;
+  letter-spacing:.16em;text-transform:uppercase;margin-bottom:12px}
+.eyebrow .pip{width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+h1.title{font-size:27px;font-weight:650;letter-spacing:-.025em;color:var(--fg);line-height:1.1}
+h1.title .mono{font-family:var(--mono);font-weight:600;background:linear-gradient(90deg,var(--fg),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.objline{margin-top:12px;color:var(--fg-2);font-size:13px;line-height:1.5;max-width:720px}
+.status-badge{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:999px;
+  font-size:11px;font-weight:600;letter-spacing:.04em;white-space:nowrap;
+  color:var(--fg-3);background:var(--bg3);border:1px solid var(--border-2)}
+.status-badge.active{color:var(--green);background:var(--green-soft);border-color:rgba(63,185,80,.3)}
+.status-badge.active .pulse{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2.4s infinite}
+.status-badge.closed{color:var(--amber);background:var(--amber-soft);border-color:rgba(214,165,51,.3)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,185,80,.45)}70%{box-shadow:0 0 0 7px rgba(63,185,80,0)}100%{box-shadow:0 0 0 0 rgba(63,185,80,0)}}
+.hero-meta{display:flex;flex-wrap:wrap;gap:26px;margin-top:22px;padding-top:20px;border-top:1px solid var(--border)}
+.hm{display:flex;flex-direction:column;gap:3px}
+.hm .k{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3)}
+.hm .v{font-size:14px;font-weight:600;color:var(--fg);font-family:var(--mono)}
+.hm .v.sm{font-size:13px;font-weight:500;color:var(--fg-2);font-family:var(--ui)}
 
-h2{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-dim);
-   margin:26px 0 12px;display:flex;align-items:center;gap:8px}
-h2::before{content:"";width:3px;height:13px;background:var(--accent);border-radius:2px;
-   box-shadow:0 0 8px var(--accent-glow)}
-h2 .n{color:var(--fg-dim);font-weight:500;letter-spacing:0;text-transform:none;font-family:var(--mono);margin-left:auto;font-size:11px}
+.sec-label{display:flex;align-items:center;gap:10px;margin:30px 2px 14px;
+  font-size:10.5px;font-weight:650;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-3)}
+.sec-label::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent)}
 
-/* Stat cards — same look as Status overview */
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
-   gap:12px;margin-top:4px}
-.card{background:linear-gradient(180deg,var(--surface-2),var(--bg2));
-   border:1px solid var(--border);border-radius:12px;padding:14px 16px;position:relative;
-   overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.35)}
-.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
-   background:linear-gradient(90deg,var(--accent),transparent);opacity:.7}
-.card .val{font-size:17px;font-weight:700;font-family:var(--mono);line-height:1.2;
-   font-variant-numeric:tabular-nums;color:var(--fg);word-break:break-word}
-.card .label{color:var(--fg-dim);font-size:10px;font-weight:600;letter-spacing:.08em;
-   text-transform:uppercase;margin-top:4px}
-.card .pill-inline{display:inline-block;font-family:var(--mono);font-size:12px;font-weight:700;
-   padding:2px 10px;border-radius:999px;border:1px solid var(--border-strong);
-   color:var(--fg-muted);background:var(--bg3)}
-.pill-inline.active{color:var(--green);border-color:rgba(63,185,80,.5);background:rgba(63,185,80,.1)}
-.pill-inline.closed{color:var(--amber);border-color:rgba(214,165,51,.5);background:rgba(214,165,51,.1)}
+.grid3{display:grid;grid-template-columns:1.05fr .95fr 1.35fr;gap:16px}
+.panel{background:linear-gradient(180deg,var(--surface-2),var(--surface));border:1px solid var(--border);
+  border-radius:16px;overflow:hidden;box-shadow:var(--sh-sm);display:flex;flex-direction:column;transition:border-color .15s}
+.panel:hover{border-color:var(--border-2)}
+.panel-head{display:flex;align-items:center;gap:10px;padding:15px 18px 13px}
+.panel-head .ic{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.panel-head .ic svg{width:15px;height:15px}
+.panel-head.allow .ic{background:var(--green-soft);color:var(--green)}
+.panel-head.oos .ic{background:var(--red-soft);color:var(--red)}
+.panel-head.roe .ic{background:var(--amber-soft);color:var(--amber)}
+.panel-head .ttl{font-size:12.5px;font-weight:650;color:var(--fg);letter-spacing:-.01em}
+.panel-head .n{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--fg-3);
+  background:var(--bg3);padding:2px 8px;border-radius:6px;border:1px solid var(--border)}
+.panel-body{padding:4px 16px 16px;flex:1}
 
-/* Allowlist IP grid */
-.ipgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;
-   background:linear-gradient(180deg,var(--surface-2),var(--bg2));
-   border:1px solid var(--border);border-radius:12px;padding:14px 16px;
-   box-shadow:0 1px 2px rgba(0,0,0,.35)}
-.ipgrid .ip{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12.5px;
-   padding:5px 10px;border-radius:6px;color:var(--fg-muted);background:var(--bg3);
-   border:1px solid var(--border);transition:border-color .12s,color .12s}
-.ipgrid .ip:hover{color:var(--fg);border-color:var(--border-strong)}
-.ipgrid .ip::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--green);
-   box-shadow:0 0 5px rgba(63,185,80,.5);flex-shrink:0}
-.empty-card{background:linear-gradient(180deg,var(--surface-2),var(--bg2));
-   border:1px solid var(--border);border-radius:12px;padding:20px 16px;text-align:center;
-   color:var(--fg-dim);font-size:12.5px;font-family:var(--mono)}
+.allow-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.ip{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:12px;font-weight:500;
+  padding:9px 12px;border-radius:9px;color:var(--fg);background:var(--bg3);border:1px solid var(--border);transition:border-color .12s}
+.ip:hover{border-color:var(--border-2)}
+.ip .pip{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 5px rgba(63,185,80,.6);flex-shrink:0}
+.ip .tag{margin-left:auto;font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3);
+  background:var(--surface);padding:2px 6px;border-radius:4px}
+.ip.full{grid-column:span 2}
 
-/* Scope markdown block */
-.pre-wrap{background:linear-gradient(180deg,var(--surface-2),var(--bg2));
-   border:1px solid var(--border);border-radius:12px;overflow:hidden;
-   box-shadow:0 1px 2px rgba(0,0,0,.35)}
-.pre-head{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg2);
-   display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--fg-muted);font-weight:600}
-.pre-head .path{color:var(--accent);font-family:var(--mono)}
-.pre-head .hint{color:var(--fg-dim);font-weight:400;margin-left:auto;font-size:10.5px;letter-spacing:.04em}
-pre{padding:18px 20px;white-space:pre-wrap;word-break:break-word;
-    font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--fg-muted);
-    max-height:none}
+.oos-list,.roe-list{display:flex;flex-direction:column;gap:8px;list-style:none}
+.oos-list li{display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:9px;
+  background:var(--red-soft);border:1px solid rgba(240,86,77,.18);font-size:12.5px;color:var(--fg-2)}
+.oos-list li .x{color:var(--red);font-weight:700;flex-shrink:0;opacity:.8}
+.roe-list{counter-reset:r}
+.roe-list li{counter-increment:r;position:relative;padding:11px 14px 11px 46px;border-radius:9px;
+  background:var(--bg3);border:1px solid var(--border);font-size:12.5px;color:var(--fg);line-height:1.5}
+.roe-list li::before{content:counter(r);position:absolute;left:12px;top:10px;
+  width:24px;height:24px;border-radius:7px;background:var(--accent-soft);border:1px solid rgba(79,140,255,.25);
+  color:var(--accent);font-family:var(--mono);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.roe-list li b{font-weight:650;color:var(--fg)}
+.pnote{color:var(--fg-3);font-size:12px;font-family:var(--mono);padding:8px 2px;line-height:1.5}
 
-@media (max-width:760px){
-  main{padding:14px 14px 28px}
-  .attach{display:none}
-  .cards{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
-  pre{padding:14px 16px;font-size:12px}
-}
+details{margin-top:18px;background:linear-gradient(180deg,var(--surface-2),var(--surface));
+  border:1px solid var(--border);border-radius:14px;overflow:hidden}
+summary{list-style:none;padding:14px 18px;cursor:pointer;font-size:11px;font-weight:650;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--fg-3);display:flex;align-items:center;gap:11px}
+summary::-webkit-details-marker{display:none}
+summary .chev{color:var(--accent);transition:transform .2s;display:flex}
+details[open] summary .chev{transform:rotate(90deg)}
+summary .path{margin-left:auto;color:var(--accent);font-family:var(--mono);font-weight:500;letter-spacing:0;text-transform:none;font-size:11.5px}
+details pre{padding:4px 20px 18px;font-family:var(--mono);font-size:12px;line-height:1.65;color:var(--fg-2);white-space:pre-wrap;word-break:break-word}
+.empty-card{background:linear-gradient(180deg,var(--surface-2),var(--surface));border:1px solid var(--border);
+  border-radius:14px;padding:26px 20px;text-align:center;color:var(--fg-3);font-size:12.5px;font-family:var(--mono)}
+
+@media (max-width:900px){.grid3{grid-template-columns:1fr}}
+@media (max-width:760px){body{padding:18px 16px 40px}.hero{padding:22px}.hero-meta{gap:18px}}
 </style></head>
 <body>
-<header class="chrome">
-  <h1><span class="k">SCOPE</span> &middot; Objective &amp; Rules of Engagement</h1>
-  <span id="status">loading&hellip;</span>
-  <span style="flex:1"></span>
-  <span class="attach">edit in <code>engagement/scope.md</code></span>
-</header>
-<main>
-  <h2>Engagement</h2>
-  <div class="cards" id="meta"></div>
-
-  <h2>In&#8209;scope allowlist <span class="n" id="allow-count"></span></h2>
-  <div id="allow-slot"></div>
-
-  <h2>Scope &amp; rules of engagement</h2>
-  <div class="pre-wrap">
-    <div class="pre-head">
-      <span class="path">engagement/scope.md</span>
-      <span class="hint">authoritative text &middot; raw</span>
-    </div>
-    <pre id="scope-md">loading…</pre>
-  </div>
-</main>
+<span class="conn" id="conn">loading&hellip;</span>
+<div class="wrap" id="root">
+  <div class="empty-card">Loading engagement scope&hellip;</div>
+</div>
 
 <script>
-const statusEl = document.getElementById('status');
-function esc(s){return (s??'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;');}
-function setStatus(ok, msg){ statusEl.textContent = msg; statusEl.className = ok ? 'ok' : 'bad'; }
+const connEl = document.getElementById('conn');
+function setConn(ok,msg){connEl.textContent=msg;connEl.className='conn '+(ok?'ok':'bad');}
+function esc(s){return (s??'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// Pull a "## Heading" section's body lines out of scope.md.
+function mdSection(md, names){
+  if(!md) return [];
+  const lines = md.split('\n');
+  const want = names.map(n=>n.toLowerCase());
+  let grab=false, out=[];
+  for(const raw of lines){
+    const h=/^#{1,6}\s+(.*)$/.exec(raw);
+    if(h){ grab = want.some(w=>h[1].toLowerCase().includes(w)); continue; }
+    if(grab){
+      const t=raw.trim();
+      if(!t) continue;
+      // strip list markers / numbering
+      const m=/^(?:[-*+]|\d+[.)])\s+(.*)$/.exec(t);
+      out.push(m?m[1]:t);
+    }
+  }
+  return out;
+}
+// bold **x** → <b>x</b>, rest escaped
+function mdInline(s){
+  return esc(s).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>');
+}
+function firstSentence(md,names){
+  const body=mdSection(md,names);
+  return body.length?body[0]:'';
+}
 
 function render(d){
-  const e = d.engagement;
-  const meta = document.getElementById('meta');
-  if (e) {
-    const st = (e.status||'').toLowerCase();
-    meta.innerHTML =
-      `<div class="card"><div class="val">${esc(e.name)||'(unnamed)'}</div><div class="label">Engagement name</div></div>` +
-      `<div class="card"><div class="val">${esc(e.mode)}</div><div class="label">Mode</div></div>` +
-      `<div class="card"><div class="val"><span class="pill-inline ${esc(st)}">${esc(e.status)}</span></div><div class="label">Status</div></div>` +
-      `<div class="card"><div class="val">${esc(e.created_at)||'—'}</div><div class="label">Started</div></div>`;
-  } else {
-    meta.innerHTML = '<div class="empty-card">No engagement initialized yet. The orchestrator creates one at engagement start.</div>';
+  const e=d.engagement;
+  const allow=d.scope_allow||[];
+  const md=d.scope_md||'';
+  const oos=mdSection(md,['out of scope','out-of-scope']);
+  const roe=mdSection(md,['rules of engagement','rules-of-engagement','roe']);
+  const objective=firstSentence(md,['objective','goal']);
+
+  const st=(e&&e.status||'').toLowerCase();
+  const stClass=st==='active'?'active':st==='closed'?'closed':'';
+  const started=e&&e.created_at?e.created_at.replace('T',' ').replace('Z',''):'—';
+
+  let h='';
+  // Hero
+  h+=`<div class="hero">
+    <div class="hero-top">
+      <div>
+        <div class="eyebrow"><span class="pip"></span>Engagement Dossier</div>
+        <h1 class="title"><span class="mono">${e?esc(e.name)||'(unnamed)':'No engagement'}</span></h1>
+        ${objective?`<div class="objline">${mdInline(objective)}</div>`:''}
+      </div>
+      ${e?`<span class="status-badge ${stClass}">${stClass==='active'?'<span class="pulse"></span>':''}${esc(e.status)}</span>`:''}
+    </div>`;
+  if(e){
+    h+=`<div class="hero-meta">
+      <div class="hm"><span class="k">Mode</span><span class="v">${esc(e.mode)}</span></div>
+      <div class="hm"><span class="k">Started</span><span class="v">${esc(started)}</span></div>
+      <div class="hm"><span class="k">In-scope entries</span><span class="v">${allow.length}</span></div>
+    </div>`;
+  }
+  h+=`</div>`;
+
+  if(!e){
+    h+=`<div class="empty-card" style="margin-top:18px">No engagement initialized yet. The orchestrator creates one at engagement start.</div>`;
+    document.getElementById('root').innerHTML=h;
+    return;
   }
 
-  const slot = document.getElementById('allow-slot');
-  const count = document.getElementById('allow-count');
-  if (d.scope_allow && d.scope_allow.length) {
-    count.textContent = `(${d.scope_allow.length})`;
-    slot.innerHTML = '<div class="ipgrid">' +
-      d.scope_allow.map(a => `<span class="ip">${esc(a)}</span>`).join('') +
-      '</div>';
-  } else {
-    count.textContent = '';
-    slot.innerHTML = '<div class="empty-card">scope.allow empty — tool-level enforcement OFF until the orchestrator writes it.</div>';
-  }
+  h+=`<div class="sec-label">Scope boundaries</div><div class="grid3">`;
 
-  const md = document.getElementById('scope-md');
-  md.textContent = d.scope_md && d.scope_md.trim() ? d.scope_md
-    : 'scope.md not written yet — the orchestrator creates it at engagement start.';
+  // Allowlist
+  h+=`<div class="panel"><div class="panel-head allow">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span>
+      <span class="ttl">In-scope allowlist</span><span class="n">${allow.length}</span></div><div class="panel-body">`;
+  if(allow.length){
+    h+=`<div class="allow-grid">`+allow.map(a=>{
+      const cidr=/\//.test(a);
+      return `<span class="ip ${cidr?'full':''}"><span class="pip"></span>${esc(a)}<span class="tag">${cidr?'cidr':'host'}</span></span>`;
+    }).join('')+`</div>`;
+  }else{
+    h+=`<div class="pnote">scope.allow empty — tool enforcement OFF until the orchestrator writes it.</div>`;
+  }
+  h+=`</div></div>`;
+
+  // Out of scope
+  h+=`<div class="panel"><div class="panel-head oos">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m5.5 5.5 13 13"/></svg></span>
+      <span class="ttl">Out of scope</span>${oos.length?`<span class="n">${oos.length}</span>`:''}</div><div class="panel-body">`;
+  if(oos.length){
+    h+=`<ul class="oos-list">`+oos.map(o=>`<li><span class="x">&times;</span>${mdInline(o)}</li>`).join('')+`</ul>`;
+  }else{
+    h+=`<div class="pnote">No "Out of Scope" section found in scope.md.</div>`;
+  }
+  h+=`</div></div>`;
+
+  // RoE
+  h+=`<div class="panel"><div class="panel-head roe">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg></span>
+      <span class="ttl">Rules of engagement</span>${roe.length?`<span class="n">${roe.length}</span>`:''}</div><div class="panel-body">`;
+  if(roe.length){
+    h+=`<ol class="roe-list">`+roe.map(r=>`<li>${mdInline(r)}</li>`).join('')+`</ol>`;
+  }else{
+    h+=`<div class="pnote">No "Rules of Engagement" section found in scope.md.</div>`;
+  }
+  h+=`</div></div>`;
+  h+=`</div>`; // grid3
+
+  // Raw scope.md
+  h+=`<details><summary>
+      <span class="chev"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+      Authoritative source<span class="path">engagement/scope.md</span></summary>
+      <pre>${md&&md.trim()?esc(md):'scope.md not written yet — the orchestrator creates it at engagement start.'}</pre></details>`;
+
+  document.getElementById('root').innerHTML=h;
 }
 
 function load(){
-  fetch('/api/scope')
-    .then(r=>r.json())
-    .then(d=>{ render(d); setStatus(true, 'live'); })
-    .catch(()=>setStatus(false, 'disconnected'));
+  fetch('/api/scope').then(r=>r.json())
+    .then(d=>{render(d);setConn(true,'live');})
+    .catch(()=>setConn(false,'disconnected'));
 }
 load();
-setInterval(load, 5000);
+setInterval(load,5000);
 </script>
 </body></html>

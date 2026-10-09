@@ -174,6 +174,90 @@ tbody tr:hover td { background: rgba(255,255,255,.025); }
 @media (max-width: 480px) {
   .cards { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
 }
+/* Focus-graph mode: ?view=graph strips sidebar/cards/tables and lets the
+   attack graph fill the viewport. Used by the portal's "Attack Graph" tab. */
+body.focus-graph { overflow: hidden; }
+body.focus-graph header.chrome,
+body.focus-graph #side,
+body.focus-graph #overview,
+body.focus-graph .filter-bar,
+body.focus-graph #tables { display: none !important; }
+body.focus-graph main.chrome-body { height: 100vh; }
+body.focus-graph #content { padding: 0; height: 100%; overflow: hidden; }
+body.focus-graph #main-content { height: 100%; display: flex !important; flex-direction: column; }
+body.focus-graph .section { margin: 0; flex: 1; min-height: 0; }
+body.focus-graph #section-graph > h2 { display: none; }
+body.focus-graph #graph-body { height: 100%; padding: 0; display: flex; flex-direction: column; }
+body.focus-graph #graph-container { flex: 1; min-height: 0;
+  border-radius: 0; border: none; margin: 0;
+  background: radial-gradient(900px 440px at 25% -5%,rgba(79,140,255,.05),transparent 65%),
+              radial-gradient(700px 360px at 85% 105%,rgba(163,113,247,.04),transparent 65%), var(--bg2);
+  background-image: radial-gradient(circle,rgba(255,255,255,.03) 1px,transparent 1px);
+  background-size: 32px 32px; }
+body.focus-graph .graph-expand-btn { display: none; }
+body.focus-graph #graph-container svg#graph { height: 100% !important; }
+
+/* Graph toolbar + minimap: hidden unless in focus-graph mode */
+#graph-toolbar { display: none; }
+#graph-minimap { display: none; }
+body.focus-graph #graph-toolbar {
+  display: flex; align-items: center; gap: 12px; height: 50px; flex-shrink: 0;
+  padding: 0 16px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg,var(--surface-2),var(--bg2)); }
+.gtb-brand { display: flex; align-items: center; gap: 9px; font-size: 11px; font-weight: 650;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--fg-muted); white-space: nowrap; }
+.gtb-logo { width: 22px; height: 22px; filter: drop-shadow(0 0 6px var(--accent-glow)); }
+.gtb-sep { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; }
+.gtb-seg { display: flex; gap: 2px; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 9px; padding: 3px; }
+.gtb-seg button { appearance: none; background: transparent; border: none; color: var(--fg-dim);
+  min-width: 30px; height: 26px; border-radius: 6px; cursor: pointer; font-family: var(--ui);
+  font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center;
+  transition: all .12s; padding: 0 9px; }
+.gtb-seg button:hover { color: var(--fg); background: var(--surface-2); }
+.gtb-seg button.wide { font-size: 11px; font-family: var(--mono); }
+.gtb-filters { display: flex; gap: 7px; }
+.gfc { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 8px;
+  background: var(--bg3); border: 1px solid var(--border); color: var(--fg-muted);
+  font-family: var(--ui); font-size: 11px; font-weight: 600; cursor: pointer; transition: all .12s;
+  user-select: none; }
+.gfc.active { color: var(--fg); background: var(--surface-2); border-color: var(--border-strong); }
+.gfc:not(.active) { opacity: .45; }
+.gfc .dot { width: 8px; height: 8px; border-radius: 3px; }
+.gfc.access .dot { background: #3fb950; } .gfc.cred .dot { background: #8b97a6; }
+.gfc.vuln .dot { background: #a371f7; } .gfc.pivot .dot { background: #d6a533; }
+.gtb-search { display: flex; align-items: center; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 9px; padding: 0 12px; height: 32px; gap: 8px; min-width: 190px; }
+.gtb-search svg { width: 13px; height: 13px; color: var(--fg-dim); flex-shrink: 0; }
+.gtb-search input { background: transparent; border: none; outline: none; color: var(--fg);
+  font-family: var(--mono); font-size: 12px; flex: 1; min-width: 0; }
+.gtb-search input::placeholder { color: var(--fg-dim); }
+.gtb-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.gtb-live { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px;
+  background: rgba(63,185,80,.08); border: 1px solid rgba(63,185,80,.25); color: var(--green);
+  font-size: 11px; font-weight: 600; }
+.gtb-live.off { background: rgba(240,86,77,.08); border-color: rgba(240,86,77,.3); color: var(--red); }
+.gtb-live .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+  box-shadow: 0 0 6px var(--green); animation: gpulse 2.4s infinite; }
+.gtb-live.off .pulse { background: var(--red); box-shadow: 0 0 6px var(--red); animation: none; }
+@keyframes gpulse { 0%{opacity:1} 50%{opacity:.4} 100%{opacity:1} }
+/* node search dim */
+body.focus-graph g.flow-node.nt-off { display: none; }
+body.focus-graph g.flow-node.search-dim { opacity: .14; transition: opacity .15s; }
+/* glassy legend in focus mode */
+body.focus-graph .graph-legend { left: 16px; right: auto; bottom: 16px; width: auto;
+  background: rgba(14,18,23,.9); backdrop-filter: blur(16px); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.5); padding: 10px 15px; gap: 15px; }
+/* minimap */
+body.focus-graph #graph-minimap { display: block; position: absolute; right: 16px; bottom: 16px;
+  width: 196px; height: 126px; background: rgba(14,18,23,.9); backdrop-filter: blur(16px);
+  border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  box-shadow: 0 8px 28px rgba(0,0,0,.5); z-index: 6; }
+#graph-minimap .mm-head { position: absolute; top: 7px; left: 11px; color: var(--fg-dim);
+  font-size: 8.5px; font-weight: 700; letter-spacing: .14em; z-index: 2; pointer-events: none; }
+#graph-minimap-svg { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .6; }
+#graph-minimap .mm-vp { position: absolute; border: 1.5px solid var(--accent); border-radius: 3px;
+  box-shadow: 0 0 12px var(--accent-glow); pointer-events: none; }
 </style>
 </head>
 <body>
@@ -201,7 +285,34 @@ tbody tr:hover td { background: rgba(255,255,255,.025); }
 <div class="section" id="section-graph">
   <h2 onclick="toggleSection('graph')">Access Chain <button class="refresh-btn" onclick="event.stopPropagation(); refreshAll()">Refresh</button></h2>
   <div id="graph-body" class="section-body">
-    <div id="graph-container"><button class="graph-expand-btn" onclick="toggleGraphFullscreen()" id="graph-expand-btn" title="Toggle fullscreen">&#x26F6;</button><svg id="graph"></svg><div class="graph-legend" id="graph-legend"></div><div class="tooltip" id="graph-tooltip"></div></div>
+    <!-- Toolbar: only rendered in focus-graph mode (portal "Attack Graph" tab) -->
+    <div id="graph-toolbar">
+      <div class="gtb-brand">
+        <svg class="gtb-logo" viewBox="0 0 32 32" fill="none"><path d="M16 2.5 27 7v9.2c0 7-4.7 11.6-11 13.3C9.7 27.8 5 23.2 5 16.2V7l11-4.5Z" fill="rgba(79,140,255,.14)" stroke="#4f8cff" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 13.3 15.6 16 12 18.7M17 19h4" stroke="#7aa7ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Attack Graph
+      </div>
+      <div class="gtb-sep"></div>
+      <div class="gtb-seg">
+        <button onclick="graphZoom(1.18)" title="Zoom out">&minus;</button>
+        <button class="wide" onclick="graphFit()" title="Fit to screen">Fit</button>
+        <button class="wide" onclick="graphReset1to1()" title="Reset zoom">1:1</button>
+        <button onclick="graphZoom(1/1.18)" title="Zoom in">&plus;</button>
+      </div>
+      <div class="gtb-sep"></div>
+      <div class="gtb-filters" id="gtb-filters">
+        <span class="gfc access active" data-nt="access"><span class="dot"></span>Access</span>
+        <span class="gfc cred active" data-nt="cred"><span class="dot"></span>Creds</span>
+        <span class="gfc vuln active" data-nt="vuln"><span class="dot"></span>Vulns</span>
+        <span class="gfc pivot active" data-nt="pivot"><span class="dot"></span>Pivots</span>
+      </div>
+      <div class="gtb-sep"></div>
+      <div class="gtb-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
+        <input id="gtb-search-input" type="text" placeholder="search host, cred, vuln…" oninput="graphSearch(this.value)">
+      </div>
+      <div class="gtb-right"><span class="gtb-live" id="gtb-live"><span class="pulse"></span>Live</span></div>
+    </div>
+    <div id="graph-container"><button class="graph-expand-btn" onclick="toggleGraphFullscreen()" id="graph-expand-btn" title="Toggle fullscreen">&#x26F6;</button><svg id="graph"></svg><div class="graph-legend" id="graph-legend"></div><div id="graph-minimap"><div class="mm-head">MINIMAP</div><svg id="graph-minimap-svg" preserveAspectRatio="xMidYMid meet"></svg><div class="mm-vp" id="graph-minimap-vp"></div></div><div class="tooltip" id="graph-tooltip"></div></div>
     <div class="tooltip" id="tooltip"></div>
   </div>
 </div>
@@ -217,6 +328,12 @@ tbody tr:hover td { background: rgba(255,255,255,.025); }
 </main>
 
 <script>
+// Focus-graph mode: the portal's "Attack Graph" tab loads this page with
+// ?view=graph. Add a body class so CSS can hide sidebar/cards/tables.
+if (new URLSearchParams(location.search).get('view') === 'graph') {
+  document.body.classList.add('focus-graph');
+}
+
 // --- State & SSE ---
 let state = null;
 let sortState = {}; // tableId -> { col, asc }
@@ -249,6 +366,7 @@ function setConn(ok) {
   const el = document.getElementById('conn');
   el.textContent = ok ? 'connected' : 'disconnected';
   el.className = 'conn-status ' + (ok ? 'conn-ok' : 'conn-err');
+  setGraphLive(ok);
 }
 
 // --- Rendering ---
@@ -851,6 +969,43 @@ function renderFlowGraph() {
     }
   }
 
+  // pivot_map — discovered pivot opportunities, not yet operational tunnels.
+  // 'actioned' rows become tunnels (rendered above); render 'identified' here
+  // as a dashed amber edge to a subnet/host node so operators see opportunities
+  // the engagement has mapped but not yet exploited.
+  const PIVOT_COLOR = '#d6a533';
+  for (const p of (state.pivot_map || [])) {
+    if (p.status === 'actioned') continue;
+    const srcIp = p.source || '';
+    const dst = p.destination || '';
+    if (!dst) continue;
+    const srcNode = _lastAccessOnHost(srcIp);
+    if (!srcNode) continue;
+    const dstId = `pivot:${p.id}`;
+    const isCidr = /\//.test(dst);
+    const blocked = p.status === 'blocked';
+    const node = {
+      id: dstId, type: 'asset',
+      label: dst,
+      sublabel: p.method ? `via ${p.method}` : p.status,
+      hostLabel: isCidr ? '' : dst,
+      detail: `Pivot opportunity (${p.status})\n${srcIp} → ${dst}` +
+              (p.method ? `\nmethod: ${p.method}` : '') +
+              (p.notes ? `\n${p.notes}` : ''),
+      borderColor: blocked ? '#f85149' : PIVOT_COLOR,
+      headerColor: blocked ? '#8a2a26' : '#8a6a1e',
+      headerText: isCidr ? 'SUBNET' : 'PIVOT',
+      chain_order: 0,
+    };
+    nodes.push(node);
+    nodeById[dstId] = node;
+    edges.push({
+      from: srcNode, to: dstId,
+      color: blocked ? '#f85149' : PIVOT_COLOR,
+      dash: '6 3',
+    });
+  }
+
   // --- Assign columns (left-to-right flow) ---
   // Always BFS first for natural layout, then override with chain_order where set.
   // This allows state-mgr to gradually reposition specific nodes without needing
@@ -1028,13 +1183,19 @@ function renderFlowGraph() {
     const srcLabel = src.label || src.id;
     const dstLabel = dst.label || dst.id;
     const detailAttr = escAttr(`${srcLabel} \u2192 ${dstLabel}`);
-    svgHtml += `<path class="flow-edge" d="${path}" stroke="${e.color}" data-detail="${detailAttr}" onmouseenter="showTip(event)" onmouseleave="hideTip()"/>`;
+    const dashAttr = e.dash ? ` stroke-dasharray="${e.dash}"` : '';
+    svgHtml += `<path class="flow-edge" d="${path}" stroke="${e.color}"${dashAttr} data-detail="${detailAttr}" onmouseenter="showTip(event)" onmouseleave="hideTip()"/>`;
     svgHtml += `<polygon points="${arrowPts}" fill="${e.color}"/>`;
   }
 
   // Draw nodes
   for (const n of nodes) {
-    svgHtml += `<g class="flow-node">`;
+    const ntype = n.id.startsWith('access:') ? 'access'
+      : n.id.startsWith('cred:') ? 'cred'
+      : n.id.startsWith('vuln:') ? 'vuln'
+      : (n.id.startsWith('pivot:') || n.id.startsWith('tunnel:')) ? 'pivot'
+      : 'action';
+    svgHtml += `<g class="flow-node" data-ntype="${ntype}">`;
     // Background rect
     const bgFill = '#161b22';
     const nh = n.h || NODE_H;
@@ -1070,6 +1231,7 @@ function renderFlowGraph() {
     '<span class="legend-item"><svg width="12" height="12"><rect width="12" height="12" rx="3" fill="none" stroke="#2f6fe3" stroke-width="2"/></svg>Action</span>',
     '<span class="legend-item"><svg width="12" height="12"><rect width="12" height="12" rx="6" fill="none" stroke="#8b949e" stroke-width="1.5"/></svg>Credential</span>',
     '<span class="legend-item"><svg width="12" height="12"><rect width="12" height="12" rx="3" fill="none" stroke="#d6a533" stroke-width="2"/></svg>Tunnel</span>',
+    '<span class="legend-item"><svg width="12" height="12"><rect width="12" height="12" rx="3" fill="none" stroke="#d6a533" stroke-width="2" stroke-dasharray="3 2"/></svg>Pivot opportunity</span>',
     '<span class="legend-item"><svg width="12" height="12"><rect width="12" height="12" rx="8" fill="#1a5c28" stroke="#3fb950" stroke-width="1"/></svg>Flag</span>',
   ].join('');
 
@@ -1084,12 +1246,33 @@ function renderFlowGraph() {
   svg.innerHTML = svgHtml;
 
   _setupGraphZoomPan(svg, container, totalW, totalH);
+
+  // Expose content geometry + markup for focus-mode chrome (minimap, filters).
+  _graphContentW = totalW;
+  _graphContentH = totalH + LEGEND_PAD;
+  _graphSvgMarkup = svgHtml;
+  if (document.body.classList.contains('focus-graph')) {
+    applyNodeFilters();
+    renderMinimap();
+  }
 }
 
 
 // Zoom/pan state — kept outside renderFlowGraph so it survives re-renders
 let _graphVB = null; // { x, y, w, h }
 let _graphPanSetup = false;
+// Focus-mode chrome state (attack-graph tab): content geometry, markup, filters.
+let _graphContentW = 0, _graphContentH = 0, _graphSvgMarkup = '';
+const _graphFilters = { access: true, cred: true, vuln: true, pivot: true };
+
+// Apply the current viewBox to the main graph SVG and sync the minimap viewport.
+function _graphApplyVB() {
+  const svg = document.getElementById('graph');
+  if (svg && _graphVB) {
+    svg.setAttribute('viewBox', `${_graphVB.x} ${_graphVB.y} ${_graphVB.w} ${_graphVB.h}`);
+  }
+  updateMinimapViewport();
+}
 
 function _setupGraphZoomPan(svg, container, contentW, contentH) {
   // Initialize or keep current viewBox
@@ -1099,9 +1282,7 @@ function _setupGraphZoomPan(svg, container, contentW, contentH) {
   // Zoom limits relative to content size
   const minW = contentW * 0.1, minH = contentH * 0.1;   // max zoom in
   const maxW = contentW * 3,   maxH = contentH * 3;      // max zoom out
-  function applyVB() {
-    svg.setAttribute('viewBox', `${_graphVB.x} ${_graphVB.y} ${_graphVB.w} ${_graphVB.h}`);
-  }
+  const applyVB = _graphApplyVB;
   applyVB();
 
   if (_graphPanSetup) return; // listeners already attached
@@ -1152,6 +1333,117 @@ function _setupGraphZoomPan(svg, container, contentW, contentH) {
     container.classList.remove('panning');
   });
 }
+
+// ── Attack-graph toolbar (focus-graph mode only) ──────────────────────────
+function graphZoom(factor) {
+  if (!_graphVB || !_graphContentW) return;
+  const minW = _graphContentW * 0.1, maxW = _graphContentW * 3;
+  let nw = _graphVB.w * factor, nh = _graphVB.h * factor;
+  if (nw < minW || nw > maxW) return;
+  // zoom around the center of the current view
+  _graphVB.x += (_graphVB.w - nw) / 2;
+  _graphVB.y += (_graphVB.h - nh) / 2;
+  _graphVB.w = nw; _graphVB.h = nh;
+  _graphApplyVB();
+}
+function graphFit() {
+  if (!_graphContentW) return;
+  _graphVB = { x: 0, y: 0, w: _graphContentW, h: _graphContentH };
+  _graphApplyVB();
+}
+function graphReset1to1() {
+  const c = document.getElementById('graph-container');
+  if (!c || !_graphVB) return;
+  // 1:1 → one viewBox unit per CSS pixel, keeping the current top-left anchor
+  const w = c.clientWidth || _graphContentW;
+  const h = c.clientHeight || _graphContentH;
+  _graphVB = { x: _graphVB.x, y: _graphVB.y, w, h };
+  _graphApplyVB();
+}
+function applyNodeFilters() {
+  const svg = document.getElementById('graph');
+  if (!svg) return;
+  for (const g of svg.querySelectorAll('g.flow-node')) {
+    const t = g.getAttribute('data-ntype');
+    // 'action' nodes are chain connectors — always visible
+    const off = (t === 'access' || t === 'cred' || t === 'vuln' || t === 'pivot') && !_graphFilters[t];
+    g.classList.toggle('nt-off', off);
+  }
+  renderMinimap();
+}
+function graphSearch(q) {
+  const svg = document.getElementById('graph');
+  if (!svg) return;
+  const needle = (q || '').trim().toLowerCase();
+  for (const g of svg.querySelectorAll('g.flow-node')) {
+    if (!needle) { g.classList.remove('search-dim'); continue; }
+    const txt = (g.textContent || '').toLowerCase()
+      + ' ' + (g.querySelector('[data-detail]')?.getAttribute('data-detail') || '').toLowerCase();
+    g.classList.toggle('search-dim', !txt.includes(needle));
+  }
+}
+function renderMinimap() {
+  const mm = document.getElementById('graph-minimap-svg');
+  if (!mm || !_graphSvgMarkup || !_graphContentW) return;
+  mm.setAttribute('viewBox', `0 0 ${_graphContentW} ${_graphContentH}`);
+  // Only the node rects render in the minimap — strip text/foreignObject noise.
+  // Reuse the live SVG's node rects so hidden (filtered) nodes drop out too.
+  const svg = document.getElementById('graph');
+  let out = '';
+  if (svg) {
+    for (const g of svg.querySelectorAll('g.flow-node')) {
+      if (g.classList.contains('nt-off')) continue;
+      const rect = g.querySelector('rect');
+      if (!rect) continue;
+      const x = rect.getAttribute('x'), y = rect.getAttribute('y');
+      const w = rect.getAttribute('width'), h = rect.getAttribute('height');
+      const fill = rect.getAttribute('stroke') || '#4f8cff';
+      out += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${fill}"/>`;
+    }
+  }
+  mm.innerHTML = out;
+  updateMinimapViewport();
+}
+function updateMinimapViewport() {
+  const box = document.getElementById('graph-minimap-vp');
+  const mm = document.getElementById('graph-minimap');
+  if (!box || !mm || !_graphVB || !_graphContentW) return;
+  const mw = mm.clientWidth, mh = mm.clientHeight;
+  // content → minimap scale (preserveAspectRatio xMidYMid meet)
+  const s = Math.min(mw / _graphContentW, mh / _graphContentH);
+  const offX = (mw - _graphContentW * s) / 2, offY = (mh - _graphContentH * s) / 2;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const x = offX + clamp(_graphVB.x, 0, _graphContentW) * s;
+  const y = offY + clamp(_graphVB.y, 0, _graphContentH) * s;
+  const w = clamp(_graphVB.w, 0, _graphContentW) * s;
+  const h = clamp(_graphVB.h, 0, _graphContentH) * s;
+  box.style.left = x + 'px'; box.style.top = y + 'px';
+  box.style.width = w + 'px'; box.style.height = h + 'px';
+}
+function setGraphLive(ok) {
+  const el = document.getElementById('gtb-live');
+  if (!el) return;
+  el.classList.toggle('off', !ok);
+  el.lastChild && (el.lastChild.textContent = ok ? 'Live' : 'Offline');
+}
+// Wire filter chips once.
+function _wireGraphToolbar() {
+  const bar = document.getElementById('gtb-filters');
+  if (!bar) return;
+  for (const chip of bar.querySelectorAll('.gfc')) {
+    chip.addEventListener('click', () => {
+      const t = chip.dataset.nt;
+      _graphFilters[t] = !_graphFilters[t];
+      chip.classList.toggle('active', _graphFilters[t]);
+      applyNodeFilters();
+    });
+  }
+}
+if (document.readyState !== 'loading') _wireGraphToolbar();
+else document.addEventListener('DOMContentLoaded', _wireGraphToolbar);
+window.addEventListener('resize', () => {
+  if (document.body.classList.contains('focus-graph')) updateMinimapViewport();
+});
 
 function showTip(evt) {
   const detail = evt.currentTarget.dataset.detail;

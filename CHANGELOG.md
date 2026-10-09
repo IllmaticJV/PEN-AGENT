@@ -3,6 +3,76 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-09 (portal: operator-console UI redesign)
+
+### Changed
+
+Reworked the operator portal onto one cohesive design system (shared tokens,
+Inter/JetBrains-Mono stack, unified shadow/radius scale). The top navigation
+bar remains on every tab (iframe shell unchanged).
+
+- **`portal.html`** — restyled shell/nav: pill-style tabs with active
+  background, refreshed brand/ribbon, darker surface palette.
+- **`scope.html`** — full redesign. Dossier hero (engagement name, live-pulse
+  status badge, objective line, metadata strip) over three icon-headed
+  panels: in-scope allowlist, out-of-scope, and rules of engagement. The
+  latter two are parsed client-side from `scope.md` headings (graceful
+  fallback when a section is absent). Raw `scope.md` moved to a collapsible
+  disclosure. Data wiring (`/api/scope`) unchanged.
+- **`objectives.html`** — full redesign. Gradient progress ring, status chips,
+  objectives grouped by status (in-progress → blocked → pending → skipped →
+  done) with left accent bars. Filter chips, checkbox toggle POST
+  (`/api/objectives/<id>`), and SSE refresh preserved.
+- **`msf.html`** — restyled to match (header, sidebar sections, tables, log
+  viewer, pills). JS/behavior unchanged.
+- **`status.html`** — the Attack Graph tab (`?view=graph`) gains a toolbar
+  (zoom −/Fit/1:1/+, node-type filter chips, search, live indicator), a
+  glassy floating legend, and a minimap with a viewport box that tracks
+  pan/zoom. Zoom/fit, filters (`data-ntype` on node groups), search-dim, and
+  minimap are functionally wired. The normal Status view is unchanged —
+  the chrome only appears in focus-graph mode.
+
+### Verified
+
+Headless Chromium through the live portal nav on a seeded engagement: all
+five tabs render, the nav bar is present on each, the graph toolbar/minimap
+work, and no page errors. Sample data uses masked secrets.
+
+## 2026-10-09 (portal: Attack Graph tab + pivot_map rendering)
+
+### Added
+
+- **Attack Graph tab** in the operator portal (`/status?view=graph`). The
+  existing Access Chain graph was already comprehensive — this gives it
+  a dedicated full-viewport tab so operators get "where are we" in one
+  click instead of scrolling past cards and tables. A new `focus-graph`
+  body class hides the sidebar, overview cards, filter bar, and tables
+  when `?view=graph` is set; the chain renderer and SSE stream are
+  unchanged.
+- **pivot_map rendering** — the one data gap in the existing graph.
+  `pivot_map` rows with `status='identified'` or `status='blocked'`
+  now render as dashed amber edges (red for blocked) from the source
+  host's foothold access node to a SUBNET/PIVOT node labeled with the
+  destination CIDR and method. `actioned` rows continue to materialize
+  as tunnel nodes via the existing tunnels pass. Legend updated with
+  the new "Pivot opportunity" entry.
+
+### Changed
+
+- **`operator/portal/templates/status.html`** — edge rendering supports
+  an optional `stroke-dasharray` so pivot_map edges can be visually
+  distinct from established tunnels; focus-graph CSS hides non-graph
+  chrome when the URL carries `?view=graph`.
+- **`operator/portal/templates/portal.html`** — new "Attack Graph" tab
+  between Status and C2/MSF Logs, pointing at `/status?view=graph`.
+
+### Verified
+
+- Headless Chromium smoke run: seeded `pivot_map` rows render as
+  expected (SUBNET headers, dashed edges, both `identified` and
+  `blocked` statuses). Body gets `focus-graph` class when the URL
+  param is set.
+
 ## 2026-10-09 (CI smoke tests)
 
 ### Added
