@@ -268,7 +268,11 @@ elided.
   the skill) only when both the index and the MSF console search miss,
   a module fails and is ruled out, or the skill has no MSF route. A
   module shell lands straight in the session table.
-- **Every actioned exploit MUST be recorded — delegate to scribe.** Two
+- **Every actioned exploit MUST be recorded — delegate to scribe.**
+  The full message contract (field lists, HEREDOC syntax, both
+  inbound forms, outbound replies) lives at
+  `tools/shell-server/RECORDING.md` — scribe loads it at activation
+  and references it. Teammates only need to know there are two
   forms:
   - **Session-producing** (reverse shell, MSF session, ssh/winrm via
     `start_process`): `send_command` refuses to run on an un-logged
