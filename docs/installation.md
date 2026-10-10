@@ -122,10 +122,14 @@ permission-skipping (`--dangerously-skip-permissions` / the old `--yolo`);
 `run.sh` refuses those flags, and nothing in the project turns off Claude
 Code's permission prompts. Those prompts and the orchestrator's
 `AskUserQuestion` operator-approval gate are the human-in-the-loop controls
-the project depends on. Because every task assignment already goes through
-operator approval, standard mode mostly adds a few Bash prompts per task, not
-a second approval for the same decision — and you cut those by extending the
-`allow` list (see `/fewer-permission-prompts`).
+the project depends on. How often that gate fires depends on the engagement's
+`autonomy` tier (`manual` gates every task; `guided`/`autonomous` auto-dispatch
+discovery, and `autonomous` also exploitation — see
+[running-an-engagement.md](running-an-engagement.md#autonomy-tiers)); hard stops
+and scope changes stay operator-only in every tier. In `manual`, standard mode
+mostly adds a few Bash prompts per task on top of that approval, not a second
+approval for the same decision — and you cut those by extending the `allow`
+list (see `/fewer-permission-prompts`).
 
 ### Agent Teams
 
