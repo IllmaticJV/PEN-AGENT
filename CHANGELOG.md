@@ -3,6 +3,42 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-10 (orchestrator: autonomy tiers)
+
+### Added
+
+- **Autonomy tiers** for the `/pen-agent-ctf` orchestrator — a `config.yaml`
+  key (`autonomy: manual | guided | autonomous`) that governs the per-task
+  operator-approval gate, the biggest source of wait time in a run. The
+  approval gate now classifies each routing decision and gates or
+  auto-proceeds per a matrix:
+  - **discovery** (read-only recon/enum): gated in `manual`, auto in
+    `guided`/`autonomous`.
+  - **exploitation** (in-scope technique/ops on an already-approved target):
+    gated in `manual`/`guided`, auto in `autonomous`.
+  - **elevated** (password spraying, pivots/tunnels, destructive actions,
+    `opsec: high` skills, payload delivery to a new host): gated in all tiers.
+  - Altering scope, `/etc/hosts`, dismissing teammates, and every hard stop
+    stay operator-only in every tier.
+  - Auto-run tasks are still printed (`[auto <tier>] <skill> → <teammate> on
+    <target>`), so the operator sees everything live and can interject.
+  - Scope is still code-enforced underneath by the target-touching MCP
+    servers, so no tier can act outside `scope.allow`.
+
+### Changed
+
+- **`skills/ctf/SKILL.md`** — Operator Approval block rewritten as the tier
+  matrix; the orchestrator loop, recon routing, and parallel-path handling now
+  gate through `autonomy_gate(action)` instead of always calling
+  `AskUserQuestion`. New config question **Q0 — Autonomy**; the config-exists
+  path now calls out the active tier.
+- **`operator/templates/config.yaml`** — documented `autonomy` key (default
+  `manual`).
+- **`docs/running-an-engagement.md`** — autonomy-tier table and explanation.
+
+Default `manual` reproduces the prior behaviour; `autonomous` is intended for
+CTF/lab hands-off solving.
+
 ## 2026-10-09 (portal: Activity + Findings tabs, roster, server refactor)
 
 ### Added
