@@ -3,6 +3,29 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-10 (hook: auto per-loop state sweep)
+
+### Added
+
+- **`PostToolUse` hook that auto-runs the per-loop sweeps** —
+  `tools/hooks/state-sweep.sh`, matched to `mcp__state__get_state_summary`.
+  The lead used to spend three Bash tool round-trips every loop on
+  `state_audit.py` / `scribe_check.py` / `objective_match.py`; the hook now
+  runs them automatically right after the lead's `get_state_summary` and
+  feeds only the **actionable** output back via
+  `hookSpecificOutput.additionalContext`, so the lead gets the sweep for free
+  each loop and never forgets it. Tightens the lead loop (fewer tool calls →
+  faster return to routing teammate findings).
+  - Silent on a coherent loop (`--quiet` scripts print nothing; `objective_match`
+    included only when it has real proposals) — no context noise.
+  - Lead only: a teammate's activation `get_state_summary` carries a non-empty
+    `agent_id` (CC ≥ 2.1.290) and is skipped.
+  - Always exits 0 — the tool already ran, so a hook failure never surfaces as
+    an error.
+  - Wired into `install.sh`'s generated `.claude/settings.json`. Existing
+    installs must add the `PostToolUse` block by hand (install.sh only writes
+    settings.json when missing) — see `docs/dashboard-and-monitoring.md`.
+
 ## 2026-10-10 (state-mgr: access-first notify + targeted cred dedup)
 
 ### Changed
