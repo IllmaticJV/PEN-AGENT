@@ -67,6 +67,10 @@ if missing:
       { "matcher": "", "hooks": [
         { "type": "command", "command": "bash tools/hooks/save-teammate-log.sh" } ]}
     ],
+    "PreToolUse": [
+      { "matcher": "mcp__(nmap|metasploit|shell|browser|rdp)-server__.*|Bash", "hooks": [
+        { "type": "command", "command": "bash tools/hooks/lead-guard.sh" } ]}
+    ],
     "PostToolUse": [
       { "matcher": "mcp__state__get_state_summary", "hooks": [
         { "type": "command", "command": "bash tools/hooks/state-sweep.sh" } ]}
@@ -79,12 +83,15 @@ Four things in there: the agent-teams flag the orchestrator requires;
 a pre-approved allowlist for every MCP tool PEN-AGENT uses so standard
 permission mode doesn't prompt for every call; a live engagement status
 line (vuln / cred / access counts + scope-enforcement indicator); and
-three hooks — `SessionStart` prints an engagement banner (scope, C2
+four hooks — `SessionStart` prints an engagement banner (scope, C2
 backend, portal URL, preflight state), `TeammateIdle` snapshots each
-teammate's JSONL transcript to `engagement/evidence/logs/`, and
+teammate's JSONL transcript to `engagement/evidence/logs/`,
 `PostToolUse` on `get_state_summary` runs the lead's per-loop hygiene
 sweeps (`state_audit` / `scribe_check` / `objective_match`) and feeds
-only the actionable output back to the lead for free. If `claude` reports agent-teams unavailable,
+only the actionable output back to the lead for free, and `PreToolUse`
+(`lead-guard.sh`) hard-blocks the **lead** from driving a target itself
+(the five target-touching MCP servers + offensive CLI are teammate-only;
+teammates are never affected). If `claude` reports agent-teams unavailable,
 confirm the file has `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` set and that you
 started a **fresh** session after it was written — the flag is read at
 process start, so `claude --resume` on an older session won't pick it up.

@@ -51,9 +51,18 @@ and are visible to the operator via tmux split panes or in-process mode.
 > `autonomous` is for CTF/lab hands-off solving; prefer `manual`/`guided` on
 > client engagements.
 
-> **DO NOT RUN TOOLS DIRECTLY.** You are a router. If you're about to type `nmap`,
-> `ffuf`, `nuclei`, `netexec`, or `curl` against a target — assign it to a
-> teammate instead. See "Commands the Lead May Execute" below.
+> **DO NOT RUN TOOLS DIRECTLY — HARD RULE.** You are a router, never an
+> executor. You MUST NOT touch a target yourself: not recon, not enumeration,
+> not exploitation, not shells. If you are about to call a target-touching MCP
+> server (`nmap-server`, `metasploit-server`, `shell-server`, `browser-server`,
+> `rdp-server`) or type an offensive tool in Bash (`nmap`, `ffuf`, `nuclei`,
+> `nxc`/`netexec`, `sqlmap`, `impacket-*`, `evil-winrm`, `ssh`/`scp` to a
+> target, `msfconsole`/`msfvenom`, `curl` to a target, …) — STOP and assign it
+> to a teammate instead (`search_skills` → spawn/message the right
+> `*-enum`/`*-ops` teammate). This is **code-enforced**: a PreToolUse guard
+> (`tools/hooks/lead-guard.sh`) denies these calls for the lead session. If you
+> hit that denial, you broke this rule — delegate, don't work around it. See
+> "Commands the Lead May Execute" below.
 
 ## Skill Routing Is Mandatory
 
@@ -116,9 +125,15 @@ allowed:
   ip -4 addr show dev tun0|wg0
   Read tool to load teammate templates from teammates/
 
-forbidden (route to teammates):
-  nmap, netexec, ffuf, nuclei, httpx, sqlmap, curl (to targets),
-  evil-winrm, any tool that sends traffic to a target
+forbidden (route to teammates — HARD, code-enforced by lead-guard.sh):
+  the five target-touching MCP servers — nmap-server, metasploit-server,
+    shell-server, browser-server, rdp-server (teammate-only, every tool)
+  offensive CLI in Bash — nmap, netexec/nxc, ffuf, nuclei, httpx, sqlmap,
+    impacket-*, evil-winrm, ssh/scp (to targets), msfconsole/msfvenom,
+    responder, hashcat, curl (to targets), any tool that sends traffic to a
+    target
+A teammate (different session id) is never affected by the guard — only the
+lead is. If a call is denied, delegate it; do not try to bypass the guard.
 ```
 
 ## Teammate Management
@@ -738,6 +753,10 @@ resolve once and include `Callback IP: <ip>` in every shell-related task.
 
 ```bash
 mkdir -p engagement/evidence/logs
+# Declare this session as the lead so the router guard (PreToolUse hook) can
+# hard-block the lead from driving targets directly. Teammates have different
+# session ids and are never affected.
+printf '%s\n' "$CLAUDE_CODE_SESSION_ID" > engagement/.lead-session
 ```
 
 Write `engagement/scope.md` (human-readable scope). Then write

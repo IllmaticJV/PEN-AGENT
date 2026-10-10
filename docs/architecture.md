@@ -99,7 +99,7 @@ engagement/
     └── logs/         # Teammate JSONL transcripts
 ```
 
-The lead creates this directory during engagement setup. State-mgr is the sole writer to state.db. Teammates write evidence files to `evidence/`. Three hooks support the engagement: `SessionStart` prints the engagement banner, `TeammateIdle` captures teammate transcripts to `evidence/logs/`, and a `PostToolUse` hook on `get_state_summary` runs the lead's per-loop hygiene sweeps automatically (see [dashboard-and-monitoring.md](dashboard-and-monitoring.md#per-loop-state-sweep-posttooluse)).
+The lead creates this directory during engagement setup. State-mgr is the sole writer to state.db. Teammates write evidence files to `evidence/`. Four hooks support the engagement: `SessionStart` prints the engagement banner, `TeammateIdle` captures teammate transcripts to `evidence/logs/`, a `PostToolUse` hook on `get_state_summary` runs the lead's per-loop hygiene sweeps automatically, and a `PreToolUse` guard (`lead-guard.sh`) hard-blocks the lead from driving a target directly — the five target-touching MCP servers and offensive CLI are teammate-only (see [dashboard-and-monitoring.md](dashboard-and-monitoring.md#lead-router-guard-pretooluse)).
 
 See [Engagement State](engagement-state.md) for the database schema and [Running an Engagement](running-an-engagement.md) for the full workflow.
 
