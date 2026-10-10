@@ -223,7 +223,22 @@ Hard stops are the orchestrator's mandatory pause points. They are escalations, 
 
 ## Recovery Paths
 
-When agents hit obstacles, the orchestrator has structured recovery:
+When agents hit obstacles, the orchestrator works a fixed escalation ladder —
+only the last rung involves the operator:
+
+1. **Teammate self-retry** — load the skill's Troubleshooting section and retry.
+2. **Model escalation** — re-run the *same* task on a stronger model (a fresh
+   teammate instance on Opus, `config.retry_model`, default `opus`) *before* any
+   operator-manual step. Tool failures and model refusals / AUP flags are often
+   model-specific, so a capable-model retry clears them more often than operator
+   hand-holding. (If already on Opus, a different Opus build — pin it in
+   `retry_model` if your runtime's Agent `model` takes version ids.)
+3. **Specialized recovery** — AV/EDR → bypass teammate; unknown vector →
+   research teammate (below).
+4. **Operator-manual** — last resort. When the operator must run something, the
+   lead writes a ready-to-run script to `engagement/operator/<slug>.sh` and
+   hands over a single `bash engagement/operator/<slug>.sh`, never a long pasted
+   command. The script is kept as the operator-side record of what was run.
 
 ### AV/EDR Blocked
 

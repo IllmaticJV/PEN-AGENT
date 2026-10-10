@@ -12,6 +12,17 @@
 # anything outside scope.allow regardless of tier. Omit to default to manual.
 autonomy: manual
 
+# Model the lead retries a stuck teammate on before any operator-manual step
+# (see the recovery escalation ladder). When a teammate can't get a step to
+# run — a tool error, a technique that keeps failing, or a model refusal / AUP
+# flag — the lead re-runs the SAME task on a fresh teammate using this model.
+# Default "opus" bumps an enum(haiku)/ops(sonnet) teammate up to Opus, which
+# clears model-specific refusals far more often than operator hand-holding.
+# Set a specific build id (e.g. a particular Opus version) only if your
+# runtime's Agent `model` accepts version ids; the plain "opus" alias resolves
+# to one build. Omit to default to "opus".
+# retry_model: opus
+
 # Network scan type: quick | full
 # Omit to be prompted each time.
 scan_type: quick
