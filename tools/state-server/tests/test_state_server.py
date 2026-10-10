@@ -201,6 +201,23 @@ class TestCredentialCrud:
         match = [c for c in creds if c["username"] == "dbuser"]
         assert match[0]["via_vuln_id"] == vuln["vuln_id"]
 
+    def test_get_credentials_username_filter(self, srv):
+        call(srv, "add_credential", username="alice", secret="a", secret_type="password")
+        call(srv, "add_credential", username="bob", secret="b", secret_type="password")
+        call(srv, "add_credential", username="alice", secret="a2",
+             secret_type="password", domain="CORP")
+        # no filter → all three
+        assert len(json.loads(call(srv, "get_credentials"))) == 3
+        # username filter → only alice's two (the dedup-lookup path)
+        alice = json.loads(call(srv, "get_credentials", username="alice"))
+        assert len(alice) == 2
+        assert all(c["username"] == "alice" for c in alice)
+        # username + domain filter → the one CORP\alice
+        corp = json.loads(call(srv, "get_credentials", username="alice", domain="CORP"))
+        assert len(corp) == 1 and corp[0]["domain"] == "CORP"
+        # non-existent username → empty (flat read, no scan noise)
+        assert json.loads(call(srv, "get_credentials", username="nobody")) == []
+
 
 class TestAccessCrud:
     def test_add_access(self, srv):
