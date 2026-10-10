@@ -412,6 +412,13 @@ active_teammates = {}   # {name: {domain, status, current_task, last_probe_at}}
 
 while objectives_not_met:
     summary = get_state_summary()
+    # Deterministic per-loop helpers — run these instead of re-deriving the
+    # same checks in context (they read state.db + evidence locally in ~50ms):
+    #   python3 tools/monitor/state_audit.py   → stale vulns, untested creds,
+    #       provenance gaps, retryable blocks, unactioned pivots (ATTENTION
+    #       lines are ready to relay to state-mgr / route; OK = move on)
+    #   python3 tools/monitor/scribe_check.py  → shell-recording gaps to nudge
+    #   python3 tools/monitor/objective_match.py → objective-tracker proposals
     actions = run_decision_logic(summary)    # see Decision Logic below
 
     for action in actions:
@@ -479,24 +486,24 @@ When a teammate messages that a task is complete:
    - [add-pivot] for new paths
    - [add-blocked] for failed techniques (see retry policy)
    State-mgr handles dedup judgment and responds with IDs.
-3. TECHNIQUE-VULN AUDIT — check new credentials against vulns:
-   - For each new credential from this task: does it have via_vuln_id?
-   - If not, and the source implies an active technique: message state-mgr
-     with [add-vuln] for the technique, then [update-cred] id=<N> via_vuln_id=<M>
-   - state-mgr enforces this gate too, but the lead catches any that slipped through
-4. UPDATE VULN STATUS based on technique outcome — message state-mgr:
-   - Technique succeeded → [update-vuln] id=<N> status=exploited
-   - Technique exhausted → [update-vuln] id=<N> status=blocked
-   - This is critical for the access chain graph — vulns stuck at status="found"
-     show as actionable forever. Close the loop.
-5. Retry policy for blocked:
+3. UPDATE VULN STATUS for THIS task's outcome (only you know the outcome) —
+   message state-mgr: succeeded → [update-vuln] id=<N> status=actioned;
+   exhausted → [update-vuln] id=<N> status=blocked. Closing this loop keeps the
+   vuln off the "actionable" list.
+   Then run `python3 tools/monitor/state_audit.py` — it sweeps the WHOLE graph
+   for the deterministic stragglers (stale found-vulns, credentials from a named
+   technique missing via_vuln_id, orphan access, untested creds) and prints the
+   ready-to-relay [update-vuln]/[update-cred]/[add-vuln] lines. Relay what it
+   finds instead of re-deriving it in context; state-mgr also enforces the
+   provenance gate, so this is the belt to its suspenders.
+4. Retry policy for blocked:
    - Discovery agent blocked → retry: "with_context" (technique skill has deeper methodology)
    - Technique agent exhausted → retry: "no"
    - Needs new context (creds, access) → retry: "later"
-6. Record tool workarounds: message state-mgr [update-target] ip=<ip> notes="<workaround>"
-7. Check for new usernames → trigger Usernames Found hard stop if needed
-8. get_state_summary() → run Decision Logic → present next actions
-9. If 2+ independent paths: use Parallel Path format
+5. Record tool workarounds: message state-mgr [update-target] ip=<ip> notes="<workaround>"
+6. Check for new usernames → trigger Usernames Found hard stop if needed
+7. get_state_summary() → run Decision Logic → present next actions
+8. If 2+ independent paths: use Parallel Path format
 ```
 
 ## Stall Sweep

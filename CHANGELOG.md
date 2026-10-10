@@ -3,6 +3,36 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-10 (orchestrator: lead-offload — state-hygiene sweep)
+
+### Added
+
+- **`tools/monitor/state_audit.py`** — a deterministic, read-only per-loop
+  state-hygiene sweep for the lead. It runs the queries the lead used to do
+  in-context every loop and prints ready-to-relay `[update-*]` lines:
+  - **stale vulns** still at `status=found` that already produced downstream
+    access/creds/vulns (close the loop → `status=actioned`);
+  - **untested credentials** with no `credential_access` row (route
+    cred-sweep/spray);
+  - **creds missing technique provenance** — `via_vuln_id IS NULL` but the
+    `source` names a technique (secretsdump, kerberoast, dcsync, …);
+  - **orphan access** with no `via_*` provenance (chain-graph gap);
+  - **retryable blocks** (`retry=later|with_context`);
+  - **unactioned pivots** (`pivot_map.status=identified`).
+  stdlib-only, always exits 0, logs its one-line verdict to
+  `engagement/evidence/daemon.log`. Pairs with `scribe_check.py` (shell
+  recording) and `objective_match.py` (objective tracker); the stall sweep
+  stays in-context since it needs the lead's task list + message timestamps.
+
+### Changed
+
+- **`skills/ctf/SKILL.md`** — the Post-Task Checkpoint now runs
+  `state_audit.py` after the lead sets THIS task's outcome, and relays the
+  sweep's findings instead of re-deriving them in context; the Orchestrator
+  Loop references the three per-loop helpers. Keeps the lead's turns short so
+  it can juggle more teammates.
+- **`CLAUDE.md`** — `state_audit.py` added to the Local Helpers table.
+
 ## 2026-10-10 (orchestrator: autonomy tiers)
 
 ### Added
