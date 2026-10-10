@@ -66,6 +66,10 @@ if missing:
     "TeammateIdle": [
       { "matcher": "", "hooks": [
         { "type": "command", "command": "bash tools/hooks/save-teammate-log.sh" } ]}
+    ],
+    "PostToolUse": [
+      { "matcher": "mcp__state__get_state_summary", "hooks": [
+        { "type": "command", "command": "bash tools/hooks/state-sweep.sh" } ]}
     ]
   }
 }
@@ -75,9 +79,12 @@ Four things in there: the agent-teams flag the orchestrator requires;
 a pre-approved allowlist for every MCP tool PEN-AGENT uses so standard
 permission mode doesn't prompt for every call; a live engagement status
 line (vuln / cred / access counts + scope-enforcement indicator); and
-two hooks — `SessionStart` prints an engagement banner (scope, C2
-backend, portal URL, preflight state), and `TeammateIdle` snapshots
-each teammate's JSONL transcript to `engagement/evidence/logs/`. If `claude` reports agent-teams unavailable,
+three hooks — `SessionStart` prints an engagement banner (scope, C2
+backend, portal URL, preflight state), `TeammateIdle` snapshots each
+teammate's JSONL transcript to `engagement/evidence/logs/`, and
+`PostToolUse` on `get_state_summary` runs the lead's per-loop hygiene
+sweeps (`state_audit` / `scribe_check` / `objective_match`) and feeds
+only the actionable output back to the lead for free. If `claude` reports agent-teams unavailable,
 confirm the file has `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` set and that you
 started a **fresh** session after it was written — the flag is read at
 process start, so `claude --resume` on an older session won't pick it up.
@@ -97,21 +104,29 @@ Code inside `tmux`.
 
 ## Operator portal
 
-One mostly-read-only web view (`operator/portal/`, port `8099`) with four tabs.
+One mostly-read-only web view (`operator/portal/`, port `8099`) with seven tabs.
 `run.sh` **auto-starts it in a tmux session** (`pen-portal`) on launch — open
 `http://127.0.0.1:8099`, or `tmux attach -t pen-portal` to see its log. To run
-it standalone: `bash operator/portal/start.sh`. The three tabs:
+it standalone: `bash operator/portal/start.sh`. A slim **lead-parked strip**
+sits across all tabs, raised only when actionable findings are sitting unacted
+(see Dashboard & Monitoring). The tabs:
 
 - **Objective & Scope** — the engagement objective + rules of engagement
   (`engagement/scope.md`), the in-scope allowlist (`scope.allow`), and status.
-- **Goals** — the parsed `OBJECTIVES:` list with per-objective status cards
-  and a progress hero. The **operator can toggle each objective done /
-  pending from the dashboard** (checkbox on the card) — this writes
+- **Objective Tracker** — the parsed `OBJECTIVES:` list with per-objective
+  status cards and a progress hero. The **operator can toggle each objective
+  done / pending from the dashboard** (checkbox on the card) — this writes
   `engagement/objectives.json` directly, same schema the lead's
   `mcp__state__update_objective` uses, so both views stay in sync. The
   lead still owns `in_progress` / `blocked` / `skipped` via MCP.
 - **Status** — live engagement state from `state.db`: the access-chain graph,
   targets, creds, access, vulns, pivots, tunnels, event timeline.
+- **Attack Graph** — the access-chain / `pivot_map` focus graph with a wired
+  toolbar (zoom/fit/filters/search), legend, and minimap.
+- **Activity** — the teammate roster/health (status, current action, AUP /
+  blocked flags, token spend) on top of a live `state_events` feed.
+- **Findings** — the confirmed OffSec-style findings (`engagement/findings/*.json`),
+  collapsible.
 - **MSF Logs** — the live session + listener/job list, a **per-session command
   log** (every command an agent ran on each session, with operator-reserved
   sessions badged), and a **Module Calls** list showing every

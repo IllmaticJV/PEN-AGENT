@@ -3,6 +3,25 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-10 (docs: refresh portal/hooks/autonomy drift)
+
+### Changed
+
+- **Docs brought back in sync with the shipped features.** The portal now has
+  seven tabs (+ the lead-parked strip), there are three hooks, and the
+  approval gate is tiered — the docs still described three/four tabs, two
+  hooks, and unconditional per-task approval.
+  - `README.md` — portal section lists all seven tabs (Objective Tracker
+    rename, Attack Graph / Activity / Findings added) + the lead-parked
+    strip; the `.claude/settings.json` snippet and prose now show the
+    `PostToolUse` state-sweep hook ("three hooks").
+  - `docs/dashboard-and-monitoring.md` — seven-tab list + a lead-parked-strip
+    description.
+  - `docs/running-an-engagement.md` — portal tab list (seven + strip).
+  - `docs/installation.md` — the "every task goes through operator approval"
+    claim is now tier-aware (true only in `manual`).
+  - `docs/architecture.md` — names all three hooks, not just `TeammateIdle`.
+
 ## 2026-10-10 (hook: auto per-loop state sweep)
 
 ### Added

@@ -255,12 +255,15 @@ When tools fail on hostname resolution, the orchestrator follows the same hostna
 
 **Agent teams** — each teammate runs in its own tmux pane. Watch all teammates working in parallel, press Escape to interrupt any teammate, type directly to redirect. Start Claude Code inside a tmux session for split-pane mode.
 
-**Operator portal** — one read-only web view with three tabs (Objective &
-Scope, Status, MSF Logs) on `http://127.0.0.1:8099`. The Status tab is the live
-access-chain graph / targets / creds / progress; the MSF Logs tab shows
-sessions, listeners, and per-session command logs. `run.sh` auto-starts it in
-a tmux session (`pen-portal`) — just open the URL, or `tmux attach -t
-pen-portal` to see its log. To run it standalone:
+**Operator portal** — one read-only web view with seven tabs (Objective &
+Scope, Objective Tracker, Status, Attack Graph, Activity, Findings, C2 / MSF
+Logs) on `http://127.0.0.1:8099`, plus a slim **lead-parked strip** across all
+tabs that appears only when actionable findings are sitting unacted. The Status
+tab is the live access-chain graph / targets / creds / progress; the Activity
+tab is the teammate roster + live event feed; the MSF Logs tab shows sessions,
+listeners, and per-session command logs. `run.sh` auto-starts it in a tmux
+session (`pen-portal`) — just open the URL, or `tmux attach -t pen-portal` to
+see its log. To run it standalone:
 
 ```bash
 bash operator/portal/start.sh
