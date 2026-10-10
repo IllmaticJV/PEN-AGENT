@@ -29,14 +29,27 @@ The orchestrator's first action is gathering scope:
 
 ### Engagement Configuration
 
-After the CTF disclaimer, the orchestrator runs a **config wizard** — four quick questions that capture operator preferences for the entire engagement:
+After the CTF disclaimer, the orchestrator runs a **config wizard** — a few quick questions that capture operator preferences for the entire engagement:
 
-1. **Scan type** — quick (top 1000) or full (all 65535)
-2. **Web proxy** — Burp on loopback, custom proxy, no proxy, or ask later
-3. **Spray intensity** — light/medium/heavy/skip default when usernames are found
-4. **Cracking method** — local/external/skip default when hashes are captured
+1. **Autonomy** — how much the orchestrator may do without a per-task approval (see below)
+2. **Scan type** — quick (top 1000) or full (all 65535)
+3. **Web proxy** — Burp on loopback, custom proxy, no proxy, or ask later
+4. **Spray intensity** — light/medium/heavy/skip default when usernames are found
+5. **Cracking method** — local/external/skip default when hashes are captured
 
 Every question has an "ask each time" option that preserves the old interactive behavior. Preferences are stored in `engagement/config.yaml` and can be edited at any time. The config file also supports `callback_ip` and `callback_interface` overrides for reverse shell callbacks (auto-detected by default).
+
+#### Autonomy tiers
+
+The `autonomy` key controls the orchestrator's per-task operator-approval gate — the single biggest source of wait time in a run:
+
+| Tier | Discovery (read-only recon/enum) | Exploitation (in-scope technique/ops) | Elevated (spraying, pivots, destructive, opsec-high) |
+|------|------|------|------|
+| `manual` (default) | gate | gate | gate |
+| `guided` | **auto** | gate | gate |
+| `autonomous` | **auto** | **auto** | gate |
+
+Auto-run tasks are still **printed** as they go (`[auto <tier>] <skill> → <teammate> on <target>`), so the operator sees everything live and can interject — they just don't block. Scope is always enforced underneath: the target-touching MCP servers still refuse anything outside `scope.allow` regardless of tier, so no tier can act out of scope. Adding targets, `/etc/hosts` edits, dismissing teammates, and every hard stop stay operator-only in all tiers. `autonomous` is intended for CTF/lab hands-off solving; prefer `manual`/`guided` on client engagements.
 
 Config values either **skip hard stops entirely** (scan type and web proxy use the config value without asking) or **pre-select defaults** in hard stops that still fire (spray and cracking still show context but the operator confirms with one keystroke).
 

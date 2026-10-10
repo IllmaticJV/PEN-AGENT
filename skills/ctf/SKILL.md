@@ -22,16 +22,34 @@ This orchestrator uses agent teams instead of subagents. Teammates are persisten
 Claude Code sessions that accumulate domain context, communicate with each other,
 and are visible to the operator via tmux split panes or in-process mode.
 
-> **OPERATOR APPROVAL REQUIRED.** Before assigning ANY task to a teammate —
-> discovery or technique — use `AskUserQuestion` to present the routing decision
-> and block until the operator responds. State: what skill, which teammate, what
-> target, and why. No exceptions. Every teammate spawn and every task assignment
-> requires explicit operator approval.
-> **Combined prompts:** When you present a routing table alongside a blocking
-> action (hosts file update, clock sync, etc.), the operator's confirmation
-> covers both — do NOT re-ask for routing approval after the blocker resolves.
-> Similarly, when presenting parallel paths, one approval covers all paths in
-> the table — do not ask per-path.
+> **OPERATOR APPROVAL — gated by the engagement's autonomy tier**
+> (`config.yaml` key `autonomy`, default `manual`). Classify every routing
+> decision into one action class, then gate or auto-proceed per the matrix:
+>
+> | Action class | `manual` | `guided` | `autonomous` |
+> |---|---|---|---|
+> | **discovery** — read-only recon/enum (net/lin/win/web/ad/ai-enum, service enum, read-only cred validation) | gate | **auto** | **auto** |
+> | **exploitation** — in-scope technique/ops on an already-approved target (shell, privesc, chain a vuln) | gate | gate | **auto** |
+> | **elevated** — spraying (lockout risk), pivot/tunnel/SOCKS, destructive actions, any `opsec: high` skill, payload delivery to a new host | gate | gate | gate |
+>
+> **Never auto in ANY tier (operator-only):** altering scope (`scope.allow`,
+> new targets), `/etc/hosts`, anything out-of-scope, dismissing/shutting down
+> teammates, and every **Hard Stop** — those are escalations, not task
+> approvals; they always fire and surface to the operator.
+>
+> **Auto ≠ silent.** When a tier lets a task through, still PRINT it —
+> `[auto <tier>] <skill> → <teammate> on <target> — <why>` — so the operator
+> sees it live and can interject; just don't block on `AskUserQuestion`. When a
+> class gates, present the decision with `AskUserQuestion` and block as before.
+> **Scope is still enforced underneath:** autonomy only drops the per-task human
+> approval for in-scope, already-classified work — the five target-touching MCP
+> servers still code-enforce `scope.allow`, so no tier can act out of scope.
+> **Batching still applies:** one approval (or one `[auto]` line) covers a
+> parallel-path table and any blocking action presented with it — never per-path.
+>
+> Default `manual` reproduces the prior behaviour (gate everything).
+> `autonomous` is for CTF/lab hands-off solving; prefer `manual`/`guided` on
+> client engagements.
 
 > **DO NOT RUN TOOLS DIRECTLY.** You are a router. If you're about to type `nmap`,
 > `ffuf`, `nuclei`, `netexec`, or `curl` against a target — assign it to a
@@ -398,10 +416,14 @@ while objectives_not_met:
 
     for action in actions:
         teammate = resolve_teammate(action.domain)
-        AskUserQuestion: "Assign <skill> to <teammate> against <target>. <rationale>"
-        if approved:
-            if not teammate: spawn_teammate(action.domain)
-            assign_task(teammate, action.skill, action.target, action.context)
+        # Gate per the autonomy matrix (see Operator Approval above).
+        if autonomy_gate(action) == "auto":
+            print(f"[auto {autonomy}] {action.skill} → {teammate} on {action.target} — {action.rationale}")
+        else:
+            AskUserQuestion: "Assign <skill> to <teammate> against <target>. <rationale>"
+            if not approved: continue
+        if not teammate: spawn_teammate(action.domain)
+        assign_task(teammate, action.skill, action.target, action.context)
 
     # Before pausing to wait on asynchronous teammate work, sweep for silent
     # teammates and probe them — see Stall Sweep below. The lead is the only
@@ -562,11 +584,13 @@ alternative). No reply within 90 s goes to the escalation branch above.
 
 With agent teams, parallelization is natural — spawn teammates per target surface.
 
-**Parallel paths** (present to operator for approval):
+**Parallel paths** (gate the whole table once per the autonomy matrix — one
+approval, or one `[auto]` line, covers every path; never per-path):
 ```
 if 2+ viable independent exploit paths:
-    present Parallel Path table to operator
-    if approved:
+    gate the Parallel Path table once (highest action class in the table wins)
+    if gated → AskUserQuestion; if auto → print the table as [auto <tier>]
+    if cleared:
         for path in paths:
             spawn target-specific teammate if needed
             assign_task(teammate, path.skill, path.target)
@@ -664,8 +688,10 @@ if configured) on activation and reports issues to the lead via
 ls engagement/config.yaml 2>/dev/null && echo "EXISTS" || echo "NONE"
 ```
 
-**If EXISTS** → Read `engagement/config.yaml`, print the values to the operator,
-and skip directly to **Initialize Engagement**. Do NOT ask config questions.
+**If EXISTS** → Read `engagement/config.yaml`, print the values to the operator
+(call out the active `autonomy` tier explicitly — it governs the approval gate;
+treat a missing key as `manual`), and skip directly to **Initialize
+Engagement**. Do NOT ask config questions.
 
 **If NONE** → Ask the operator all 5 config questions below using AskUserQuestion,
 then write `engagement/config.yaml` from their answers. Omit keys where operator
@@ -680,6 +706,11 @@ command -v msfrpcd &>/dev/null && command -v msfconsole &>/dev/null && echo AVAI
 Config questions (only when config.yaml does not exist):
 
 ```
+Q0 — Autonomy (writes `autonomy:` — governs the Operator Approval gate):
+  Manual (recommended — approve every task) |
+  Guided (auto-run read-only discovery; gate exploitation + elevated) |
+  Autonomous (auto-run in-scope discovery + exploitation; gate spraying,
+    pivots, destructive, opsec-high — CTF/lab only)
 Q1 — Scan type: Quick (recommended) | Full | Ask each time
 Q2 — Web proxy: Burp 127.0.0.1:8080 (recommended) | Custom IP:PORT | No proxy | Ask when needed
 Q3 — Spray intensity: Light ~30 (recommended) | Medium ~10k | Heavy ~100k | Skip | Ask each time
@@ -868,11 +899,11 @@ a session, attach the real console:
 Do NOT wait to spawn shell-mgr first — get the first domain teammate working.
 
 ```
-if config.scan_type exists:
-  present routing table with pre-selected scan type for approval
-  (do NOT re-ask scan type — config already has it)
-elif config.scan_type omitted:
-  AskUserQuestion — Quick | Full | Import | Custom
+scan_type = config.scan_type or AskUserQuestion(Quick | Full | Import | Custom)
+  (if config has it, do NOT re-ask — recon is a discovery action, so the
+   autonomy gate still decides whether the assignment itself is gated or auto)
+present/assign recon per the autonomy gate (gate in manual; [auto] in guided/
+  autonomous — discovery class)
 
 spawn/message recon teammate (alone — do NOT batch with other spawns):
   "Load skill 'network-recon'. Target: <IP/range>. Scan type: <type>."
