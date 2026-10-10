@@ -209,7 +209,7 @@ After each task completes, the lead runs a **post-task checkpoint** and decision
 
 ### Hard Stops
 
-The orchestrator has mandatory pause points. Every task assignment requires operator approval — no auto-dispatch.
+Hard stops are the orchestrator's mandatory pause points. They are escalations, not task approvals, so they **always fire and surface to the operator regardless of the autonomy tier** — the tier only governs whether ordinary task dispatch needs a per-task approval (see [Autonomy tiers](#autonomy-tiers)). In `manual` every task assignment is still gated; in `guided`/`autonomous` discovery (and, in `autonomous`, exploitation) auto-dispatches, but the hard stops below never auto-proceed.
 
 | Hard Stop | Trigger | Action |
 |-----------|---------|--------|
