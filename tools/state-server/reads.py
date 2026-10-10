@@ -289,15 +289,32 @@ def register(mcp) -> None:
             return json.dumps(result, indent=2)
 
     @mcp.tool()
-    def get_credentials(untested_only: bool = False) -> str:
+    def get_credentials(untested_only: bool = False, username: str = "",
+                        domain: str = "") -> str:
         """Get credentials with tested-against information.
 
         Args:
             untested_only: If true, only return credentials that haven't been
                           tested against all known target/service combinations.
+            username: If set, only credentials for this username. Keeps the
+                      state-mgr dedup lookup flat as the credential store grows
+                      (e.g. after an NTDS/secretsdump dump) instead of loading
+                      every credential on each [add-cred].
+            domain: Optional domain filter, combined with username.
         """
         with _get_db() as conn:
-            creds = conn.execute("SELECT * FROM credentials ORDER BY id").fetchall()
+            query = "SELECT * FROM credentials"
+            conds, params = [], []
+            if username:
+                conds.append("username = ?")
+                params.append(username)
+            if domain:
+                conds.append("domain = ?")
+                params.append(domain)
+            if conds:
+                query += " WHERE " + " AND ".join(conds)
+            query += " ORDER BY id"
+            creds = conn.execute(query, params).fetchall()
 
             result = []
             for c in creds:

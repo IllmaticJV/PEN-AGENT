@@ -3,6 +3,31 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-10 (state-mgr: access-first notify + targeted cred dedup)
+
+### Changed
+
+- **state-mgr surfaces `[new-access]` to the lead first.** New access is the
+  lead's Execution Achieved trigger — the highest-priority signal — so
+  state-mgr now sends `[new-access]` ahead of the `[batch-written]`
+  confirmation and any `[new-vuln]`/`[new-cred]` notifications, instead of
+  only after finishing a batch's dedup/coherence. Keeps a new foothold from
+  waiting behind lower-priority bookkeeping. (`teammates/state-mgr.md`,
+  `tools/state-server/WRITES.md`)
+- **Targeted credential dedup read.** `get_credentials()` gained
+  `username=`/`domain=` filters; state-mgr now dedups with
+  `get_credentials(username=<user>)` instead of reloading the entire
+  credential store on every `[add-cred]`. Keeps the per-turn read flat after
+  a large NTDS/secretsdump dump. Backward compatible — no args still returns
+  all. (`tools/state-server/reads.py`, `teammates/state-mgr.md`,
+  `tools/state-server/WRITES.md`; test in `tests/test_state_server.py`)
+
+These keep state-mgr — the deliberately single writer — from becoming the
+next serialization point now that autonomy tiers + lead-offload make more
+parallel teammates viable. The writer stays serial by design (dedup + graph
+coherence); the win is cheaper turns and prompter notifications, not
+parallelism.
+
 ## 2026-10-10 (portal: lead-parked indicator)
 
 ### Added

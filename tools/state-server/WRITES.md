@@ -110,7 +110,11 @@ rows):**
    that the chain's **root** traces back to a target; emit `[chain-gap]`
    only for a missing link the batch did not supply.
 5. Send ONE `[batch-written]` confirmation with the full label map (see
-   Outbound), and notify the lead once per new finding.
+   Outbound), and notify the lead once per new finding. **If the batch
+   produced new access, send `[new-access]` to the lead FIRST** — before the
+   batch confirmation and the other notifications — because it is the lead's
+   Execution Achieved trigger (the highest-priority signal); don't make a new
+   foothold wait behind lower-priority rows.
 
 ## Agent attribution (critical)
 
@@ -205,7 +209,7 @@ update_tunnel(id, status, notes)
 ```
 get_state_summary()
 get_vulns(status, target)
-get_credentials(untested_only)
+get_credentials(untested_only, username, domain)   # pass username= for [add-cred] dedup — keeps the read flat as creds pile up
 get_access(target, active_only)
 get_targets(ip)
 ```

@@ -103,7 +103,10 @@ Sources that do NOT require `via_vuln_id`: config file, share browse,
 LDAP attribute, web page source, environment variable, history file, registry,
 password spray (confirmatory — tests known passwords, not extraction).
 
-1. Call `get_credentials()` — check for existing match on username.
+1. Call `get_credentials(username=<user>)` — check for existing match on
+   username. Pass `username=` (not a bare `get_credentials()`) so the dedup
+   read stays flat as the credential store grows — after an NTDS/secretsdump
+   dump, loading every credential on each `[add-cred]` is pure waste.
 2. Same username + same secret_type + same secret → respond `[cred-exists]`
    with existing ID. Do NOT message lead.
 3. Same username + different secret or type → write both. Both are legitimate
@@ -129,6 +132,13 @@ For every `[add-access]`:
 1. Call `get_access(target=<ip>)` — check for existing match.
 2. Same user + same method + active → respond with existing ID. Do NOT write.
 3. New or different → write. Message lead `[new-access]`.
+
+**Surface access FIRST.** `[new-access]` is the lead's Execution Achieved
+trigger — the single highest-priority signal in an engagement. When a message
+or a batched chain produces new access, write it and send the lead
+`[new-access]` *immediately*, ahead of the `[batch-written]` confirmation and
+any lower-priority `[new-vuln]`/`[new-cred]` notifications. A new foothold must
+never wait behind the rest of a batch's dedup/coherence bookkeeping.
 
 ## Graph Coherence
 
