@@ -68,6 +68,50 @@ Teammates may batch multiple actions in a single message:
 [add-port] ip=10.10.10.5 port=445 proto=tcp service=smb
 ```
 
+## Batched dependent writes — local references
+
+A provenance chain (vuln → cred → access) used to force one round-trip
+per link: the teammate wrote the vuln, waited for its id, then wrote the
+cred with `via_vuln_id=<that id>`, waited again, then the access. Through
+the single writer that is pure serialization. **Local references collapse
+the whole chain into one message.**
+
+- `ref=<label>` on any `[add-*]` names the row being created. Labels are
+  local to this one message (convention `v1`, `c1`, `a1`; any
+  `[a-z0-9_]+` works).
+- `@<label>` as the value of any id field (`via_vuln_id=@v1`,
+  `via_credential_id=@c1`, `via_access_id=@a1`) refers to a row created
+  **earlier in the same message**. List rows parent-first — `@label` is
+  always a backward reference.
+
+```
+[add-vuln]   ref=v1 ip=10.1.1.5 title="Kerberoast svc_sql" vuln_type=kerberoast severity=high via_access_id=4 discovered_by=ad-ops
+[add-cred]   ref=c1 username=svc_sql secret=<tgs-hash> secret_type=kerberos_tgs source=kerberoast via_vuln_id=@v1 discovered_by=ad-ops
+[add-access] ip=10.1.1.5 method=winrm user=svc_sql level=admin via_credential_id=@c1 via_vuln_id=@v1 discovered_by=ad-ops
+```
+
+**How state-mgr resolves a batch (do this in one turn, no reply between
+rows):**
+
+1. Keep a `refs = {}` map for the message. Process rows top-to-bottom.
+2. For each row, substitute every `@label` value from `refs`. If a
+   `@label` is not yet in `refs` (forward reference or typo), do NOT
+   write that row or any later row that depends on it — reply
+   `[batch-error] unresolved ref @<label> on <action>` and write only
+   the rows that resolved cleanly.
+3. Strip the `ref=` field — it is a batch label, never a tool argument.
+   Call the matching write tool with the resolved numeric ids and apply
+   normal dedup. If the row merges into an existing record, bind
+   `refs[label]` to the **surviving** id so later rows link to the real
+   row, not a phantom.
+4. Dedup, the technique-vuln gate, and graph coherence still run per row.
+   A chain that supplies its own `via_vuln_id=@v1` satisfies the gate
+   in-batch, so no `[cred-needs-vuln]` round-trip is needed. Still audit
+   that the chain's **root** traces back to a target; emit `[chain-gap]`
+   only for a missing link the batch did not supply.
+5. Send ONE `[batch-written]` confirmation with the full label map (see
+   Outbound), and notify the lead once per new finding.
+
 ## Agent attribution (critical)
 
 Every write tool has an agent attribution field. state-mgr MUST pass
@@ -94,6 +138,7 @@ attribution breaks the engagement timeline — never omit it.
 ## Outbound — confirmations to teammates
 
 ```
+[batch-written] v1→vuln#12 c1→cred#7 access#3  — one line per batched message, label→id map
 [vuln-written] id=<N> title="<title>" (new)
 [vuln-merged] id=<N> ← your "<title>" merged into existing
 [vuln-updated] id=<N> status=<status>

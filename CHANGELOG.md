@@ -3,6 +3,45 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-10 (state writes: batched dependent writes — local references)
+
+### Added
+
+- **Intra-batch local references for state writes.** A provenance chain
+  (vuln → cred → access) used to serialize through the single-writer
+  state-mgr as one round-trip per link — write the vuln, wait for its id,
+  write the cred with `via_vuln_id=<id>`, wait, write the access. Teammates
+  can now submit the whole chain in **one** message:
+  - `ref=<label>` names a row being created (`[add-vuln] ref=v1 ...`);
+  - `@<label>` links to it from any id field (`via_vuln_id=@v1`,
+    `via_credential_id=@c1`).
+  state-mgr resolves the references in dependency order within a single turn
+  (binding each label to the surviving id after dedup), then replies once
+  with a `[batch-written]` label→id map. Collapses N round-trips per chain
+  into one. This is the third item from the "speed up runs" analysis —
+  the state-mgr single-writer stays serial by design (dedup + graph
+  coherence), so the win is making teammates actually batch rather than
+  parallelizing the writer.
+
+### Changed
+
+- **`tools/state-server/WRITES.md`** — new "Batched dependent writes — local
+  references" section (syntax + state-mgr resolution rules: forward-ref
+  error handling, dedup-merge binding, in-batch technique-vuln gate
+  satisfaction); `[batch-written]` added to the outbound confirmations.
+- **`CLAUDE.md`** — § "State Writes via state-mgr" now shows the one-message
+  chain pattern; the "wait for confirmation IDs" rule is narrowed to
+  genuinely cross-message references.
+- **`teammates/state-mgr.md`** — resolve batched chains in one turn, reply
+  once with the label map (never per-row).
+- **`tools/ingestors/cred_ingest.py`** — `--via-vuln-ref LABEL` stamps
+  `via_vuln_id=@LABEL` on every emitted `[add-cred]` line, so a
+  secretsdump/kerberoast dump + its technique vuln go to state-mgr as one
+  batch.
+- **`teammates/ad-ops.md`, `teammates/smb-ops.md`** — use the one-message
+  batch (`--via-vuln-ref` + `[add-vuln] ref=`) instead of write-vuln-first-
+  then-forward.
+
 ## 2026-10-10 (orchestrator: lead-offload — state-hygiene sweep)
 
 ### Added

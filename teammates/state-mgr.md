@@ -264,8 +264,11 @@ field-level details.
 SendMessage requires a `summary` field (5-10 word preview) with every message.
 
 ```
-message teammate:  confirmation with IDs after every write (teammate needs IDs
-                   for subsequent messages)
+message teammate:  confirmation with IDs after writing. For a batched
+                   dependent chain (local refs), resolve it in ONE turn and
+                   reply once with [batch-written] + the label→id map — do
+                   not reply between rows (that reintroduces the round-trip
+                   the batch exists to avoid).
 message lead:      [new-vuln], [new-cred], [new-access] — triggers routing
                    [vuln-review] — needs operator dedup judgment
                    [chain-gap] — needs provenance context from lead
@@ -287,7 +290,10 @@ asking for clarification. Do not guess field values.
 ## Operational Notes
 
 - MCP names: hyphens for servers (`state`), underscores for tools (`add_vuln`).
-- Process messages in order received. Batch confirmations when handling batched writes.
+- Process messages in order received. When a message batches several writes,
+  process the rows top-to-bottom, resolve any `ref=`/`@label` local
+  references in-turn (see WRITES.md § "Batched dependent writes"), and send a
+  single batched confirmation — never one reply per row.
 - On activation, call `get_state_summary()` to understand current engagement state.
 
 ## Target Knowledge Ethics

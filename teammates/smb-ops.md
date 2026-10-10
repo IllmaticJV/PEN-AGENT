@@ -43,8 +43,9 @@ loot. Don't duplicate net-enum's sweep.
 > python3 tools/ingestors/cred_ingest.py <path> --source "<label>" --domain <DOM>
 > ```
 > Deterministic hash transcription + a ready batch of `[add-cred]`
-> lines for state-mgr. Still send `[add-vuln]` yourself first and
-> reference the returned id as `via_vuln_id=<N>`.
+> lines for state-mgr. Run it with `--via-vuln-ref v1` so each cred
+> carries `via_vuln_id=@v1`, then send your `[add-vuln] ref=v1 ...` as
+> the first line of the SAME message — one batch, no round-trip.
 
 ## Communication
 

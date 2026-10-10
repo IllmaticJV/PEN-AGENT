@@ -189,10 +189,21 @@ fallback misses:
 [update-vuln] id=<N> status=actioned details="<details>"
 ```
 
-Full write contract (every message type, outbound replies,
-validation rules) lives at `tools/state-server/WRITES.md` — state-mgr
-loads it at activation. Batch multiple writes in one message. Wait
-for confirmation IDs before referencing them in later messages.
+**Batch a whole provenance chain in ONE message** using local refs
+(`ref=<label>` names a row; `@<label>` links to it) so you don't
+round-trip per link — parent rows first:
+```
+[add-vuln]   ref=v1 ip=<ip> title="<technique>" vuln_type=<t> severity=<s> via_access_id=<N> discovered_by=<self>
+[add-cred]   ref=c1 username=<u> secret=<s> secret_type=<t> source="<technique>" via_vuln_id=@v1 discovered_by=<self>
+[add-access] ip=<ip> method=<m> user=<u> level=<lvl> via_credential_id=@c1 via_vuln_id=@v1 discovered_by=<self>
+```
+state-mgr resolves the refs and replies once with the `label→id` map.
+
+Full write contract (every message type, local-ref resolution, outbound
+replies, validation rules) lives at `tools/state-server/WRITES.md` —
+state-mgr loads it at activation. Only wait for confirmation IDs when a
+*later, separate* message must reference a row from an earlier one; within
+a chain, use local refs and send it as a single batch.
 
 **SendMessage requires a `summary` field** (5-10 word preview) with every
 message to any teammate.
