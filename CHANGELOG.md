@@ -3,6 +3,39 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-10 (hook: lead router guard — hard-block the lead from driving targets)
+
+### Added
+
+- **`PreToolUse` guard that hard-blocks the lead from executing against a
+  target** — `tools/hooks/lead-guard.sh`. The lead is a router; it occasionally
+  ran recon/exploits itself instead of delegating. The guard now denies, for
+  the lead only:
+  - any call to the five target-touching MCP servers (`nmap` / `metasploit` /
+    `shell` / `browser` / `rdp`) — teammate-only;
+  - offensive / target-touching CLI in `Bash` (nmap, nxc/netexec, impacket-*,
+    evil-winrm, sqlmap, msfconsole/msfvenom, responder, ssh/scp, curl/wget to a
+    target, …).
+  Denies with `permissionDecision: deny` and a "delegate to a teammate" reason.
+  Local orchestration Bash (`python3 tools/*`, ls, date, cp, git, ldapsearch
+  base-scope, getent, ip) is untouched.
+- **Lead identification is positive and fail-safe for teammates.** The
+  orchestrator writes its own `CLAUDE_CODE_SESSION_ID` to
+  `engagement/.lead-session` at init; the guard denies ONLY when the calling
+  `session_id` matches that marker. A teammate has a different `session_id`, so
+  it can never be blocked; a missing marker defers (the prompt rule still
+  applies). Restart-safe (the marker is rewritten each engagement).
+
+### Changed
+
+- **`skills/ctf/SKILL.md`** — "DO NOT RUN TOOLS DIRECTLY" is now a HARD,
+  code-enforced rule naming the five teammate-only MCP servers and the
+  offensive-CLI denylist; the orchestrator writes the lead marker at init.
+- **`install.sh`** — generated `.claude/settings.json` wires the `PreToolUse`
+  guard (existing installs add it by hand).
+- **`README.md`, `docs/dashboard-and-monitoring.md`, `docs/architecture.md`** —
+  document the guard ("four hooks").
+
 ## 2026-10-10 (config.sh: ask the autonomy tier)
 
 ### Fixed

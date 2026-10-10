@@ -128,3 +128,40 @@ Behaviour:
 is missing, so an engagement set up before this hook existed must add the
 `PostToolUse` block above to its `.claude/settings.json` by hand (or delete the
 file and re-run `install.sh`). New installs get it automatically.
+
+### Lead router guard (PreToolUse)
+
+The lead is a router, not an executor — it must never drive a target itself.
+A `PreToolUse` hook (`tools/hooks/lead-guard.sh`), matched to the five
+target-touching MCP servers (`nmap` / `metasploit` / `shell` / `browser` /
+`rdp`) and `Bash`, **hard-blocks** those for the lead: any call to one of those
+MCP servers, or an offensive CLI tool in Bash (`nmap`, `nxc`, `impacket-*`,
+`evil-winrm`, `sqlmap`, `msfconsole`/`msfvenom`, `responder`, `curl`/`wget` to a
+target, …), is denied with a `permissionDecision: deny` telling the lead to
+delegate to a teammate.
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__(nmap|metasploit|shell|browser|rdp)-server__.*|Bash",
+        "hooks": [
+          { "type": "command", "command": "bash tools/hooks/lead-guard.sh" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Lead identification is **positive and fail-safe for teammates**: the
+orchestrator writes its own `CLAUDE_CODE_SESSION_ID` to
+`engagement/.lead-session` at engagement init, and the hook denies **only** when
+the calling `session_id` matches that marker. A teammate has a different
+`session_id`, so it is never matched and never blocked; if the marker is absent
+(pre-init or misconfig) the hook defers and the prompt-level rule still applies.
+Local orchestration Bash (`python3 tools/*`, `ls`, `date`, `cp`, `git`,
+`ldapsearch` base-scope, `getent`, `ip`) is untouched. Same existing-installs
+caveat as above — add the `PreToolUse` block by hand on an older
+`.claude/settings.json`.

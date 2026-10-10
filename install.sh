@@ -319,6 +319,14 @@ if [[ ! -f "$settings_file" ]]; then
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "mcp__(nmap|metasploit|shell|browser|rdp)-server__.*|Bash",
+        "hooks": [
+          { "type": "command", "command": "bash tools/hooks/lead-guard.sh" }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "mcp__state__get_state_summary",
@@ -331,7 +339,7 @@ if [[ ! -f "$settings_file" ]]; then
 }
 JSON
     echo ""
-    echo "Wrote ${settings_file} (agent-teams flag, MCP allowlist, status line, SessionStart + TeammateIdle + PostToolUse hooks)."
+    echo "Wrote ${settings_file} (agent-teams flag, MCP allowlist, status line, SessionStart + TeammateIdle + PreToolUse + PostToolUse hooks)."
 else
     if ! grep -q '"enableAllProjectMcpServers"' "$settings_file"; then
         echo ""
