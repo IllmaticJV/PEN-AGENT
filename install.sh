@@ -318,12 +318,20 @@ if [[ ! -f "$settings_file" ]]; then
           { "type": "command", "command": "bash tools/hooks/save-teammate-log.sh" }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__state__get_state_summary",
+        "hooks": [
+          { "type": "command", "command": "bash tools/hooks/state-sweep.sh" }
+        ]
+      }
     ]
   }
 }
 JSON
     echo ""
-    echo "Wrote ${settings_file} (agent-teams flag, MCP allowlist, status line, SessionStart + TeammateIdle hooks)."
+    echo "Wrote ${settings_file} (agent-teams flag, MCP allowlist, status line, SessionStart + TeammateIdle + PostToolUse hooks)."
 else
     if ! grep -q '"enableAllProjectMcpServers"' "$settings_file"; then
         echo ""

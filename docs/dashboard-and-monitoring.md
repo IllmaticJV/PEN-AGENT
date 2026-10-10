@@ -75,3 +75,51 @@ The `TeammateIdle` hook is configured in `.claude/settings.json`:
 ```
 
 The hook always exits 0 to never block Claude Code, regardless of whether logging succeeds.
+
+### Per-loop state sweep (PostToolUse)
+
+The lead runs three deterministic hygiene sweeps at the top of every
+orchestrator loop — `state_audit.py` (stale vulns, untested/unprovenanced
+creds, orphan access, retryable blocks, unactioned pivots), `scribe_check.py`
+(unrecorded shells/exploits), and `objective_match.py` (objective-tracker
+proposals). A `PostToolUse` hook (`tools/hooks/state-sweep.sh`) matched to
+`mcp__state__get_state_summary` runs them automatically right after the lead's
+summary call and feeds only the **actionable** output back to the lead via
+`hookSpecificOutput.additionalContext` — so the lead gets the sweep for free
+every loop, without spending tool calls on it, and never forgets to run it.
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__state__get_state_summary",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash tools/hooks/state-sweep.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Behaviour:
+
+- **Silent on a coherent loop.** `state_audit`/`scribe_check` print nothing on
+  OK (`--quiet`) and `objective_match` is included only when it has real
+  proposals, so a clean loop injects no context at all.
+- **Lead only.** A spawned teammate also calls `get_state_summary` at
+  activation; that call carries a non-empty `agent_id` (common hook input
+  field, Claude Code ≥ 2.1.290) and is skipped, so the lead's routing sweep
+  never lands in teammate context.
+- **Never blocks.** Always exits 0 — `get_state_summary` already returned, so a
+  hook failure must not surface as a tool error. (PostToolUse plain stdout does
+  not reach the model; only the `additionalContext` JSON does.)
+
+**Existing installs:** `install.sh` writes `.claude/settings.json` only when it
+is missing, so an engagement set up before this hook existed must add the
+`PostToolUse` block above to its `.claude/settings.json` by hand (or delete the
+file and re-run `install.sh`). New installs get it automatically.
