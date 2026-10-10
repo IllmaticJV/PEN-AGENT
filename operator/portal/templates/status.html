@@ -107,6 +107,19 @@ tbody tr:hover td { background: rgba(255,255,255,.025); }
   font-family: var(--ui); font-size: 13px; outline: none; transition: border-color .15s,box-shadow .15s; }
 .filter-bar input::placeholder { color: var(--fg-dim); }
 .filter-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.section-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 16px 0 0; }
+.section-filters .chip { background: var(--bg2); border: 1px solid var(--border-strong);
+  color: var(--fg-dim); border-radius: 999px; padding: 5px 12px; font-family: var(--ui);
+  font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center;
+  gap: 6px; transition: border-color .15s, color .15s, background .15s, opacity .15s; }
+.section-filters .chip .n { font-family: var(--mono); font-size: 11px; opacity: .85; }
+.section-filters .chip:hover { border-color: var(--accent); }
+.section-filters .chip.on { background: var(--accent-glow); border-color: var(--accent); color: var(--text); }
+.section-filters .chip.off { opacity: .5; text-decoration: line-through; }
+.section-filters .sf-actions { margin-left: auto; display: flex; gap: 10px; }
+.section-filters .sf-actions button { background: none; border: none; color: var(--fg-dim);
+  font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--ui); padding: 0; }
+.section-filters .sf-actions button:hover { color: var(--accent); }
 .section { margin-bottom: 14px; }
 .section-body { overflow-x: auto; }
 .section-body.hidden { display: none; }
@@ -317,6 +330,8 @@ body.focus-graph #graph-minimap { display: block; position: absolute; right: 16p
   </div>
 </div>
 
+<div class="section-filters" id="section-filters"></div>
+
 <div class="filter-bar">
   <input type="text" id="filter" placeholder="Filter across all tables..." oninput="applyFilter()">
   <button class="refresh-btn" onclick="refreshAll()" style="margin-left:8px">Refresh</button>
@@ -378,6 +393,7 @@ function showContent() {
 }
 function render() {
   showContent();
+  renderSectionFilters();
   renderNav();
   renderCards();
   renderFlowGraph();
@@ -386,6 +402,7 @@ function render() {
 }
 function renderLight() {
   showContent();
+  renderSectionFilters();
   renderNav();
   renderCards();
   renderTables();
@@ -448,6 +465,41 @@ const TABLE_DEFS = [
            agent: r => r.agent ? `<span class="badge sev-low">${r.agent}</span>` : '' }},
 ];
 
+// --- Section visibility filter (per-viewer; persisted) ---
+const ALL_SECTION_IDS = TABLE_DEFS.map(d => d.id);
+let visibleSections = new Set(ALL_SECTION_IDS);
+try {
+  const saved = JSON.parse(localStorage.getItem('status-visible-sections') || 'null');
+  if (Array.isArray(saved)) visibleSections = new Set(saved.filter(id => ALL_SECTION_IDS.includes(id)));
+} catch (e) {}
+function saveSectionFilter() {
+  try { localStorage.setItem('status-visible-sections', JSON.stringify([...visibleSections])); } catch (e) {}
+}
+function sectionVisible(id) { return visibleSections.has(id); }
+function toggleSectionFilter(id) {
+  if (visibleSections.has(id)) visibleSections.delete(id); else visibleSections.add(id);
+  saveSectionFilter();
+  renderSectionFilters(); renderNav(); renderTables();
+}
+function setAllSections(on) {
+  visibleSections = new Set(on ? ALL_SECTION_IDS : []);
+  saveSectionFilter();
+  renderSectionFilters(); renderNav(); renderTables();
+}
+function renderSectionFilters() {
+  if (!state) return;
+  const el = document.getElementById('section-filters');
+  const chips = TABLE_DEFS.map(def => {
+    const n = (state[def.key] || []).length;
+    const on = sectionVisible(def.id);
+    return `<button class="chip ${on ? 'on' : 'off'}" onclick="toggleSectionFilter('${def.id}')" `
+         + `title="${on ? 'Hide' : 'Show'} ${def.title}">${def.title}<span class="n">${n}</span></button>`;
+  }).join('');
+  el.innerHTML = chips
+    + `<span class="sf-actions"><button onclick="setAllSections(true)">All</button>`
+    + `<button onclick="setAllSections(false)">None</button></span>`;
+}
+
 function renderNav() {
   if (!state) return;
   const nav = document.getElementById('nav');
@@ -456,6 +508,7 @@ function renderNav() {
     { id: 'section-graph', label: 'Access Chain', n: '' },
   ];
   for (const def of TABLE_DEFS) {
+    if (!sectionVisible(def.id)) continue;
     items.push({ id: `section-${def.id}`, label: def.title, n: (state[def.key] || []).length });
   }
   nav.innerHTML = items.map(i =>
@@ -497,6 +550,7 @@ function renderTables() {
   const filter = document.getElementById('filter').value.toLowerCase();
   let html = '';
   for (const def of TABLE_DEFS) {
+    if (!sectionVisible(def.id)) continue;
     let rows = state[def.key] || [];
     if (filter) {
       rows = rows.filter(r => JSON.stringify(r).toLowerCase().includes(filter));

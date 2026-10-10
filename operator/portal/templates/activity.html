@@ -63,6 +63,13 @@ body{background:radial-gradient(1000px 500px at 85% -10%,rgba(79,140,255,.05),tr
   transition:color .12s,background .12s;white-space:nowrap}
 .modeswitch .ms:hover{color:var(--fg)}
 .modeswitch .ms.active{color:var(--fg);background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--border-2)}
+.teamfilter{appearance:none;cursor:pointer;font-family:var(--ui);font-size:10.5px;font-weight:600;
+  padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg3);color:var(--fg-3);
+  white-space:nowrap;transition:color .12s,background .12s,border-color .12s;display:inline-flex;align-items:center;gap:6px}
+.teamfilter:hover{color:var(--fg);border-color:var(--border-2)}
+.teamfilter .d{width:7px;height:7px;border-radius:50%;background:var(--fg-3)}
+.teamfilter.on{background:var(--green-soft);border-color:rgba(63,185,80,.4);color:var(--green)}
+.teamfilter.on .d{background:var(--green);box-shadow:0 0 6px var(--green)}
 .alert{display:flex;align-items:center;gap:11px;margin-top:16px;padding:12px 15px;border-radius:12px;
   background:var(--red-soft);border:1px solid rgba(240,86,77,.35);color:#f6a79f;font-size:12.5px;line-height:1.45}
 .alert .ic{width:22px;height:22px;flex-shrink:0;color:var(--red)}
@@ -192,8 +199,9 @@ function relTime(iso){
 /* ── Team roster ───────────────────────────────────────────────────────── */
 const TCATS=[['input','seg-input'],['cache_write','seg-cw'],['cache_read','seg-cr'],['output','seg-out']];
 const WEIGHTS={input:1,cache_write:1.25,cache_read:0.1,output:5};
-let teamData=null, mode='raw';
+let teamData=null, mode='raw', teamActiveOnly=false;
 try{mode=localStorage.getItem('team-mode')||'raw';}catch(e){}
+try{teamActiveOnly=localStorage.getItem('team-active-only')==='1';}catch(e){}
 const wval=(o,k)=> mode==='billed' ? (o[k]||0)*WEIGHTS[k] : (o[k]||0);
 const wtotal=(o)=> TCATS.reduce((s,[k])=>s+wval(o,k),0);
 function minibar(tm){
@@ -236,6 +244,13 @@ function renderTeam(d){
   const toggle=`<div class="modeswitch">
       <button class="ms ${billed?'':'active'}" onclick="setMode('raw')">Raw</button>
       <button class="ms ${billed?'active':''}" onclick="setMode('billed')">Billed-weight</button></div>`;
+  // Active-only roster filter (per-viewer). Hides idle teammates; flagged ones
+  // stay visible since they are alerts the operator needs to see.
+  const shown = teamActiveOnly ? d.teammates.filter(tm => (tm.status||'idle')!=='idle') : d.teammates;
+  const hidden = d.teammates.length - shown.length;
+  const activeToggle=`<button class="teamfilter ${teamActiveOnly?'on':''}" `
+    + `onclick="setActiveOnly(${!teamActiveOnly})" title="${teamActiveOnly?'Show all teammates':'Show only active (and flagged) teammates'}">`
+    + `<span class="d"></span>Active only</button>`;
   slot.innerHTML=`<div class="hero">
     <div class="hero-top">
       <div>
@@ -247,17 +262,18 @@ function renderTeam(d){
           ${r.flagged?`<span class="rs flagged"><span class="dot"></span><span class="n">${r.flagged}</span> flagged</span>`:''}
         </div>
       </div>
-      <div class="hero-right">${toggle}
+      <div class="hero-right">${activeToggle}${toggle}
         <div class="spend"><div class="v">${fmt(grand)}</div><div class="k">${billed?'billed-weight · total':'tokens · engagement total'}</div></div></div>
     </div>
     ${(r.alerts&&r.alerts.length)?`<div class="alert">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.2 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.2a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
       <div><b>${r.alerts.map(esc).join(', ')}</b> tripped a content filter (AUP sentinel in engagement/evidence/). Likely context-poisoned — dismiss &amp; respawn with a clean context.</div></div>`:''}
   </div>
-  <div class="sec-label">Roster</div>
-  <div class="grid">${d.teammates.map(card).join('')}</div>`;
+  <div class="sec-label">Roster${teamActiveOnly&&hidden?` <span class="dim">· ${hidden} idle hidden</span>`:''}</div>
+  <div class="grid">${shown.length?shown.map(card).join(''):'<div class="dim" style="padding:8px 2px">No active teammates right now.</div>'}</div>`;
 }
 function setMode(m){mode=m;try{localStorage.setItem('team-mode',m);}catch(e){};if(teamData)renderTeam(teamData);}
+function setActiveOnly(v){teamActiveOnly=v;try{localStorage.setItem('team-active-only',v?'1':'0');}catch(e){};if(teamData)renderTeam(teamData);}
 function loadTeam(){
   fetch('/api/team').then(r=>r.json()).then(d=>{teamData=d;renderTeam(d);}).catch(()=>{});
 }

@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-10 (portal: Status section filters + Activity active-only)
+
+### Added
+
+- **Status tab — clickable section filter chips.** A row of toggle chips (one
+  per table: Targets, Credentials, Access, Vulns, Pivot Map, Tunnels, Blocked,
+  Events) shows/hides whole sections; deselected sections drop out of both the
+  tables and the side nav. "All" / "None" quick actions; selection persists per
+  viewer in `localStorage`.
+- **Activity tab — "Active only" roster toggle.** Hides idle teammates so the
+  operator sees just who's working; flagged (AUP) teammates stay visible since
+  they're alerts. Shows an "N idle hidden" hint and persists per viewer.
+
+Both are read-only, client-side filters in the portal templates
+(`status.html`, `activity.html`). JS `node --check` clean; portal boots and
+both pages serve the controls.
+
 ## 2026-10-10 (recovery: model escalation before operator-manual; operator handoffs as scripts)
 
 ### Changed
