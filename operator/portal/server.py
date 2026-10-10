@@ -12,6 +12,9 @@ A single read-only server/port/login with one tab per sub-page:
   Findings           (/findings)   engagement/findings/*.json (collapsible)
   C2 / MSF Logs      (/msf)        live session/listener list + per-session logs
 
+The nav shell also raises a lead-parked strip (data: /api/lead) across all
+tabs when actionable findings are sitting unacted in state.db.
+
 Stdlib HTTP + SSE; the MSF tab uses pymetasploit3 to read the live session/job
 list, so this runs via `uv run` (see start.sh). Page markup lives in templates/;
 the data layer and helpers live in the dash/ package — this module is just the
@@ -38,7 +41,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote_plus, urlparse
 
-from dash import activity, auth, config, findings, msf, objectives, scope, shelllogs, state, team
+from dash import activity, auth, config, findings, lead, msf, objectives, scope, shelllogs, state, team
 from dash.pages import LOGIN_HTML, PAGES
 
 
@@ -125,6 +128,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(findings.build())
         elif path == "/api/activity":
             self._json(activity.build(self.db_path))
+        elif path == "/api/lead":
+            self._json(lead.build(self.db_path))
         elif path == "/api/events":
             qs = parse_qs(urlparse(self.path).query)
             try:

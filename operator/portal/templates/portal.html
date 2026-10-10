@@ -48,6 +48,20 @@ nav::-webkit-scrollbar{display:none}
 .ribbon .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);
         box-shadow:0 0 6px var(--amber)}
 #frame{flex:1;border:none;width:100%;background:var(--bg)}
+/* Lead-parked indicator — a slim strip below the header, shown only when
+   actionable output is sitting unacted (see dash/lead.py). */
+#leadbar{display:none;align-items:center;gap:12px;flex-shrink:0;padding:8px 20px;
+     font-size:12.5px;font-weight:600;border-bottom:1px solid var(--border);
+     background:rgba(214,165,51,.12)}
+#leadbar.show{display:flex}
+#leadbar.parked{background:rgba(240,86,77,.13)}
+#leadbar .ic{font-size:13px;line-height:1}
+#leadbar .hl{color:var(--amber)}
+#leadbar.parked .hl{color:var(--red)}
+#leadbar .detail{color:var(--fg-dim);font-weight:500;min-width:0;overflow:hidden;
+     text-overflow:ellipsis;white-space:nowrap}
+#leadbar .age{margin-left:auto;flex-shrink:0;font-family:var(--mono);color:var(--fg-dim)}
+@media (max-width:760px){#leadbar .detail{display:none}}
 @media (max-width:760px){
   header{gap:12px;padding:0 12px}
   .brand .sub{display:none}
@@ -87,6 +101,7 @@ nav::-webkit-scrollbar{display:none}
   <span class="spacer"></span>
   <span class="ribbon"><span class="dot"></span>Read&#8209;only</span>
 </header>
+<div id="leadbar" title="Actionable findings in state that the lead hasn't routed yet"></div>
 <iframe id="frame" title="portal content"></iframe>
 <script>
 const frame = document.getElementById('frame');
@@ -103,5 +118,41 @@ tabs.forEach(t => t.addEventListener('click', () => show(t.dataset.tab)));
 let initial = 'status';
 try { initial = localStorage.getItem('portal-tab') || 'status'; } catch (e) {}
 show(initial);
+
+// ── Lead-parked indicator ───────────────────────────────────────────────
+// Poll /api/lead and raise a strip when actionable output is sitting unacted.
+const leadbar = document.getElementById('leadbar');
+function fmtAge(s) {
+  if (s == null) return '?';
+  s = Math.floor(s);
+  if (s < 90) return s + 's';
+  const m = Math.floor(s / 60);
+  return m < 90 ? m + 'm' : Math.floor(m / 60) + 'h';
+}
+function renderLead(d) {
+  if (!d || !d.available || !d.alert) { leadbar.className = ''; return; }
+  const parked = d.status === 'parked';
+  const n = d.backlog_total;
+  const noun = 'actionable finding' + (n === 1 ? '' : 's');
+  const headline = parked ? `Lead parked — ${n} ${noun} waiting`
+                          : `${n} ${noun} aging`;
+  const detail = (d.backlog || []).map(c => `${c.count} ${c.label}`).join(' · ');
+  const age = parked ? `quiet ${fmtAge(d.quiet_seconds)}`
+                     : `oldest ${fmtAge(d.oldest_backlog_age_s)}`;
+  leadbar.innerHTML =
+    `<span class="ic">${parked ? '⛔' : '⚠'}</span>` +
+    `<span class="hl">${headline}</span>` +
+    `<span class="detail">${detail}</span>` +
+    `<span class="age">${age}</span>`;
+  leadbar.className = 'show' + (parked ? ' parked' : '');
+}
+async function pollLead() {
+  try {
+    const r = await fetch('/api/lead', { credentials: 'same-origin' });
+    if (r.ok) renderLead(await r.json());
+  } catch (e) { /* transient — keep the last state */ }
+}
+pollLead();
+setInterval(pollLead, 8000);
 </script>
 </body></html>

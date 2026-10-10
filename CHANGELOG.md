@@ -3,6 +3,28 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-10 (portal: lead-parked indicator)
+
+### Added
+
+- **Lead-parked indicator** in the operator portal — a slim strip the nav
+  shell raises across all tabs when actionable output is sitting unacted,
+  the symptom of the lead being parked on a per-task approval gate (the
+  `manual`/`guided` autonomy tiers) with the operator away. New
+  `operator/portal/dash/lead.py` derives it read-only from state.db:
+  "actionable backlog" (un-actioned `found` vulns, untested credentials,
+  `identified` pivots, retryable blocks — mirroring Decision Logic and
+  `state_audit.py`) plus "quiet time" since the newest `state_events` row.
+  - `parked` (red): backlog exists AND the engagement has been quiet past
+    the 3-min threshold — nothing is happening while work waits.
+  - `waiting` (amber): backlog's oldest item has aged past the threshold
+    but activity is still recent (lead progressing on another path).
+  - `working` / `idle`: no banner.
+  Served at `/api/lead`; the shell polls it every 8s. The portal is
+  read-only off disk, so this surfaces the *symptom* (actionable findings
+  the lead hasn't routed) — it cannot observe the lead's `AskUserQuestion`
+  directly.
+
 ## 2026-10-10 (state writes: batched dependent writes — local references)
 
 ### Added

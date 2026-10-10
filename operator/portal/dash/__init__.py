@@ -12,6 +12,7 @@ else lives here as cohesive modules:
   team        teammate roster/health + per-teammate token usage (from transcripts)
   findings    confirmed findings (engagement/findings/*.json)
   activity    live activity feed (state_events)
+  lead        lead-parked indicator (actionable backlog + quiet-time)
   msf         Metasploit RPC read-side + file-based logs
   shelllogs   shell-server read-side (non-MSF sessions)
 """
