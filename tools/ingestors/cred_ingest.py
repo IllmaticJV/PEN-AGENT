@@ -238,8 +238,11 @@ def _escape(s: str) -> str:
     return s.replace('"', '\\"')
 
 
-def _format_writes(creds: list[dict], source_label: str) -> str:
+def _format_writes(creds: list[dict], source_label: str, via_vuln_ref: str = "") -> str:
     out = ["=== STATE WRITES (relay to state-mgr) ==="]
+    if via_vuln_ref:
+        out.append(f'# send your [add-vuln] ref={via_vuln_ref} ... line FIRST in the '
+                   f'same message, then these — one batch, no round-trip')
     for c in creds:
         parts = [
             f'username={c["user"]}',
@@ -252,6 +255,8 @@ def _format_writes(creds: list[dict], source_label: str) -> str:
         if c["extra"]:
             src = f"{source_label} ({c['extra']})"
         parts.append(f'source="{_escape(src)}"')
+        if via_vuln_ref:
+            parts.append(f'via_vuln_id=@{via_vuln_ref}')
         out.append(f"[add-cred] " + " ".join(parts))
     return "\n".join(out)
 
@@ -265,6 +270,10 @@ def main() -> int:
                     help="default domain when the dump doesn't carry one (e.g. 'KETHALIS')")
     ap.add_argument("--writes-only", action="store_true")
     ap.add_argument("--no-writes", action="store_true")
+    ap.add_argument("--via-vuln-ref", default="", metavar="LABEL",
+                    help="stamp via_vuln_id=@LABEL on every [add-cred] line so the "
+                         "technique vuln and these creds can be sent as ONE batched "
+                         "message (you supply the matching [add-vuln] ref=LABEL line)")
     args = ap.parse_args()
 
     text = sys.stdin.read() if args.path == "-" else Path(args.path).read_text(errors="replace")
@@ -278,13 +287,13 @@ def main() -> int:
         return 1
 
     if args.writes_only:
-        print(_format_writes(creds, source_label))
+        print(_format_writes(creds, source_label, args.via_vuln_ref))
         return 0
 
     print(_format_summary(creds, source_label))
     if not args.no_writes:
         print()
-        print(_format_writes(creds, source_label))
+        print(_format_writes(creds, source_label, args.via_vuln_ref))
     return 0
 
 

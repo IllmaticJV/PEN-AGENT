@@ -46,9 +46,10 @@ operational rules, stall detection, activation protocol) is in CLAUDE.md
 > It auto-detects NTLM hashes, AES keys, cleartext, TGS/ASREP tickets,
 > and `user:pass` lines; emits a SUMMARY block (relay to lead) and
 > pre-formatted `[add-cred]` lines (batch to state-mgr). Deterministic
-> hash transcription — no LLM drift on 32-hex strings. Still send the
-> `[add-vuln]` for the technique yourself first and reference the
-> returned id as `via_vuln_id=<N>` when you forward the writes.
+> hash transcription — no LLM drift on 32-hex strings. Run it with
+> `--via-vuln-ref v1` so every `[add-cred]` carries `via_vuln_id=@v1`,
+> then send your `[add-vuln] ref=v1 ...` for the technique as the first
+> line of the SAME message — one batch, no write-then-wait round-trip.
 
 ## Communication
 
