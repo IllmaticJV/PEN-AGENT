@@ -3,6 +3,30 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-10 (recovery: model escalation before operator-manual; operator handoffs as scripts)
+
+### Changed
+
+- **"Things won't run" now escalates to a stronger model before the operator.**
+  New recovery escalation ladder in the orchestrator: (1) teammate self-retry →
+  (2) **model escalation** — re-run the SAME task on a fresh teammate instance
+  on Opus (`config.retry_model`, default `opus`) → (3) specialized recovery
+  (bypass / research) → (4) operator-manual (last resort). Tool failures and
+  model refusals / AUP flags are often model-specific, so a capable-model retry
+  clears them more often than operator hand-holding. (A genuinely missing binary
+  skips the model rung.) New optional `retry_model` config key; if a teammate is
+  already on Opus and the runtime's Agent `model` accepts version ids, pin a
+  different Opus build.
+- **Operator-run commands are now handed over as scripts, not pasted commands.**
+  When a handoff needs the operator to run something (clock sync, hosts-file
+  edit, hash export, C2 restart, any operator-only action), the lead writes a
+  ready-to-run `engagement/operator/<slug>.sh` (chmod +x, all values filled from
+  state) and presents a single `bash engagement/operator/<slug>.sh`. The script
+  is kept as the operator-side record. Clock-skew, hosts-file, and hash-export
+  handoffs updated to this convention.
+- `skills/ctf/SKILL.md`, `operator/templates/config.yaml` (`retry_model`),
+  `docs/running-an-engagement.md` (Recovery Paths ladder).
+
 ## 2026-10-10 (hook: lead router guard — hard-block the lead from driving targets)
 
 ### Added

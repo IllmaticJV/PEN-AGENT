@@ -1279,16 +1279,16 @@ Act the moment it's reported, don't wait for other decision logic items.
 **Hosts File Update:**
 ```
 1. Collect unresolvable hostnames + IPs
-2. Bash: cp operator/templates/hosts-update.sh temp_hosts-update.sh && chmod +x temp_hosts-update.sh
+2. Bash: mkdir -p engagement/operator && cp operator/templates/hosts-update.sh engagement/operator/hosts-update.sh && chmod +x engagement/operator/hosts-update.sh
 3. Replace TARGET_IP="FILL_IN" with the actual IP
 4. Replace entries array with literal strings (no variable refs):
    entries=(
        "10.10.10.5  DC01.corp.local corp.local"
        "10.10.10.5  web.corp.local"
    )
-5. Present: "Run: sudo bash ./temp_hosts-update.sh"
+5. Present: "Run: sudo bash engagement/operator/hosts-update.sh"
 6. Wait for confirmation. Block all tasks.
-7. Verify with getent, clean up script
+7. Verify with getent (keep the script for audit)
 ```
 
 **Usernames Found** (never auto-spray):
@@ -1309,7 +1309,9 @@ Act the moment it's reported, don't wait for other decision logic items.
    Method: Recover locally | Export for external rig | Skip
    (pre-select config.cracking.default_method if set)
 3. Recover locally → spawn recover teammate in background
-   Export → print hash file + hashcat command, wait for plaintext
+   Export → write the hashes + the hashcat command to
+     engagement/operator/crack-<id>.sh (chmod +x) and present
+     "Run: bash engagement/operator/crack-<id>.sh"; wait for plaintext
    Skip → continue other paths
 4. When plaintext arrives (from recover teammate OR operator):
    message state-mgr: [update-cred] id=<hash_id> cracked=true secret=<plaintext>
@@ -1318,16 +1320,53 @@ Act the moment it's reported, don't wait for other decision logic items.
 
 ### Recovery Procedures
 
+**Escalation ladder when something won't run.** A teammate that can't get a
+step to work — a tool erroring out, a technique failing after its own retries,
+or a model refusal / AUP flag (`engagement/evidence/aup-<name>.flag`) — is NOT
+an immediate operator problem. Work the ladder in order; only the last rung
+pulls in the operator:
+
+```
+1. Teammate self-retry — the teammate loads the skill's Troubleshooting section
+   and retries (its own 5-round stall detection bounds this).
+2. MODEL ESCALATION — do this BEFORE any operator-manual step. Re-run the SAME
+   task on a stronger model: spawn a FRESH instance of that teammate on Opus
+   (config.retry_model, default "opus") with a distinct name (suffix the retry,
+   e.g. net-enum-10-10-10-5-r2) and reassign the task. Model refusals and "it
+   just won't work" are often model-specific, so a capable-model retry clears
+   them far more often than operator hand-holding. (A genuinely MISSING binary
+   — "command not found" — won't be fixed by a model swap; skip to rung 3/4.)
+   Leave the blocked instance idle — you need not dismiss it, and no operator
+   approval is required just to respawn for a retry. If the teammate was
+   ALREADY on Opus, retry on a
+   different Opus build: set config.retry_model to that build id, usable only
+   if your runtime's Agent `model` accepts specific version ids (the alias
+   "opus" otherwise resolves to one build, so a second alias-opus retry gains
+   nothing — move to rung 3/4 instead).
+3. Specialized recovery — AV/EDR → bypass teammate; unknown vector → research
+   teammate (both below).
+4. OPERATOR-MANUAL (last resort) — only when 1–3 are exhausted, and always as a
+   script, never a pasted command (see "Operator-run commands").
+```
+
+**Operator-run commands — always a script, never a pasted command.** Whenever a
+handoff needs the operator to run something (clock sync, hosts-file edit, hash
+export to an external rig, restarting a C2 backend, any operator-only action),
+write a ready-to-run script to `engagement/operator/<slug>.sh`, `chmod +x` it,
+fill every value from state (real IPs/paths — no `FILL_IN` left), and present
+ONE line: `Run: bash engagement/operator/<slug>.sh`. Never make the operator
+assemble a long or multi-line command by hand. Keep the script (don't delete
+it) — it is the operator-side record of what was run.
+
 **Clock Skew** (AD teammate returns KRB_AP_ERR_SKEW):
 ```
-1. Bash: cp operator/templates/clock-sync.sh temp_clock-sync.sh
-2. Bash: sed -i 's/DC_IP="FILL_IN"/DC_IP="<actual DC IP from state>"/' temp_clock-sync.sh
-3. Bash: chmod +x temp_clock-sync.sh
-4. Present: "Run: sudo bash ./temp_clock-sync.sh &"
+1. Bash: mkdir -p engagement/operator && cp operator/templates/clock-sync.sh engagement/operator/clock-sync.sh
+2. Bash: sed -i 's/DC_IP="FILL_IN"/DC_IP="<actual DC IP from state>"/' engagement/operator/clock-sync.sh
+3. Bash: chmod +x engagement/operator/clock-sync.sh
+4. Present: "Run: sudo bash engagement/operator/clock-sync.sh &"
    (Script disables VBox time sync and loops ntpdate every 5s)
 5. Wait for confirmation
-6. Reassign same task to AD teammate
-7. Clean up: rm temp_clock-sync.sh
+6. Reassign same task to AD teammate (keep the script for audit)
 ```
 
 **AV Bypass** (teammate returns AV/EDR Blocked):
