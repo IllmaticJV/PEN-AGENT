@@ -113,6 +113,7 @@ deterministic, and don't burn context on raw tool output.
 | `tools/ingestors/shell_recon.py <output> --ip X` | After running `tools/payloads/shell_recon.{sh,ps1}` in one send_command |
 | `tools/payloads/shell_recon.sh` / `.ps1` | One-shot new-shell triage (whoami/id/os/ifaces/sudo/pivots) |
 | `tools/payloads/web_recon.sh <URL>` | One-shot web endpoint triage (status/title/cookies/robots/TLS/fingerprint) |
+| `tools/monitor/state_audit.py` | Lead's per-loop state-hygiene sweep — stale vulns, untested/unprovenanced creds, orphan access, retryable blocks, unactioned pivots → ready-to-relay `[update-*]` lines |
 | `tools/monitor/scribe_check.py` | Lead's per-loop scribe-gap check (replaces 3 MCP round-trips) |
 | `tools/monitor/objective_match.py` | Propose objective-tracker updates from state.db (never auto-applies) |
 | `tools/reporter/new_finding.py <vuln_id>` | Pre-populate `engagement/findings/<id>.json` skeleton from state.db |
