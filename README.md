@@ -28,7 +28,7 @@ your approval before assigning work — answer those as they come up.
 | `./install.sh` | Install skills + MCP servers + Docker images (symlinked; `--copy` to snapshot) |
 | `./uninstall.sh` | Remove everything install.sh set up |
 | `bash preflight.sh [--install] [--optional]` | Check/install attackbox tools (nmap, ffuf, hashcat, impacket, ...) |
-| `bash config.sh` | Pre-engagement wizard — scan type, proxy, spray tier, cracking, C2 backend |
+| `bash config.sh` | Pre-engagement wizard — autonomy tier, scan type, proxy, spray tier, cracking, C2 backend |
 | `./run.sh [--clean-start]` | Start shell-server + skill-router (+ Metasploit if installed) + the operator portal (tmux) + Claude Code. `--clean-start` first tears down stale services from a previous run (see below) |
 | `uv run --directory tools/reporter python export_report.py --strict` | Export findings → `engagement/findings.json` + `report.md` |
 | `bash operator/portal/start.sh` | Operator portal (scope · status · MSF logs) → `http://127.0.0.1:8099` |

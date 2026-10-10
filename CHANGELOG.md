@@ -3,6 +3,20 @@
 All notable changes to this project will be documented in this file. Format
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-10 (config.sh: ask the autonomy tier)
+
+### Fixed
+
+- **`config.sh` now asks for the autonomy tier (Q0) and writes `autonomy:`.**
+  The autonomy tiers shipped with a Q0 in the orchestrator's built-in wizard
+  and a template default, but `config.sh` — the pre-engagement wizard whose
+  whole job is to write `config.yaml` so the orchestrator *skips* its built-in
+  wizard — was never updated. An operator who pre-configured with `config.sh`
+  was therefore never asked about autonomy and silently got `manual` (a config
+  with no `autonomy` key). `config.sh` now prompts for it first
+  (manual/guided/autonomous, default manual) and writes the key with a doc
+  comment. README's `config.sh` description updated.
+
 ## 2026-10-10 (docs: refresh portal/hooks/autonomy drift)
 
 ### Changed
